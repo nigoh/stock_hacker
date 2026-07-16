@@ -3,5 +3,5 @@ pandas>=2.2
 numpy>=1.26
 yfinance>=0.2.40
 pytest>=8.0
-# 任意（チャート描画を行う場合のみ）
-# matplotlib>=3.8
+requests>=2.31
+matplotlib>=3.8
