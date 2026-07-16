@@ -45,6 +45,8 @@ r = requests.get(
 
 注意点として、J-Quantsの銘柄コードは**5桁**（従来の4桁コード＋予備桁）である。また `AdjustmentClose` 等の調整済み系列と未調整系列の両方が返るため、どちらを使っているか常に意識する必要がある。
 
+本リポジトリには J-Quants への接続モジュール `analysis/stocklib/jquants.py` が実装済みである。環境変数 `JQUANTS_REFRESH_TOKEN` にリフレッシュトークン（有効期限約1週間、https://jpx-jquants.com/ の無料プラン登録で発行可能）を設定すれば、`stocklib.jquants.fetch_daily_quotes()` が `fetch_prices()` と同じ OHLCV DataFrame 形式で日足四本値を返し、`fetch_listed_info()` で上場銘柄一覧（全銘柄スクリーニングのユニバース構築用）を取得できる。4桁コード → 5桁コードの正規化と、分割・併合調整済み系列（`AdjustmentClose` 等）の優先利用はモジュール側で自動処理される。外部依存は標準ライブラリ + pandas のみで、`requests` は不要。
+
 ## EDINET APIとTDnet：開示情報の一次ソース
 
 **EDINET**（金融庁）は法定開示書類の電子開示システムで、無料APIを持つ。有価証券報告書・四半期報告書・大量保有報告書（5%ルール報告）がXBRL形式で取得でき、`5%超の大量保有変動`をイベントドリブン戦略のシグナルに使う実務も多い。2024年以降はAPI利用にAPIキー登録が必要になった（2025年時点）。書類一覧は `documents.json` エンドポイントに日付を渡して取得し、`docID` を指定してZIP（XBRL）をダウンロードする流れになる。XBRLの解析には `Arelle` や `edinet-xbrl` 系のライブラリが使われるが、タクソノミの版差異に注意が必要である。

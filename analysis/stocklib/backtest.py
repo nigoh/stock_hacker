@@ -1,0 +1,250 @@
+"""ベクトル化バックテストモジュール。
+
+ポジション（0/1 の ``pd.Series``）を受け取り、翌日執行・取引コスト込みで
+戦略リターンを計算する。結果は :class:`BacktestResult` に集約する。
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, field
+
+import numpy as np
+import pandas as pd
+
+from stocklib import metrics
+from stocklib.indicators import rsi, sma
+
+
+@dataclass
+class BacktestResult:
+    """バックテスト結果の統計サマリー。
+
+    Attributes:
+        total_return: 期間トータルリターン（コスト控除後）。
+        ann_return: 年率リターン（幾何平均ベース）。
+        ann_vol: 年率ボラティリティ。
+        sharpe: シャープレシオ（無リスク金利 0 と仮定）。
+        max_drawdown: 戦略エクイティカーブの最大ドローダウン（負値）。
+        n_trades: 新規建て（エントリー）の回数。
+        win_rate: 1トレード（エントリー〜手仕舞い）単位の勝率。トレードが無い場合 NaN。
+        t_stat: 日次戦略リターン平均のt統計量 $t = \\bar r / (s/\\sqrt{n})$。
+        t_stat_interpretation: t統計量の日本語解釈。
+        n_days: 対象営業日数。
+        equity_curve: 戦略のエクイティカーブ（初期値 1.0）。
+    """
+
+    total_return: float
+    ann_return: float
+    ann_vol: float
+    sharpe: float
+    max_drawdown: float
+    n_trades: int
+    win_rate: float
+    t_stat: float
+    t_stat_interpretation: str
+    n_days: int
+    equity_curve: pd.Series = field(repr=False)
+
+
+def _interpret_t_stat(t: float, n: int) -> str:
+    if not np.isfinite(t):
+        return "計算不能（データ不足またはリターン変動なし）"
+    at = abs(t)
+    if at >= 2.58:
+        sig = "1%水準で統計的に有意"
+    elif at >= 1.96:
+        sig = "5%水準で統計的に有意"
+    elif at >= 1.645:
+        sig = "10%水準で弱く有意"
+    else:
+        sig = "統計的に有意ではない（偶然と区別できない）"
+    direction = "プラス" if t > 0 else "マイナス"
+    return f"t={t:.2f}（n={n}）: 平均日次リターンは{direction}方向で{sig}"
+
+
+def run_backtest(
+    prices: pd.Series,
+    positions: pd.Series,
+    cost_bps: float = 0.0,
+) -> BacktestResult:
+    """0/1 ポジション系列に基づくベクトル化バックテストを実行する。
+
+    シグナルは当日終値で判定し、**翌営業日から** ポジションに反映する
+    （``positions.shift(1)`` で執行、先読みバイアスを回避）。
+    取引コストはポジション変化量に対して ``cost_bps``（1bp = 0.01%）を片道課金する:
+
+    $$ r^{strat}_t = w_{t-1} \\, r_t - |w_{t-1} - w_{t-2}| \\cdot \\frac{cost}{10^4} $$
+
+    Args:
+        prices: 終値系列。
+        positions: 同じインデックスの 0/1 ポジション系列（1=買い持ち、0=ノーポジ）。
+        cost_bps: 片道取引コスト（ベーシスポイント）。
+
+    Returns:
+        :class:`BacktestResult`
+    """
+    prices = prices.dropna()
+    positions = positions.reindex(prices.index).fillna(0.0).astype(float)
+    if not positions.isin([0.0, 1.0]).all():
+        raise ValueError("positions は 0/1 の系列である必要があります")
+
+    ret = prices / prices.shift(1) - 1.0
+    exec_pos = positions.shift(1).fillna(0.0)  # 翌日執行
+    turnover = exec_pos.diff().abs().fillna(exec_pos.abs())
+    cost = turnover * (cost_bps / 1e4)
+    strat_ret = (exec_pos * ret).fillna(0.0) - cost
+
+    equity = (1.0 + strat_ret).cumprod()
+    total_return = float(equity.iloc[-1] - 1.0) if len(equity) else float("nan")
+
+    active = strat_ret[exec_pos > 0]
+    n = len(active)
+    if n >= 2 and float(active.std()) > 0:
+        t_stat = float(active.mean() / (active.std() / np.sqrt(n)))
+    else:
+        t_stat = float("nan")
+
+    entries = ((exec_pos == 1.0) & (exec_pos.shift(1).fillna(0.0) == 0.0))
+    n_trades = int(entries.sum())
+
+    # トレード単位の損益: 保有区間ごとに複利リターンを計算
+    trade_id = entries.cumsum()
+    held = exec_pos == 1.0
+    win_rate = float("nan")
+    if n_trades > 0:
+        trade_rets = (
+            (1.0 + strat_ret[held]).groupby(trade_id[held]).prod() - 1.0
+        )
+        win_rate = float((trade_rets > 0).mean())
+
+    return BacktestResult(
+        total_return=total_return,
+        ann_return=metrics.ann_return(strat_ret),
+        ann_vol=metrics.ann_vol(strat_ret),
+        sharpe=metrics.sharpe(strat_ret),
+        max_drawdown=metrics.max_drawdown(equity),
+        n_trades=n_trades,
+        win_rate=win_rate,
+        t_stat=t_stat,
+        t_stat_interpretation=_interpret_t_stat(t_stat, n),
+        n_days=len(prices),
+        equity_curve=equity,
+    )
+
+
+def ma_cross_signal(prices: pd.Series, fast: int = 25, slow: int = 75) -> pd.Series:
+    """移動平均クロス戦略のポジション系列（0/1）を生成する。
+
+    短期 SMA が長期 SMA を上回っている間はロング（1）、それ以外はノーポジ（0）:
+
+    $$ w_t = \\mathbb{1}\\{\\mathrm{SMA}_t(fast) > \\mathrm{SMA}_t(slow)\\} $$
+
+    執行タイミングのシフトは :func:`run_backtest` 側で行うため、ここでは当日判定の値を返す。
+    """
+    if fast >= slow:
+        raise ValueError(f"fast ({fast}) は slow ({slow}) より小さくしてください")
+    signal = (sma(prices, fast) > sma(prices, slow)).astype(float)
+    signal.name = f"ma_cross_{fast}_{slow}"
+    return signal
+
+
+def rsi_reversal_signal(
+    prices: pd.Series,
+    window: int = 14,
+    lower: float = 30.0,
+    upper: float = 50.0,
+) -> pd.Series:
+    """RSI 逆張り戦略のポジション系列（0/1）を生成する。
+
+    RSI が ``lower`` を下回ったら「売られすぎ」としてロング（1）でエントリーし、
+    RSI が ``upper`` を上回るまで保有を継続、上回ったら手仕舞い（0）とする:
+
+    $$ w_t = \\begin{cases}
+        1 & (\\mathrm{RSI}_t < \\text{lower}) \\\\
+        0 & (\\mathrm{RSI}_t > \\text{upper}) \\\\
+        w_{t-1} & (\\text{それ以外、直前状態を維持})
+    \\end{cases} $$
+
+    執行タイミングのシフトは :func:`run_backtest` 側で行うため、ここでは当日判定の値を返す。
+
+    Args:
+        prices: 終値系列。
+        window: RSI の計算期間（Wilder 平滑化）。
+        lower: エントリー閾値（この値未満で買い）。
+        upper: イグジット閾値（この値超で手仕舞い）。``lower < upper`` が必須。
+
+    Returns:
+        0/1 のポジション系列（``prices`` と同じインデックス）。
+    """
+    if window < 2:
+        raise ValueError(f"window ({window}) は 2 以上にしてください")
+    if not (0.0 < lower < upper < 100.0):
+        raise ValueError(
+            f"閾値は 0 < lower ({lower}) < upper ({upper}) < 100 を満たす必要があります"
+        )
+    r = rsi(prices, window)
+    raw = pd.Series(np.nan, index=prices.index, dtype=float)
+    raw[r < lower] = 1.0
+    raw[r > upper] = 0.0
+    signal = raw.ffill().fillna(0.0)
+    signal.name = f"rsi_reversal_{window}_{lower:g}_{upper:g}"
+    return signal
+
+
+def split_series(prices: pd.Series, ratio: float = 0.7) -> tuple[pd.Series, pd.Series]:
+    """価格系列を時間順にインサンプル（IS）/ アウトオブサンプル（OOS）へ分割する。
+
+    先頭から ``ratio`` の割合を IS、残りを OOS とする。時間順序を保った分割であり、
+    ランダム分割は行わない（系列相関を壊すため）。パラメータ調整は IS のみで行い、
+    OOS は最終確定した戦略に対して一度だけ評価するのが原則。
+
+    Args:
+        prices: 終値系列（NaN は除去される）。
+        ratio: IS の割合（0 < ratio < 1）。
+
+    Returns:
+        ``(is_prices, oos_prices)`` のタプル。
+
+    Raises:
+        ValueError: ratio が範囲外、または分割後のいずれかの区間が短すぎる場合。
+    """
+    prices = prices.dropna()
+    if not 0.0 < ratio < 1.0:
+        raise ValueError(f"ratio ({ratio}) は 0 と 1 の間で指定してください")
+    n_is = int(round(len(prices) * ratio))
+    if n_is < 2 or len(prices) - n_is < 2:
+        raise ValueError(
+            f"分割後の区間が短すぎます（全体 {len(prices)} 営業日、IS {n_is} 営業日）"
+        )
+    return prices.iloc[:n_is], prices.iloc[n_is:]
+
+
+def parameter_sweep(
+    prices: pd.Series,
+    signal_fn: Callable[..., pd.Series],
+    param_grid: Sequence[Mapping[str, float | int]],
+    cost_bps: float = 0.0,
+) -> list[tuple[dict[str, float | int], BacktestResult]]:
+    """パラメータグリッドの各組み合わせでバックテストを実行する（頑健性確認用）。
+
+    最良パラメータの近傍でも成績が維持されるかを確認するためのスイープ。
+    返り値の件数が多重検定の試行回数 $N$ に相当する——$N$ 個の無価値な戦略でも
+    少なくとも1つが5%有意になる確率は $1-(1-0.05)^N$ に達するため、
+    最良の組み合わせの成績を額面どおり解釈してはならない。
+
+    Args:
+        prices: 終値系列。
+        signal_fn: パラメータをキーワード引数に取りポジション系列を返す関数
+            （例: :func:`ma_cross_signal`、:func:`rsi_reversal_signal`）。
+        param_grid: パラメータ辞書のリスト（例: ``[{"fast": 20, "slow": 75}, ...]``）。
+        cost_bps: 片道取引コスト（ベーシスポイント）。
+
+    Returns:
+        ``(パラメータ辞書, BacktestResult)`` のリスト（グリッドと同順）。
+    """
+    results: list[tuple[dict[str, float | int], BacktestResult]] = []
+    for params in param_grid:
+        signal = signal_fn(prices, **params)
+        results.append((dict(params), run_backtest(prices, signal, cost_bps=cost_bps)))
+    return results

@@ -1,0 +1,52 @@
+# stock_hacker CI — pytest と CLI 合成データスモークを常時検証する
+# yfinance の実ネットワーク呼び出しは行わず、全て --synthetic（シード固定の合成データ）で動かす。
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: pytest と CLI スモーク (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - name: リポジトリを取得
+        uses: actions/checkout@v4
+
+      - name: Python ${{ matrix.python-version }} をセットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: 依存パッケージをインストール
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: pytest を実行（テスト一式）
+        run: python3 -m pytest analysis/tests -q
+
+      # 索引のリンク切れ・未索引文書・「全N文書」カウントの狂いを CI で検出する。
+      # hook（Write|Edit 時の単一ファイル検査）が拾えない削除・改名もここで捕まえる。
+      - name: ナレッジ索引の整合チェック
+        run: python3 scripts/check_knowledge_index.py --all
+
+      # 4本のCLIを合成データ（--synthetic）でスモーク実行する。
+      # ネットワーク非依存で成功することが環境の生命線。
+      - name: CLI スモーク — analyze_stock.py
+        run: python3 analysis/analyze_stock.py 7203 --synthetic
+
+      - name: CLI スモーク — screen.py
+        run: python3 analysis/screen.py --synthetic
+
+      - name: CLI スモーク — compare.py
+        run: python3 analysis/compare.py 7203 6758 --synthetic
+
+      - name: CLI スモーク — run_backtest.py
+        run: python3 analysis/run_backtest.py --strategy ma_cross --code 7203 --synthetic
