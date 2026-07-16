@@ -68,8 +68,18 @@ claude                            # Claude Code を起動
 | `/portfolio` | 保有ポートフォリオの損益・セクター配分・β・VaR・集中度レビュー（保有CSVは git 管理外） |
 | `/brief` | 市況+ウォッチリストのデイリーブリーフ（RSI・クロス・出来高急増などのシグナル検出） |
 | `/earnings 7203` | 業績推移・決算の深掘り（CAGR・マージン・ROE推移、EDINET 書類の確認導線） |
+| `/journal 7203 決算後の上方修正期待` | 分析仮説をリサーチジャーナルに記録（記録時点の終値スナップショット付き） |
+| `/journal-review` | 検証期日が来た仮説の答え合わせ（hit/miss/mixed の機械判定と振り返り） |
 
 スラッシュコマンドを使わなくても、`python3 analysis/analyze_stock.py 7203` のように CLI を直接実行できる（詳細は `CLAUDE.md` の「分析環境の使い方」、各 CLI の `--help`）。
+
+### リサーチジャーナル — 分析を「やりっぱなし」にしない
+
+分析で得た仮説は `journal/` に記録し、後から機械的に検証できる（`analysis/research_journal.py`）。記録時に対象銘柄とベンチマーク（^N225）の終値を自動スナップショットするため後知恵での書き換えが効かず、検証はベンチマーク対比の超過リターンで判定する（地合いで上がっただけを的中扱いしない）。反証条件の記入を必須とすることで確証バイアスへの対策も兼ねる。書式・判定基準は [`journal/README.md`](journal/README.md) を参照。
+
+### 自動実行
+
+デイリーブリーフ（`/brief` / `analysis/daily_brief.py`）はローカル cron や Claude Code の Routine での定期実行に対応している（stdout 最終行の `RESULT` 行と exit code による機械可読な契約、シグナル検出時のみ通知する運用指針）。セットアップ手順は [`docs/automation.md`](docs/automation.md) を参照。
 
 ## データソースと制約（必読）
 
@@ -100,8 +110,10 @@ set -a && source .env && set +a
 | ディレクトリ | 内容 |
 |---|---|
 | `knowledge/` | 日本株ナレッジベース（73文書）。市場制度・歴史・数学/クオンツ・ファンダ/テクニカル分析・マクロ・デリバティブ・規制税制・データソース・投資戦略。入口は [`knowledge/00-index.md`](knowledge/00-index.md)。索引経由のナビゲーションを前提とした設計で、索引の整合は hooks が自動チェックし、重複統合・陳腐化検出は knowledge-curator エージェントが担う |
-| `analysis/` | 分析コード（Python 3.11+）。共通ライブラリ `stocklib`、4本の CLI、ユニバース定義、pytest テスト |
-| `.claude/` | Claude Code 設定。スキル9種・サブエージェント4種・コマンド11種・hooks |
+| `analysis/` | 分析コード（Python 3.11+）。共通ライブラリ `stocklib`、8本の CLI、ユニバース定義、pytest テスト |
+| `journal/` | リサーチジャーナル（分析仮説の記録と事後検証。git 管理対象。入口は [`journal/README.md`](journal/README.md)） |
+| `docs/` | 運用ガイド（[`docs/automation.md`](docs/automation.md): デイリーブリーフの自動実行） |
+| `.claude/` | Claude Code 設定。スキル11種・サブエージェント4種・コマンド13種・hooks |
 | `scripts/` | hooks 用スクリプト（環境セットアップ、ナレッジ索引の整合チェック） |
 | `reports/` | 生成レポートの出力先（git 管理外） |
 | `data/` | 価格データのローカルキャッシュ（git 管理外） |

@@ -38,7 +38,40 @@ if ! python3 -c "import sys; sys.path.insert(0, 'analysis'); import stocklib" >/
   echo "警告: analysis/stocklib のインポートに失敗しました。依存パッケージを確認してください。" >&2
 fi
 
-# --- 4. セッション文脈の出力（stdout はセッション開始時の文脈に入る） ------
+# --- 4. リサーチジャーナルの期日サマリー -----------------------------------
+# `research_journal.py due` 相当の集計。due はネットワーク（価格取得）を行わない
+# オフライン安全な処理なので SessionStart で実行してよい。
+# python3 / stocklib が使えない場合は黙ってスキップし、セッションは止めない（exit 0 維持）。
+JOURNAL_SECTION=""
+if [ -d journal ] && find journal -mindepth 2 -name '*.md' -print -quit 2>/dev/null | grep -q .; then
+  JOURNAL_COUNTS=$(python3 - <<'PY' 2>/dev/null
+import sys
+
+sys.path.insert(0, "analysis")
+from stocklib import journal
+
+entries = journal.iter_entries()
+due = journal.due_entries(entries)
+n_open = sum(1 for e in entries if e.status == "open")
+print(f"{len(due)}\t{n_open}\t{len(entries)}")
+PY
+)
+  if [ -n "$JOURNAL_COUNTS" ]; then
+    IFS=$'	' read -r N_DUE N_OPEN N_ALL <<<"$JOURNAL_COUNTS"
+    JOURNAL_SECTION="
+## リサーチジャーナル（journal/）
+
+- 検証期日到来 ${N_DUE} 件 / open ${N_OPEN} 件（全 ${N_ALL} 件）。詳細: python3 analysis/research_journal.py due"
+    if [ "${N_DUE:-0}" -gt 0 ] 2>/dev/null; then
+      JOURNAL_SECTION="${JOURNAL_SECTION}
+- 検証期日を迎えた仮説があります。/journal-review で検証と振り返りを行ってください（仮説の記録しっぱなし防止）。"
+    fi
+    JOURNAL_SECTION="${JOURNAL_SECTION}
+"
+  fi
+fi
+
+# --- 5. セッション文脈の出力（stdout はセッション開始時の文脈に入る） ------
 KNOWLEDGE_COUNT=$(find knowledge -name '*.md' ! -name '00-index.md' 2>/dev/null | wc -l | tr -d ' ')
 
 cat <<EOF
@@ -51,7 +84,7 @@ cat <<EOF
 
 - 依存パッケージ (pandas/numpy/yfinance/pytest): $([ "$DEPS_OK" = 1 ] && echo "OK" || echo "未整備（オフライン時は --synthetic で動作可）")
 - stocklib インポート: $([ "$LIB_OK" = 1 ] && echo "OK" || echo "失敗")
-
+${JOURNAL_SECTION}
 ## 分析 CLI（リポジトリルートから実行、ネットワーク不通時は --synthetic を付ける）
 
 - 個別分析:       python3 analysis/analyze_stock.py 7203 [--period 2y] [--benchmark ^N225] [--synthetic]
@@ -64,7 +97,7 @@ cat <<EOF
 
 ## スキル / コマンド
 
-analyze-stock（/analyze）・screen-market（/screen）・compare-stocks（/compare）・backtest-strategy（/backtest）・market-review（/market）・knowledge-doc（/learn）、ナレッジ検索は /kb。
+analyze-stock（/analyze）・screen-market（/screen）・compare-stocks（/compare）・backtest-strategy（/backtest）・market-review（/market）・portfolio-review（/portfolio）・daily-brief（/brief）・earnings-analysis（/earnings）・knowledge-doc（/learn）・research-journal（/journal）・journal-review（/journal-review）、ナレッジ検索は /kb、レポートの敵対的レビュー（外部共有前の品質ゲート）は /review-report。
 
 注意: 本環境の出力は投資助言ではなく分析支援です。レポートには必ず免責の一文を入れてください。
 EOF

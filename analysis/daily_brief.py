@@ -2,13 +2,29 @@
 """ウォッチリストのデイリーブリーフ CLI。
 
 使い方（リポジトリルートから）:
-    python3 analysis/daily_brief.py [--watchlist data/watchlist.csv] [--period 1y] [--synthetic]
+    python3 analysis/daily_brief.py [--watchlist data/watchlist.csv] [--period 1y]
+                                    [--synthetic] [--max-alerts N]
 
 市況（^N225・1306.T・USDJPY=X・^GSPC の前日比・5日・1ヶ月リターン）と、
 ウォッチリスト各銘柄の現在値・前日比・検出シグナル（stocklib.signals）をまとめて
 stdout に出力し、reports/brief-<日付>.md にも保存する。
 ウォッチリスト CSV（列: code,note）が無い場合は
 analysis/templates/watchlist-example.csv を案内して市況のみで続行する。
+
+自動実行（Routine / cron）向けの機械可読な契約:
+
+- stdout の最終行に
+  ``RESULT signals=<検出シグナル総数> watch=<取得成功数>/<ウォッチリスト総数> data=<real|synthetic|unavailable>``
+  を出力する（signals は --max-alerts による表示絞り込み前の総数）。
+- ``watch`` はウォッチリスト銘柄の取得成功数/総数。``signals=0`` が
+  「全銘柄を監視して変化なし」なのか「銘柄を取得できず監視に穴が開いた」のかを
+  区別するためのフィールド。ウォッチリスト未設定（ファイルなし）は ``watch=0/0``、
+  部分失敗（成功数 < 総数）でも市況か銘柄のどれかが取得できていれば
+  ``data=real`` のまま継続する（失敗銘柄はレポートの「取得失敗」節に列挙）。
+- 実データ取得が全滅した場合（--synthetic なし）は exit code 2 /
+  ``data=unavailable``（このとき ``watch=0/<総数>``）。部分的にでも取得できれば
+  取得分で継続し exit 0 / ``data=real``。
+- その他のエラー（CSV 不正等）は従来どおり exit 1（RESULT 行なし）。
 """
 
 from __future__ import annotations
@@ -35,6 +51,30 @@ MARKET_TICKERS: tuple[tuple[str, str], ...] = (
 )
 
 _DIRECTION_LABEL: dict[str, str] = {"bullish": "強気", "bearish": "弱気", "neutral": "中立"}
+
+# --max-alerts の絞り込みで用いるシグナル種別の優先度（小さいほど優先）。
+# 急変動・出来高急増は「その日に何かが起きた」ことを示すため、
+# 継続的な状態を示す 52週高安・RSI より優先する。
+_ALERT_PRIORITY: dict[str, int] = {
+    "price_move": 0,
+    "volume": 1,
+    "ma_cross": 2,
+    "week52": 3,
+    "rsi": 4,
+}
+_ALERT_PRIORITY_LABEL: str = "急変動 > 出来高急増 > 移動平均クロス > 52週高安 > RSI"
+
+
+class BriefUnavailableError(DataFetchError):
+    """実データが1件も取得できなかったことを示すエラー。
+
+    ``watch_total`` にウォッチリスト総数を保持し、呼び出し側が
+    ``RESULT ... watch=0/<総数> data=unavailable`` を組み立てられるようにする。
+    """
+
+    def __init__(self, message: str, watch_total: int) -> None:
+        super().__init__(message)
+        self.watch_total = watch_total
 
 
 def _lagged_return(close: pd.Series, lag: int) -> float:
@@ -88,14 +128,17 @@ def load_watchlist(path: Path) -> pd.DataFrame:
 
 
 def build_watchlist_section(
-    watchlist: pd.DataFrame, period: str, synthetic: bool
-) -> tuple[list[str], list[str], int]:
-    """ウォッチリストセクションの行リスト・取得失敗リスト・取得成功数を返す。
+    watchlist: pd.DataFrame, period: str, synthetic: bool, max_alerts: int | None = None
+) -> tuple[list[str], list[str], int, int]:
+    """ウォッチリストセクションの行リスト・取得失敗リスト・取得成功数・検出シグナル総数を返す。
 
     シグナルの無い銘柄は1行、シグナルのある銘柄は詳細をサブ項目で列挙する。
+    ``max_alerts`` を指定し検出シグナル総数がそれを超えた場合は、種別優先度
+    （:data:`_ALERT_PRIORITY`）の上位 ``max_alerts`` 件のみ詳細を表示する
+    （各銘柄の見出しの件数と戻り値の総数は絞り込み前の値のまま）。
     """
-    lines: list[str] = ["## ウォッチリスト", ""]
     errors: list[str] = []
+    entries: list[tuple[str, str, list[signals.Signal]]] = []
     n_ok = 0
     for rec in watchlist.to_dict("records"):
         code = str(rec["code"]).strip()
@@ -112,14 +155,42 @@ def build_watchlist_section(
             f"終値 {report.fmt_num(float(close.iloc[-1]))}、"
             f"前日比 {report.fmt_pct(_lagged_return(close, 1))}"
         )
-        detected = signals.detect_signals(df)
+        entries.append((head, summary, signals.detect_signals(df)))
+
+    n_signals = sum(len(detected) for _, _, detected in entries)
+    shown: set[tuple[int, int]] | None = None
+    if max_alerts is not None and n_signals > max_alerts:
+        ranked = sorted(
+            (
+                (i, j, sig)
+                for i, (_, _, detected) in enumerate(entries)
+                for j, sig in enumerate(detected)
+            ),
+            key=lambda item: (_ALERT_PRIORITY.get(item[2].kind, 99), item[0], item[1]),
+        )
+        shown = {(i, j) for i, j, _ in ranked[:max_alerts]}
+
+    lines: list[str] = ["## ウォッチリスト", ""]
+    for i, (head, summary, detected) in enumerate(entries):
         if not detected:
             lines.append(f"- {head}: {summary} — シグナルなし")
             continue
         lines.append(f"- {head}: {summary} — シグナル {len(detected)} 件")
-        for sig in detected:
+        n_omitted = 0
+        for j, sig in enumerate(detected):
+            if shown is not None and (i, j) not in shown:
+                n_omitted += 1
+                continue
             lines.append(f"  - [{_DIRECTION_LABEL.get(sig.direction, sig.direction)}] {sig.detail}")
+        if n_omitted:
+            lines.append(f"  - （他 {n_omitted} 件は --max-alerts により表示省略）")
     lines.append("")
+    if shown is not None:
+        lines.append(
+            f"注: --max-alerts {max_alerts} 指定のため、検出シグナル {n_signals} 件のうち"
+            f"優先度上位 {max_alerts} 件のみ詳細表示（優先度: {_ALERT_PRIORITY_LABEL}）。"
+        )
+        lines.append("")
     lines.append(
         "シグナル定義: RSI(14) 30以下/70以上、25日/75日線クロス（5営業日以内）、"
         "出来高が20日平均の2倍超、52週高値/安値から3%以内、前日比±3%超。"
@@ -127,11 +198,22 @@ def build_watchlist_section(
         "方向ラベルは教科書的な解釈であり、将来の騰落の予測ではない。"
     )
     lines.append("")
-    return lines, errors, n_ok
+    return lines, errors, n_ok, n_signals
 
 
-def build_report(watchlist_path: Path, period: str, synthetic: bool) -> tuple[str, list[str]]:
-    """ブリーフ本文（Markdown）と会話向けの通知メッセージのリストを構築する。"""
+def build_report(
+    watchlist_path: Path, period: str, synthetic: bool, max_alerts: int | None = None
+) -> tuple[str, list[str], int, int, int]:
+    """ブリーフ本文（Markdown）・会話向け通知メッセージ・検出シグナル総数・
+    ウォッチリスト取得成功数・ウォッチリスト総数を構築する。
+
+    ウォッチリスト未設定（ファイルなし）のとき成功数・総数はともに 0。
+
+    Raises:
+        BriefUnavailableError: 市況・ウォッチリストとも1件もデータを取得できなかった場合
+            （呼び出し側は ``data=unavailable`` / exit code 2 として扱う。
+            ``watch_total`` 属性にウォッチリスト総数を保持する）。
+    """
     notices: list[str] = []
     lines: list[str] = [report.report_header(f"デイリーブリーフ（{dt.date.today().isoformat()}）")]
     lines.append(f"- 期間データ: {period}（出所: {'合成データ' if synthetic else 'yfinance'}）")
@@ -145,9 +227,14 @@ def build_report(watchlist_path: Path, period: str, synthetic: bool) -> tuple[st
     lines.extend(market_lines)
 
     n_watch = 0
+    n_watch_total = 0
+    n_signals = 0
     if watchlist_path.exists():
         watchlist = load_watchlist(watchlist_path)
-        watch_lines, watch_errors, n_watch = build_watchlist_section(watchlist, period, synthetic)
+        n_watch_total = len(watchlist)
+        watch_lines, watch_errors, n_watch, n_signals = build_watchlist_section(
+            watchlist, period, synthetic, max_alerts
+        )
         lines.extend(watch_lines)
         errors.extend(watch_errors)
     else:
@@ -165,11 +252,18 @@ def build_report(watchlist_path: Path, period: str, synthetic: bool) -> tuple[st
         lines.append("")
 
     if n_market + n_watch == 0:
-        raise DataFetchError(
-            "市況・ウォッチリストとも1件もデータを取得できませんでした"
-            "（ネットワークを確認するか、--synthetic を付けて再実行してください）"
+        raise BriefUnavailableError(
+            "市況・ウォッチリストとも実データを1件も取得できませんでした。環境別の対処:\n"
+            "  (a) ローカル環境: ネットワーク接続と Yahoo Finance（yfinance）への到達性を"
+            "確認してください。\n"
+            "  (b) Claude Code リモート環境: プロキシが Yahoo Finance を遮断している可能性が"
+            "あります。環境のネットワークポリシーで許可するか、ローカル環境で実行してください"
+            "（J-Quants Free は12週間遅延のため当日シグナル検出の代替にはなりません）。\n"
+            "  手法デモが目的の場合のみ --synthetic で動作しますが、その出力は実際の市況・"
+            "株価ではありません。",
+            watch_total=n_watch_total,
         )
-    return "\n".join(lines), notices
+    return "\n".join(lines), notices, n_signals, n_watch, n_watch_total
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -181,11 +275,25 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--period", default="1y",
                         help="取得期間（既定: 1y。52週高安・75日線の判定には 1y 以上を推奨）")
     parser.add_argument("--synthetic", action="store_true", help="合成データで実行（ネットワーク不要）")
+    parser.add_argument("--max-alerts", type=int, default=None, metavar="N",
+                        help="シグナル詳細の表示を種別優先度の上位 N 件に絞る"
+                             f"（優先度: {_ALERT_PRIORITY_LABEL}。既定: 制限なし）")
     args = parser.parse_args(argv)
+    if args.max_alerts is not None and args.max_alerts < 1:
+        parser.error("--max-alerts には 1 以上の整数を指定してください")
 
     try:
-        content, notices = build_report(args.watchlist, args.period, args.synthetic)
-    except (DataFetchError, ValueError, OSError) as exc:
+        content, notices, n_signals, n_watch, n_watch_total = build_report(
+            args.watchlist, args.period, args.synthetic, args.max_alerts
+        )
+    except DataFetchError as exc:
+        # 実データ全滅（--synthetic では発生しない）。自動実行側が判別できるよう
+        # RESULT 行に data=unavailable を出し、exit code 2 で区別する。
+        print(f"エラー: {exc}", file=sys.stderr)
+        watch_total = exc.watch_total if isinstance(exc, BriefUnavailableError) else 0
+        print(f"RESULT signals=0 watch=0/{watch_total} data=unavailable")
+        return 2
+    except (ValueError, OSError) as exc:
         print(f"エラー: {exc}", file=sys.stderr)
         return 1
 
@@ -195,6 +303,10 @@ def main(argv: list[str] | None = None) -> int:
     filename = f"brief-{dt.date.today().isoformat()}.md"
     path = report.save_report(content, filename)
     print(f"レポート: {path}")
+    print(
+        f"RESULT signals={n_signals} watch={n_watch}/{n_watch_total} "
+        f"data={'synthetic' if args.synthetic else 'real'}"
+    )
     return 0
 
 

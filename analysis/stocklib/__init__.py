@@ -19,6 +19,11 @@ import コストを抑えるため同様に遅延 import とし、matplotlib 未
 数値は yfinance を正とする）と ``stocklib.edinet``（EDINET API v2 クライアント。
 環境変数 ``EDINET_API_KEY`` が必要、有価証券報告書等の原文取得・確認用）がある。
 いずれも同様に遅延 import で解決する。
+
+サブモジュール ``stocklib.journal`` にリサーチジャーナル（分析仮説の記録と
+事後検証。``journal/`` 配下の frontmatter 付き Markdown を読み書きし、
+記録時スナップショットとベンチマーク調整後リターンで hit/miss/mixed を判定）が
+ある。CLI は ``analysis/research_journal.py``。同様に遅延 import で解決する。
 """
 
 from importlib import import_module
@@ -64,7 +69,7 @@ def __getattr__(name: str) -> ModuleType:
     ``import stocklib; stocklib.jquants.fetch_listed_info()`` のような属性アクセスを、
     パッケージ import 時のコスト・依存を増やさずに成立させる。
     """
-    if name in ("jquants", "charts", "edinet", "fundamentals"):
+    if name in ("jquants", "charts", "edinet", "fundamentals", "journal"):
         return import_module(f"stocklib.{name}")
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
@@ -74,6 +79,7 @@ __all__ = [
     "charts",
     "edinet",
     "fundamentals",
+    "journal",
     "DataFetchError",
     "fetch_prices",
     "fetch_info",
