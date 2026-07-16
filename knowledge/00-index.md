@@ -89,7 +89,7 @@
 
 - [オルタナティブデータとテキスト分析](data-sources/alternative-data-and-text-analysis.md) — TDnet・有報・決算説明会のテキストマイニング（日本語NLPの課題、極性辞書、LLM活用）から、ニュース・SNSセンチメント、POS・衛星画像・求人・アプリDL等の消費データ、小売・外食の月次売上モニタリングまで、日本株のオルタナティブデータを入手経路と実証研究の留意点を含めて体系化する。
 - [証券会社の発注APIと自動売買システム構築](data-sources/brokerage-apis-and-automated-trading.md) — 個人が日本株の自動売買に使える発注経路（auカブコムkabuステーションAPI、立花証券e支店API、IB証券TWS API等、2025年時点）の機能・制約を比較し、実装アーキテクチャ（プリトレードチェック・約定管理・冷却装置）を解説。見せ玉等の相場操縦リスク回避と、レイテンシ格差を踏まえた個人が戦える土俵の見極めも扱う。
-- [日本株データソースとAPI](data-sources/data-apis-and-tools.md) — J-Quants API・EDINET・TDnet・日銀/e-Stat・yfinance・株探/IRバンク等の日本株データソースを無料/有料の使い分けとともに整理。Pythonでの取得例、5桁銘柄コードや調整後株価（分割調整と配当調整の違い）、生存者バイアスなど実務上の落とし穴を解説する。
+- [日本株データソースとAPI](data-sources/data-apis-and-tools.md) — J-Quants API・EDINET・TDnet・日銀/e-Stat・yfinance・株探/IRバンク等の日本株データソースを無料/有料の使い分けとともに整理。Pythonでの取得例、5桁銘柄コードや調整後株価（分割調整と配当調整の違い）、生存者バイアスなど実務上の落とし穴を解説する。本リポジトリ実装の接続モジュール（`stocklib/jquants.py`・`stocklib/edinet.py`、EDINETは要APIキー）の使い方も記載。
 
 ## 投資戦略（`strategies/`）
 
