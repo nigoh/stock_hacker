@@ -1,0 +1,16 @@
+# データキャッシュ（生成物）
+data/cache/
+
+# レポート出力（生成物。.gitkeep のみコミット）
+reports/*
+!reports/.gitkeep
+
+# Claude Code ランタイム生成物
+.claude/scheduled_tasks.lock
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/

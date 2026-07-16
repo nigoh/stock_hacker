@@ -1,0 +1,7 @@
+# stock_hacker 分析基盤の依存パッケージ（Python 3.11+）
+pandas>=2.2
+numpy>=1.26
+yfinance>=0.2.40
+pytest>=8.0
+# 任意（チャート描画を行う場合のみ）
+# matplotlib>=3.8
