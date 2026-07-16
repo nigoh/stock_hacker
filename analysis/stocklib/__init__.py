@@ -10,6 +10,15 @@
 本パッケージの必須依存（pandas/numpy/yfinance）を増やさないよう、ここでは
 eager import せず、``stocklib.jquants`` への属性アクセス時に遅延 import する。
 詳細は ``knowledge/data-sources/data-apis-and-tools.md`` の J-Quants 節を参照。
+
+サブモジュール ``stocklib.charts`` にチャート画像生成（matplotlib / Agg）がある。
+import コストを抑えるため同様に遅延 import とし、matplotlib 未導入環境でも
+``charts.charts_available()`` で利用可否を判定できる。
+
+決算・開示分析にはサブモジュール ``stocklib.fundamentals``（業績時系列と成長分析。
+数値は yfinance を正とする）と ``stocklib.edinet``（EDINET API v2 クライアント。
+環境変数 ``EDINET_API_KEY`` が必要、有価証券報告書等の原文取得・確認用）がある。
+いずれも同様に遅延 import で解決する。
 """
 
 from importlib import import_module
@@ -36,23 +45,35 @@ from stocklib.metrics import (
 )
 from stocklib.backtest import BacktestResult, ma_cross_signal, run_backtest
 from stocklib.report import DISCLAIMER, markdown_table, save_report
+from stocklib.signals import Signal, detect_signals
+from stocklib.portfolio import (
+    PortfolioReview,
+    PortfolioValidationError,
+    Position,
+    PositionValuation,
+    evaluate_portfolio,
+    load_portfolio,
+)
 
 __version__ = "0.1.0"
 
 
 def __getattr__(name: str) -> ModuleType:
-    """``stocklib.jquants`` を遅延 import で解決する（PEP 562）。
+    """``stocklib.jquants`` / ``stocklib.charts`` を遅延 import で解決する（PEP 562）。
 
     ``import stocklib; stocklib.jquants.fetch_listed_info()`` のような属性アクセスを、
     パッケージ import 時のコスト・依存を増やさずに成立させる。
     """
-    if name == "jquants":
-        return import_module("stocklib.jquants")
+    if name in ("jquants", "charts", "edinet", "fundamentals"):
+        return import_module(f"stocklib.{name}")
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 __all__ = [
     "jquants",
+    "charts",
+    "edinet",
+    "fundamentals",
     "DataFetchError",
     "fetch_prices",
     "fetch_info",
@@ -77,6 +98,14 @@ __all__ = [
     "BacktestResult",
     "ma_cross_signal",
     "run_backtest",
+    "Signal",
+    "detect_signals",
+    "Position",
+    "PositionValuation",
+    "PortfolioReview",
+    "PortfolioValidationError",
+    "load_portfolio",
+    "evaluate_portfolio",
     "DISCLAIMER",
     "markdown_table",
     "save_report",

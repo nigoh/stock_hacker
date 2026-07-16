@@ -12,9 +12,9 @@ stock_hacker/
 ├── requirements.txt       # 依存パッケージ（pandas/numpy/yfinance/pytest）
 ├── .claude/               # Claude Code 設定
 │   ├── settings.json      # 権限・hooks（SessionStart / PostToolUse）
-│   ├── skills/            # スキル6種（analyze-stock 等、下表参照）
+│   ├── skills/            # スキル9種（analyze-stock 等、下表参照）
 │   ├── agents/            # サブエージェント4種（stock-analyst 等）
-│   └── commands/          # スラッシュコマンド8種（/analyze、/review-report 等）
+│   └── commands/          # スラッシュコマンド11種（/analyze、/portfolio 等）
 ├── knowledge/             # 日本株ナレッジベース（Markdown、73文書）
 │   ├── 00-index.md        # 全文書の索引（必ず最新に保つ）
 │   ├── market-structure/  # 市場制度・取引所・売買の仕組み
@@ -28,12 +28,16 @@ stock_hacker/
 │   ├── data-sources/      # データソース・API・ツール
 │   └── strategies/        # 投資戦略・ファクター・イベントドリブン
 ├── analysis/              # 分析コード（Python 3.11+）
-│   ├── stocklib/          # 共通ライブラリ（data/indicators/metrics/backtest/report）
+│   ├── stocklib/          # 共通ライブラリ（data/indicators/metrics/backtest/report/portfolio/signals/charts/edinet/fundamentals）
 │   ├── analyze_stock.py   # CLI: 個別銘柄の総合分析
 │   ├── screen.py          # CLI: 銘柄スクリーニング
 │   ├── compare.py         # CLI: 複数銘柄の相対比較・相関
 │   ├── run_backtest.py    # CLI: 戦略バックテスト
+│   ├── portfolio_review.py # CLI: 保有ポートフォリオの評価・リスクレビュー
+│   ├── daily_brief.py     # CLI: 市況+ウォッチリストのデイリーブリーフ
+│   ├── fundamentals_report.py # CLI: 業績推移・決算分析
 │   ├── universe/          # ユニバース定義（liquid30.csv: code,name,sector、2025年時点）
+│   ├── templates/         # portfolio/watchlist の CSV テンプレート
 │   └── tests/             # pytest（python3 -m pytest analysis/tests）
 ├── scripts/               # hooks 用スクリプト
 │   ├── session_start.sh   # SessionStart: 依存導入・ディレクトリ作成・環境文脈の注入
@@ -52,6 +56,9 @@ stock_hacker/
 | 銘柄スクリーニング | `python3 analysis/screen.py --universe analysis/universe/liquid30.csv --rsi-below 30 --price-above-sma 200` | 結果テーブルを stdout、`reports/screen-<日付>.md` |
 | 複数銘柄の比較 | `python3 analysis/compare.py 7203 6758 9984 --period 1y` | 相対パフォーマンス・相関のレポート（`reports/compare-...`） |
 | 戦略バックテスト | `python3 analysis/run_backtest.py --strategy ma_cross --code 7203 --fast 25 --slow 75 --cost-bps 10` | バックテスト統計レポート（`reports/backtest-...`） |
+| ポートフォリオ評価 | `python3 analysis/portfolio_review.py --file data/portfolio.csv --period 1y` | 損益・セクター配分・加重β・VaR・HHI のレポート（`reports/portfolio-...`） |
+| デイリーブリーフ | `python3 analysis/daily_brief.py --watchlist data/watchlist.csv` | 市況サマリー+ウォッチ銘柄シグナル（`reports/brief-...`） |
+| 業績・決算分析 | `python3 analysis/fundamentals_report.py 7203 --years 5` | 売上/利益推移・CAGR・マージンのレポート（`reports/fundamentals-...`） |
 
 - 上表のオプションは代表例。全オプションは各 CLI の `--help` で確認できる。
 - 銘柄コードは4桁数字で渡す（内部で yfinance の `7203.T` に正規化）。`^N225`・`USDJPY=X` などの指数・為替ティッカーはそのまま渡せる。
@@ -59,6 +66,9 @@ stock_hacker/
 - 既定のデータソースは yfinance（非公式 API）。日本株では分割・配当調整の不備が起きうるため、レポートで異常な騰落やギャップを見たらまずデータ品質を疑う。制約の詳細は `knowledge/data-sources/data-apis-and-tools.md` の「yfinance：手軽さと引き換えのリスク」「調整後株価とコーポレートアクションの注意点」を参照し、重要なレポートにはデータソースと取得日を明記する。
 - 共通ロジックは `analysis/stocklib/`（`data.py` / `indicators.py` / `metrics.py` / `backtest.py` / `report.py`）にある。新規スクリプトは車輪の再発明をせず stocklib を再利用する。
 - テストは `python3 -m pytest analysis/tests` で実行できる。
+- analyze/compare/backtest はローソク足・相対パフォーマンス・資産曲線のチャート PNG を `reports/img/` に生成しレポートへ埋め込む（`--no-charts` で無効化。matplotlib 未導入時は自動でチャートなしに縮退）。
+- **個人データはコミットされない設計**: 保有情報 `data/portfolio.csv`・ウォッチリスト `data/watchlist.csv` は gitignore 対象の `data/` に置く。テンプレートは `analysis/templates/` にある。
+- EDINET の法定開示書類（有報等）の検索・取得には環境変数 `EDINET_API_KEY`（2024年時点で API v2 はキー必須）を設定する。未設定でも業績分析は yfinance の財務データで動作する。
 
 ### `--synthetic` フラグ
 
@@ -80,10 +90,13 @@ stock_hacker/
 | `/backtest ゴールデンクロス 7203` | backtest-strategy | 売買ルールのバックテストと統計的検証 |
 | `/market` | market-review | 市場全体（指数・為替・米国市場）の市況レビュー |
 | `/learn 空売り規制` | knowledge-doc | knowledge/ への文書追加・更新（索引反映まで） |
+| `/portfolio [ファイル]` | portfolio-review | 保有ポートフォリオの損益・リスク・集中度レビュー |
+| `/brief` | daily-brief | 市況+ウォッチリストのシグナル定点観測 |
+| `/earnings 7203` | earnings-analysis | 業績推移・決算の時系列深掘り |
 | `/kb PERとPBRの関係` | （スキルなし） | ナレッジベースを検索し出典パス付きで回答 |
 | `/review-report reports/backtest-....md` | （スキルなし。risk-officer に委譲） | レポートの敵対的レビュー（引数省略時は reports/ の最新ファイル） |
 
-使い分けの原則: 1銘柄の深掘り → analyze-stock、複数銘柄の横比較 → compare-stocks、条件による絞り込み → screen-market、売買ルールの検証 → backtest-strategy、市場全体 → market-review、知識の追加 → knowledge-doc。**重要なレポートを外部共有・意思決定に使う前は必ず `/review-report` を通す**（risk-officer による品質ゲート。統計的誤り・ルックアヘッド・投資助言化・合成データ偽装を検出）。
+使い分けの原則: 1銘柄の深掘り → analyze-stock、業績の時系列深掘り → earnings-analysis、複数銘柄の横比較 → compare-stocks、条件による絞り込み → screen-market、売買ルールの検証 → backtest-strategy、市場全体 → market-review、保有銘柄のレビュー → portfolio-review、ウォッチ銘柄の定点観測 → daily-brief、知識の追加 → knowledge-doc。**重要なレポートを外部共有・意思決定に使う前は必ず `/review-report` を通す**（risk-officer による品質ゲート。統計的誤り・ルックアヘッド・投資助言化・合成データ偽装を検出）。
 
 サブエージェント（`.claude/agents/`。重い作業の委譲先）:
 

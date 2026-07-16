@@ -26,7 +26,7 @@ from collections.abc import Callable
 
 import pandas as pd
 
-from stocklib import metrics, report
+from stocklib import charts, metrics, report
 from stocklib.backtest import (
     BacktestResult,
     ma_cross_signal,
@@ -127,8 +127,33 @@ def _span(prices: pd.Series) -> str:
     return f"{prices.index[0].date()} 〜 {prices.index[-1].date()}、{len(prices)} 営業日"
 
 
-def build_report(args: argparse.Namespace) -> str:
-    """バックテストレポート本文（Markdown）を構築する。"""
+def _chart_lines(equity: pd.Series, title: str, img_stem: str) -> list[str]:
+    """資産曲線+ドローダウン図 PNG を生成し、埋め込み用 Markdown 行を返す（失敗時は警告して空リスト）。"""
+    if not charts.charts_available():
+        print("警告: matplotlib が利用できないため、チャートなしで続行します", file=sys.stderr)
+        return []
+    try:
+        path = charts.plot_drawdown(
+            equity, charts.IMG_DIR / f"{img_stem}-equity.png", title=title
+        )
+    except Exception as exc:  # チャートは補助情報。失敗してもレポート生成は続行する
+        print(f"警告: チャート生成に失敗しました（チャートなしで続行します）: {exc}", file=sys.stderr)
+        return []
+    return [
+        f"![chart](img/{path.name})",
+        "",
+        "（上段: 戦略エクイティカーブ（期首=1.0、コスト控除後）、下段: ドローダウン）",
+        "",
+    ]
+
+
+def build_report(args: argparse.Namespace, img_stem: str | None = None) -> str:
+    """バックテストレポート本文（Markdown）を構築する。
+
+    Args:
+        img_stem: チャート PNG のファイル名接頭辞（``reports/img/<img_stem>-equity.png``）。
+            ``None`` の場合はチャートを生成しない。
+    """
     code: str = args.code
     close = fetch_prices(code, period=args.period, synthetic=args.synthetic)[code]["Close"]
     signal_fn, params, strategy_label = build_strategy(args)
@@ -159,6 +184,15 @@ def build_report(args: argparse.Namespace) -> str:
     lines.append("")
     lines.append(f"**t統計量の解釈**: {result.t_stat_interpretation}")
     lines.append("")
+
+    if img_stem is not None:
+        lines.extend(
+            _chart_lines(
+                result.equity_curve,
+                f"{code} {args.strategy}: Equity & Drawdown",
+                img_stem,
+            )
+        )
 
     # --- IS/OOS 分割 ---
     if args.split is not None:
@@ -277,16 +311,18 @@ def main(argv: list[str] | None = None) -> int:
         help="パラメータ近傍グリッドをスイープし、試行回数 N と成績分布を表化する",
     )
     parser.add_argument("--synthetic", action="store_true", help="合成データで実行（ネットワーク不要）")
+    parser.add_argument("--no-charts", action="store_true", help="チャート画像の生成・埋め込みを無効化する")
     args = parser.parse_args(argv)
 
+    filename = f"backtest-{args.strategy}-{args.code}-{dt.date.today().isoformat()}.md"
+    img_stem = None if args.no_charts else filename.removesuffix(".md")
     try:
-        content = build_report(args)
+        content = build_report(args, img_stem=img_stem)
     except (DataFetchError, ValueError) as exc:
         print(f"エラー: {exc}", file=sys.stderr)
         return 1
 
     print(content)
-    filename = f"backtest-{args.strategy}-{args.code}-{dt.date.today().isoformat()}.md"
     path = report.save_report(content, filename)
     print(f"レポート: {path}")
     return 0

@@ -16,8 +16,28 @@ import sys
 import pandas as pd
 
 from stocklib import backtest  # noqa: F401  （依存確認用）
-from stocklib import indicators, metrics, report
+from stocklib import charts, indicators, metrics, report
 from stocklib.data import DataFetchError, fetch_info, fetch_prices, normalize_code
+
+
+def _chart_lines(df: pd.DataFrame, code: str, img_stem: str) -> list[str]:
+    """価格チャート PNG を生成し、埋め込み用 Markdown 行を返す（失敗時は警告して空リスト）。"""
+    if not charts.charts_available():
+        print("警告: matplotlib が利用できないため、チャートなしで続行します", file=sys.stderr)
+        return []
+    try:
+        path = charts.plot_price_chart(df, code, charts.IMG_DIR / f"{img_stem}-price.png")
+    except Exception as exc:  # チャートは補助情報。失敗してもレポート生成は続行する
+        print(f"警告: チャート生成に失敗しました（チャートなしで続行します）: {exc}", file=sys.stderr)
+        return []
+    return [
+        "## チャート",
+        "",
+        f"![chart](img/{path.name})",
+        "",
+        "（上段: ローソク足 + SMA + ボリンジャーバンド、中段: 出来高、下段: RSI(14)。陽線=赤系・陰線=青系）",
+        "",
+    ]
 
 
 def build_report(
@@ -25,8 +45,14 @@ def build_report(
     period: str,
     benchmark: str,
     synthetic: bool,
+    img_stem: str | None = None,
 ) -> str:
-    """分析レポート本文（Markdown）を構築する。"""
+    """分析レポート本文（Markdown）を構築する。
+
+    Args:
+        img_stem: チャート PNG のファイル名接頭辞（``reports/img/<img_stem>-price.png``）。
+            ``None`` の場合はチャートを生成しない。
+    """
     prices = fetch_prices([code, benchmark], period=period, synthetic=synthetic)
     df = prices[code]
     bench_df = prices[benchmark]
@@ -81,6 +107,9 @@ def build_report(
         ],
     ))
     lines.append("")
+
+    if img_stem is not None:
+        lines.extend(_chart_lines(df, code, img_stem))
 
     def _vs(ma: pd.Series, name: str) -> list[str]:
         v = ma.iloc[-1]
@@ -157,15 +186,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--period", default="2y", help="取得期間（既定: 2y）")
     parser.add_argument("--benchmark", default="^N225", help="ベンチマーク（既定: ^N225）")
     parser.add_argument("--synthetic", action="store_true", help="合成データで実行（ネットワーク不要）")
+    parser.add_argument("--no-charts", action="store_true", help="チャート画像の生成・埋め込みを無効化する")
     args = parser.parse_args(argv)
 
+    filename = f"analyze-{args.code}-{dt.date.today().isoformat()}.md"
+    img_stem = None if args.no_charts else filename.removesuffix(".md")
     try:
-        content = build_report(args.code, args.period, args.benchmark, args.synthetic)
+        content = build_report(args.code, args.period, args.benchmark, args.synthetic, img_stem=img_stem)
     except (DataFetchError, ValueError) as exc:
         print(f"エラー: {exc}", file=sys.stderr)
         return 1
 
-    filename = f"analyze-{args.code}-{dt.date.today().isoformat()}.md"
     path = report.save_report(content, filename)
     print(path)
     return 0

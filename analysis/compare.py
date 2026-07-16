@@ -15,12 +15,34 @@ import sys
 
 import pandas as pd
 
-from stocklib import metrics, report
+from stocklib import charts, metrics, report
 from stocklib.data import DataFetchError, fetch_prices
 
 
-def build_report(codes: list[str], period: str, synthetic: bool) -> str:
-    """比較レポート本文（Markdown）を構築する。"""
+def _chart_lines(prices: dict[str, pd.DataFrame], img_stem: str) -> list[str]:
+    """相対パフォーマンス図 PNG を生成し、埋め込み用 Markdown 行を返す（失敗時は警告して空リスト）。"""
+    if not charts.charts_available():
+        print("警告: matplotlib が利用できないため、チャートなしで続行します", file=sys.stderr)
+        return []
+    try:
+        path = charts.plot_relative_performance(
+            prices, charts.IMG_DIR / f"{img_stem}-relative.png"
+        )
+    except Exception as exc:  # チャートは補助情報。失敗してもレポート生成は続行する
+        print(f"警告: チャート生成に失敗しました（チャートなしで続行します）: {exc}", file=sys.stderr)
+        return []
+    return [f"![chart](img/{path.name})", ""]
+
+
+def build_report(
+    codes: list[str], period: str, synthetic: bool, img_stem: str | None = None
+) -> str:
+    """比較レポート本文（Markdown）を構築する。
+
+    Args:
+        img_stem: チャート PNG のファイル名接頭辞（``reports/img/<img_stem>-relative.png``）。
+            ``None`` の場合はチャートを生成しない。
+    """
     prices = fetch_prices(codes, period=period, synthetic=synthetic)
     closes = pd.concat({c: prices[c]["Close"] for c in codes}, axis=1).dropna()
     if closes.empty:
@@ -37,6 +59,8 @@ def build_report(codes: list[str], period: str, synthetic: bool) -> str:
     normalized = closes / closes.iloc[0] * 100.0
     lines.append("## 相対パフォーマンス（期首 = 100）")
     lines.append("")
+    if img_stem is not None:
+        lines.extend(_chart_lines(prices, img_stem))
     rows = []
     for code in codes:
         row: list[object] = [code]
@@ -78,20 +102,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("codes", nargs="+", help="銘柄コード（2つ以上、例: 7203 6758 9984）")
     parser.add_argument("--period", default="1y", help="取得期間（既定: 1y）")
     parser.add_argument("--synthetic", action="store_true", help="合成データで実行（ネットワーク不要）")
+    parser.add_argument("--no-charts", action="store_true", help="チャート画像の生成・埋め込みを無効化する")
     args = parser.parse_args(argv)
 
     if len(args.codes) < 2:
         print("エラー: 比較には2つ以上の銘柄コードを指定してください", file=sys.stderr)
         return 1
 
+    filename = f"compare-{'-'.join(args.codes)}-{dt.date.today().isoformat()}.md"
+    img_stem = None if args.no_charts else filename.removesuffix(".md")
     try:
-        content = build_report(args.codes, args.period, args.synthetic)
+        content = build_report(args.codes, args.period, args.synthetic, img_stem=img_stem)
     except (DataFetchError, ValueError) as exc:
         print(f"エラー: {exc}", file=sys.stderr)
         return 1
 
     print(content)
-    filename = f"compare-{'-'.join(args.codes)}-{dt.date.today().isoformat()}.md"
     path = report.save_report(content, filename)
     print(f"レポート: {path}")
     return 0
