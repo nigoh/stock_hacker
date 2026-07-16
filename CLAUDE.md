@@ -53,8 +53,10 @@ stock_hacker/
 | 複数銘柄の比較 | `python3 analysis/compare.py 7203 6758 9984 --period 1y` | 相対パフォーマンス・相関のレポート（`reports/compare-...`） |
 | 戦略バックテスト | `python3 analysis/run_backtest.py --strategy ma_cross --code 7203 --fast 25 --slow 75 --cost-bps 10` | バックテスト統計レポート（`reports/backtest-...`） |
 
+- 上表のオプションは代表例。全オプションは各 CLI の `--help` で確認できる。
 - 銘柄コードは4桁数字で渡す（内部で yfinance の `7203.T` に正規化）。`^N225`・`USDJPY=X` などの指数・為替ティッカーはそのまま渡せる。
 - 価格データは `data/cache/` に CSV でキャッシュされる（gitignore 済み）。
+- 既定のデータソースは yfinance（非公式 API）。日本株では分割・配当調整の不備が起きうるため、レポートで異常な騰落やギャップを見たらまずデータ品質を疑う。制約の詳細は `knowledge/data-sources/data-apis-and-tools.md` の「yfinance：手軽さと引き換えのリスク」「調整後株価とコーポレートアクションの注意点」を参照し、重要なレポートにはデータソースと取得日を明記する。
 - 共通ロジックは `analysis/stocklib/`（`data.py` / `indicators.py` / `metrics.py` / `backtest.py` / `report.py`）にある。新規スクリプトは車輪の再発明をせず stocklib を再利用する。
 - テストは `python3 -m pytest analysis/tests` で実行できる。
 
@@ -64,7 +66,7 @@ stock_hacker/
 
 ### J-Quants 接続（オプション、実データ全銘柄対応）
 
-環境変数 `JQUANTS_REFRESH_TOKEN` にリフレッシュトークン（https://jpx-jquants.com/ の無料プラン登録で発行、有効期限約1週間）を設定すると、`stocklib.jquants` 経由で JPX 公式の J-Quants API が使える。`fetch_listed_info()` が全上場銘柄の一覧（コード・社名・33業種等）を返すので、liquid30 を超える**全銘柄スクリーニングのユニバース CSV 構築**に使える。`fetch_daily_quotes()` は `fetch_prices` と同じ OHLCV DataFrame 形式で日足を返す（分割・併合調整済み系列を優先。Free プランは12週間遅延データ、2025年時点）。トークン未設定・期限切れ時は `JQuantsAuthError` が導入手順つきのメッセージを出す。詳細・注意点（5桁コード、配当調整の非互換等）は `knowledge/data-sources/data-apis-and-tools.md` の J-Quants 節を参照。テストは `analysis/tests/test_jquants.py`（ネットワーク不要のモックで検証）。
+環境変数 `JQUANTS_REFRESH_TOKEN` にリフレッシュトークン（https://jpx-jquants.com/ の無料プラン登録で発行、**有効期限約1週間**なので認証エラー時はまず再発行を疑う）を設定すると、`stocklib.jquants` 経由で JPX 公式の J-Quants API が使える。`fetch_listed_info()` が全上場銘柄の一覧（コード・社名・33業種等）を返すので、liquid30 を超える**全銘柄スクリーニングのユニバース CSV 構築**に使える。`fetch_daily_quotes()` は `fetch_prices` と同じ OHLCV DataFrame 形式で日足を返す（分割・併合調整済み系列を優先。Free プランは12週間遅延データ、2025年時点）。トークンは `.env`（gitignore 済み、雛形は `.env.example`）に置き `set -a && source .env && set +a` で読み込む運用を推奨。トークンをコード・レポート・コミットに含めないこと。トークン未設定・期限切れ時は `JQuantsAuthError` が導入手順つきのメッセージを出す。詳細・注意点（5桁コード、配当調整の非互換等）は `knowledge/data-sources/data-apis-and-tools.md` の J-Quants 節を参照。テストは `analysis/tests/test_jquants.py`（ネットワーク不要のモックで検証）。
 
 ### スラッシュコマンド・スキル・エージェントの一覧と使い分け
 
