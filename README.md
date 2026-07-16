@@ -112,4 +112,4 @@ set -a && source .env && set +a
 
 ## ライセンス
 
-現時点で LICENSE ファイルは未設定（2026年7月時点。著作権法上のデフォルトにより all rights reserved）。オープンソースとして公開する場合は、MIT / Apache-2.0 などのライセンスを選定して LICENSE ファイルを追加すること。
+[MIT License](LICENSE)（コード・ナレッジ文書を含むリポジトリ全体に適用。Copyright (c) 2026 nigoh）。
