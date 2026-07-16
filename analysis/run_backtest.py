@@ -15,6 +15,13 @@ reports/backtest-<strategy>-<code>-<日付>.md に保存する。
   （OOS）とし、両区間の統計を並記する。
 - --sweep: 指定パラメータの近傍グリッドを走らせ、試行回数 N と成績分布を表化する
   （--split 指定時は IS 区間のみでスイープする）。
+- --in-currency USD|EUR|GBP（--in-usd は --in-currency USD の後方互換エイリアス）:
+  全期間の戦略成績とバイ&ホールドを円建て・基準通貨建て併記にする（海外投資家視点）。
+  **売買シグナルは常に円建て（現地）価格で計算する**——実際の東証での執行は円建て価格で
+  行われるため、基準通貨建て換算後の価格でシグナルを出すと現実には観測できない為替込みの
+  系列に基づく判定となり、執行と乖離したルックアヘッド類似の歪みが生じる。基準通貨建て換算は
+  確定した円建て日次リターンに対して恒等式 (1+r_B)=(1+r_JPY)/(1+r_FX) を適用する
+  （stocklib.currency.to_base_returns、同日終値換算・為替ヘッジなしの近似）。
 """
 
 from __future__ import annotations
@@ -26,7 +33,7 @@ from collections.abc import Callable
 
 import pandas as pd
 
-from stocklib import charts, metrics, report
+from stocklib import charts, currency, metrics, report
 from stocklib.backtest import (
     BacktestResult,
     ma_cross_signal,
@@ -147,6 +154,104 @@ def _chart_lines(equity: pd.Series, title: str, img_stem: str) -> list[str]:
     ]
 
 
+def _equity_returns(equity: pd.Series) -> pd.Series:
+    """エクイティカーブ（初期値 1.0 基準）から日次リターン系列を復元する。"""
+    rets = equity.pct_change()
+    if len(rets):
+        rets.iloc[0] = float(equity.iloc[0]) - 1.0
+    return rets
+
+
+def _jpy_base_rows(rets_jpy: pd.Series, rets_base: pd.Series) -> list[list[object]]:
+    """円建て・基準通貨建てリターン系列から「指標 | 円建て | <通貨>建て」の行リストを作る。"""
+    eq_jpy = (1.0 + rets_jpy).cumprod()
+    eq_base = (1.0 + rets_base).cumprod()
+    return [
+        [
+            "トータルリターン",
+            report.fmt_pct(float(eq_jpy.iloc[-1] - 1.0)),
+            report.fmt_pct(float(eq_base.iloc[-1] - 1.0)),
+        ],
+        [
+            "年率リターン（CAGR）",
+            report.fmt_pct(metrics.ann_return(rets_jpy)),
+            report.fmt_pct(metrics.ann_return(rets_base)),
+        ],
+        [
+            "年率ボラティリティ",
+            report.fmt_pct(metrics.ann_vol(rets_jpy)),
+            report.fmt_pct(metrics.ann_vol(rets_base)),
+        ],
+        [
+            "シャープレシオ",
+            report.fmt_num(metrics.sharpe(rets_jpy)),
+            report.fmt_num(metrics.sharpe(rets_base)),
+        ],
+        [
+            "最大ドローダウン",
+            report.fmt_pct(metrics.max_drawdown(eq_jpy)),
+            report.fmt_pct(metrics.max_drawdown(eq_base)),
+        ],
+    ]
+
+
+def _fx_section(
+    result: BacktestResult, close: pd.Series, period: str, synthetic: bool, ccy: str
+) -> list[str]:
+    """「<基準通貨>建て評価（海外投資家視点）」節の Markdown 行を構築する。
+
+    設計上の重要点: **売買シグナル・執行は円建て（現地）価格で確定済み**であり、
+    本節はその確定した円建て日次リターン系列を恒等式
+    $(1 + r^{B}) = (1 + r^{JPY}) / (1 + r^{FX})$（$B$: 基準通貨）で基準通貨建てに
+    換算した再計算に過ぎない。基準通貨建て換算後の価格系列でシグナルを再計算することは
+    しない——東証での実際の執行は円建て価格に対して行われるため、為替込みの系列で
+    シグナルを出すと現実の執行と乖離したルックアヘッド類似の歪みが生じる。
+    """
+    label = currency.currency_label(ccy)
+    ticker = currency.get_fx_ticker(ccy)
+    pair = ticker.removesuffix("=X")
+    fx_df = currency.fetch_fx(ccy, period, synthetic=synthetic)
+    fx = currency.align_fx(result.equity_curve.index, fx_df["Close"])
+    fx_change = float(fx.iloc[-1] / fx.iloc[0] - 1.0)
+
+    strat_rets_jpy = _equity_returns(result.equity_curve)
+    strat_rets_base = currency.to_base_returns(strat_rets_jpy, fx_df["Close"])
+
+    bh_rets_jpy = metrics.daily_returns(close)
+    bh_rets_base = metrics.daily_returns(currency.to_base_series(close, fx_df["Close"]))
+
+    headers = ["指標", "円建て", f"{label}建て"]
+    lines: list[str] = []
+    lines.append(f"## {label}建て評価（海外投資家視点）")
+    lines.append("")
+    lines.append(
+        "- **売買シグナルは円建て（現地）価格で計算・執行済み**。本節はその確定した"
+        f"円建て日次リターンを恒等式 $(1 + r^{{{ccy}}}) = (1 + r^{{JPY}}) / (1 + r^{{FX}})$ で"
+        f"{label}建てに換算した再計算であり、シグナル自体は変わらない"
+        f"（{label}建て価格でシグナルを出すと実際の東証での執行と乖離し、"
+        "ルックアヘッド類似の歪みが生じるため行わない）。"
+    )
+    lines.append(
+        f"- 為替は {ticker}（1{label}あたり円）の**同日終値換算・ヘッジなしの近似**。"
+        "日中の為替変動・ヘッジコスト・両替コストは考慮しない。"
+    )
+    lines.append(
+        f"- 為替（{pair}）期間変動: {report.fmt_pct(fx_change)}"
+        f"（{float(fx.iloc[0]):.2f} → {float(fx.iloc[-1]):.2f} 円/{label}。"
+        f"円安は{label}建てリターンの押し下げ、円高は押し上げ要因）"
+    )
+    lines.append("")
+    lines.append("### 戦略成績（全期間、コスト控除後）")
+    lines.append("")
+    lines.append(report.markdown_table(headers, _jpy_base_rows(strat_rets_jpy, strat_rets_base)))
+    lines.append("")
+    lines.append("### 参考: バイ&ホールド（コストなし）")
+    lines.append("")
+    lines.append(report.markdown_table(headers, _jpy_base_rows(bh_rets_jpy, bh_rets_base)))
+    lines.append("")
+    return lines
+
+
 def build_report(args: argparse.Namespace, img_stem: str | None = None) -> str:
     """バックテストレポート本文（Markdown）を構築する。
 
@@ -184,6 +289,9 @@ def build_report(args: argparse.Namespace, img_stem: str | None = None) -> str:
     lines.append("")
     lines.append(f"**t統計量の解釈**: {result.t_stat_interpretation}")
     lines.append("")
+
+    if args.in_currency is not None:
+        lines.extend(_fx_section(result, close, args.period, args.synthetic, args.in_currency))
 
     if img_stem is not None:
         lines.extend(
@@ -312,7 +420,22 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--synthetic", action="store_true", help="合成データで実行（ネットワーク不要）")
     parser.add_argument("--no-charts", action="store_true", help="チャート画像の生成・埋め込みを無効化する")
+    parser.add_argument(
+        "--in-currency",
+        type=str.upper,
+        choices=sorted(currency.SUPPORTED_CURRENCIES),
+        default=None,
+        help="基準通貨建て評価節を追加する（海外投資家視点。シグナルは円建て価格で計算し、"
+        "日次リターンをクロス円レート（例: EURJPY=X）の同日終値で基準通貨建てに換算して併記する）",
+    )
+    parser.add_argument(
+        "--in-usd",
+        action="store_true",
+        help="--in-currency USD のエイリアス（後方互換）",
+    )
     args = parser.parse_args(argv)
+    if args.in_currency is None and args.in_usd:
+        args.in_currency = "USD"
 
     filename = f"backtest-{args.strategy}-{args.code}-{dt.date.today().isoformat()}.md"
     img_stem = None if args.no_charts else filename.removesuffix(".md")

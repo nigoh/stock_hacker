@@ -16,7 +16,7 @@ import sys
 import pandas as pd
 
 from stocklib import backtest  # noqa: F401  （依存確認用）
-from stocklib import charts, indicators, metrics, report
+from stocklib import charts, currency, indicators, metrics, report
 from stocklib.data import DataFetchError, fetch_info, fetch_prices, normalize_code
 
 
@@ -40,18 +40,83 @@ def _chart_lines(df: pd.DataFrame, code: str, img_stem: str) -> list[str]:
     ]
 
 
+def _fx_section(close: pd.Series, period: str, synthetic: bool, ccy: str) -> list[str]:
+    """「<基準通貨>建てパフォーマンス（海外投資家視点）」節の Markdown 行を構築する。
+
+    円建て終値を基準通貨のクロス円レート（例: USDJPY=X・EURJPY=X）の同日終値で
+    除した基準通貨建て系列で主要指標を再計算し、円建てとの差（為替寄与）を併記する。
+    """
+    label = currency.currency_label(ccy)
+    ticker = currency.get_fx_ticker(ccy)
+    pair = ticker.removesuffix("=X")
+    fx_df = currency.fetch_fx(ccy, period, synthetic=synthetic)
+    fx = currency.align_fx(close.index, fx_df["Close"])
+    base_close = close / fx
+
+    rets_jpy = metrics.daily_returns(close)
+    rets_base = metrics.daily_returns(base_close)
+    period_jpy = float(close.iloc[-1] / close.iloc[0] - 1.0)
+    period_base = float(base_close.iloc[-1] / base_close.iloc[0] - 1.0)
+    fx_change = float(fx.iloc[-1] / fx.iloc[0] - 1.0)
+    fx_contrib_pt = period_jpy - period_base  # 円建て − 基準通貨建て（パーセントポイント）
+
+    lines: list[str] = []
+    lines.append(f"## {label}建てパフォーマンス（海外投資家視点）")
+    lines.append("")
+    lines.append(
+        f"円建て終値を同日の {ticker} 終値（1{label}あたり円）で除した"
+        f"{label}建て系列に基づく再計算（為替ヘッジ・配当・売買コストは考慮しない）。"
+        "本レポートの主表示は円建てであり、本節は海外投資家視点の参考情報。"
+    )
+    lines.append("")
+    lines.append(report.markdown_table(
+        ["指標", "円建て", f"{label}建て"],
+        [
+            ["期間リターン", report.fmt_pct(period_jpy), report.fmt_pct(period_base)],
+            ["年率リターン", report.fmt_pct(metrics.ann_return(rets_jpy)), report.fmt_pct(metrics.ann_return(rets_base))],
+            ["年率ボラティリティ", report.fmt_pct(metrics.ann_vol(rets_jpy)), report.fmt_pct(metrics.ann_vol(rets_base))],
+            ["シャープレシオ", report.fmt_num(metrics.sharpe(rets_jpy)), report.fmt_num(metrics.sharpe(rets_base))],
+            ["最大ドローダウン", report.fmt_pct(metrics.max_drawdown(close)), report.fmt_pct(metrics.max_drawdown(base_close))],
+        ],
+    ))
+    lines.append("")
+    if fx_change > 0:
+        direction = f"円安方向＝{label}建てリターンの押し下げ要因"
+    elif fx_change < 0:
+        direction = f"円高方向＝{label}建てリターンの押し上げ要因"
+    else:
+        direction = "為替は横ばい"
+    lines.append(
+        f"- 為替（{pair}）期間変動: {report.fmt_pct(fx_change)}"
+        f"（{fx.iloc[0]:.2f} → {fx.iloc[-1]:.2f} 円/{label}、{direction}）"
+    )
+    lines.append(
+        f"- 為替寄与（円建て期間リターン − {label}建て期間リターン）: {fx_contrib_pt * 100:+.2f} ポイント"
+    )
+    lines.append(
+        f"- 厳密には $(1 + r^{{{ccy}}}) = (1 + r^{{JPY}}) / (1 + r^{{FX}})$ の関係が成り立ち、"
+        "上記の差分はその近似値。"
+    )
+    lines.append("")
+    return lines
+
+
 def build_report(
     code: str,
     period: str,
     benchmark: str,
     synthetic: bool,
     img_stem: str | None = None,
+    in_currency: str | None = None,
 ) -> str:
     """分析レポート本文（Markdown）を構築する。
 
     Args:
         img_stem: チャート PNG のファイル名接頭辞（``reports/img/<img_stem>-price.png``）。
             ``None`` の場合はチャートを生成しない。
+        in_currency: 基準通貨コード（``"USD"`` / ``"EUR"`` / ``"GBP"``）。指定すると
+            「<通貨>建てパフォーマンス（海外投資家視点）」節を追加する
+            （主表示は円建てのまま）。``None`` なら節を追加しない。
     """
     prices = fetch_prices([code, benchmark], period=period, synthetic=synthetic)
     df = prices[code]
@@ -177,6 +242,9 @@ def build_report(
     ))
     lines.append("")
 
+    if in_currency is not None:
+        lines.extend(_fx_section(close, period, synthetic, in_currency))
+
     return "\n".join(lines)
 
 
@@ -187,12 +255,33 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--benchmark", default="^N225", help="ベンチマーク（既定: ^N225）")
     parser.add_argument("--synthetic", action="store_true", help="合成データで実行（ネットワーク不要）")
     parser.add_argument("--no-charts", action="store_true", help="チャート画像の生成・埋め込みを無効化する")
+    parser.add_argument(
+        "--in-currency",
+        type=str.upper,
+        choices=sorted(currency.SUPPORTED_CURRENCIES),
+        default=None,
+        help="基準通貨建てパフォーマンス節（海外投資家視点、クロス円レートで換算）を"
+        "レポートに追加する（例: EUR → EURJPY=X で換算）",
+    )
+    parser.add_argument(
+        "--in-usd",
+        action="store_true",
+        help="--in-currency USD のエイリアス（後方互換）",
+    )
     args = parser.parse_args(argv)
+    in_currency: str | None = args.in_currency or ("USD" if args.in_usd else None)
 
     filename = f"analyze-{args.code}-{dt.date.today().isoformat()}.md"
     img_stem = None if args.no_charts else filename.removesuffix(".md")
     try:
-        content = build_report(args.code, args.period, args.benchmark, args.synthetic, img_stem=img_stem)
+        content = build_report(
+            args.code,
+            args.period,
+            args.benchmark,
+            args.synthetic,
+            img_stem=img_stem,
+            in_currency=in_currency,
+        )
     except (DataFetchError, ValueError) as exc:
         print(f"エラー: {exc}", file=sys.stderr)
         return 1

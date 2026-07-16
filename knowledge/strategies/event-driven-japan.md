@@ -100,6 +100,7 @@ $$
 ## 関連トピック
 
 - 日経平均とTOPIXの算出方法・指数制度（market-structure/indices-nikkei-topix）
+- MSCI・FTSEグローバル指数のリビュー（2/5/8/11月）とパッシブフロー（market-structure/msci-ftse-global-indices-and-japan）
 - バックテストの統計的落とし穴と多重検定（math/backtesting-and-statistics）
 - 信用取引・空売り規制と逆日歩の仕組み（market-structure/short-selling-margin-trading）
 - 決算短信・有価証券報告書の読み方（fundamental/reading-japanese-financials）

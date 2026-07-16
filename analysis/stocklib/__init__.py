@@ -20,6 +20,10 @@ import コストを抑えるため同様に遅延 import とし、matplotlib 未
 環境変数 ``EDINET_API_KEY`` が必要、有価証券報告書等の原文取得・確認用）がある。
 いずれも同様に遅延 import で解決する。
 
+サブモジュール ``stocklib.adr`` に ADRパリティ計算（東証現地株 × 米国ADR × ドル円の
+理論価格・乖離率・円換算ADR価格。対応表は ``analysis/universe/adr_map.csv``、
+CLI は ``analysis/adr_parity.py``）がある。同様に遅延 import で解決する。
+
 サブモジュール ``stocklib.journal`` にリサーチジャーナル（分析仮説の記録と
 事後検証。``journal/`` 配下の frontmatter 付き Markdown を読み書きし、
 記録時スナップショットとベンチマーク調整後リターンで hit/miss/mixed を判定）が
@@ -49,13 +53,30 @@ from stocklib.metrics import (
     var_historical,
 )
 from stocklib.backtest import BacktestResult, ma_cross_signal, run_backtest
+from stocklib.currency import (
+    CURRENCY_LABELS,
+    FX_TICKER,
+    SUPPORTED_CURRENCIES,
+    currency_label,
+    fetch_fx,
+    fetch_usdjpy,
+    get_fx_ticker,
+    to_base_currency,
+    to_base_returns,
+    to_base_series,
+    to_usd,
+    to_usd_returns,
+    to_usd_series,
+)
 from stocklib.report import DISCLAIMER, markdown_table, save_report
 from stocklib.signals import Signal, detect_signals
 from stocklib.portfolio import (
+    BaseCurrencyValuation,
     PortfolioReview,
     PortfolioValidationError,
     Position,
     PositionValuation,
+    UsdValuation,
     evaluate_portfolio,
     load_portfolio,
 )
@@ -69,7 +90,7 @@ def __getattr__(name: str) -> ModuleType:
     ``import stocklib; stocklib.jquants.fetch_listed_info()`` のような属性アクセスを、
     パッケージ import 時のコスト・依存を増やさずに成立させる。
     """
-    if name in ("jquants", "charts", "edinet", "fundamentals", "journal"):
+    if name in ("jquants", "charts", "edinet", "fundamentals", "journal", "adr"):
         return import_module(f"stocklib.{name}")
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
@@ -80,6 +101,7 @@ __all__ = [
     "edinet",
     "fundamentals",
     "journal",
+    "adr",
     "DataFetchError",
     "fetch_prices",
     "fetch_info",
@@ -104,10 +126,25 @@ __all__ = [
     "BacktestResult",
     "ma_cross_signal",
     "run_backtest",
+    "FX_TICKER",
+    "SUPPORTED_CURRENCIES",
+    "CURRENCY_LABELS",
+    "get_fx_ticker",
+    "currency_label",
+    "fetch_fx",
+    "fetch_usdjpy",
+    "to_base_currency",
+    "to_base_returns",
+    "to_base_series",
+    "to_usd",
+    "to_usd_returns",
+    "to_usd_series",
     "Signal",
     "detect_signals",
     "Position",
     "PositionValuation",
+    "BaseCurrencyValuation",
+    "UsdValuation",
     "PortfolioReview",
     "PortfolioValidationError",
     "load_portfolio",

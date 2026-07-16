@@ -37,6 +37,13 @@ exit code:
 
 シグナルが多い日は `--max-alerts N` でレポートの詳細表示を種別優先度（急変動 > 出来高急増 > 移動平均クロス > 52週高安 > RSI）の上位 N 件に絞れる。
 
+海外投資家の定点観測（基準通貨建て）が必要な場合は `--in-currency USD|EUR|GBP`（`--in-usd` は `--in-currency USD` の後方互換エイリアス）を付けると、市況テーブルに基準通貨建て ^N225 の行（前日比・5日・1ヶ月を基準通貨建てで算出。同日終値換算・為替ヘッジなしの近似）が併記される。**このオプションは上記の契約（RESULT 行・exit code）を一切変更しない**: 為替レート（USDJPY=X 等）の取得に失敗しても基準通貨建て行が省略されて「取得失敗」節に記録されるだけで、`data=` の判定・`watch=` の分子分母・exit code には影響しない（為替の取得成否は市況の取得成功数にも数えない）。
+
+```cron
+# 例: 平日朝、ドル建て併記のブリーフ
+30 8 * * 1-5 cd /path/to/stock_hacker && python3 analysis/daily_brief.py --in-currency USD >> ~/stock_hacker_brief.log 2>&1
+```
+
 ## 方法1: ローカル cron（推奨）
 
 ### 1-a. Claude Code 経由（/brief スキルの解釈つきブリーフ）

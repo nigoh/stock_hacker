@@ -1,7 +1,7 @@
 # stock_hacker — 日本株 総合分析リポジトリ
 
 日本株（東証上場株式）に関する分析を一手に担うためのリポジトリ。
-知識ベース（`knowledge/`、73文書）を土台に、分析ライブラリ（`analysis/stocklib`）・CLI・スキル/エージェント/コマンド/hooks を備えた「日本株解析のプロフェッショナル」環境。
+知識ベース（`knowledge/`、81文書）を土台に、分析ライブラリ（`analysis/stocklib`）・CLI・スキル/エージェント/コマンド/hooks を備えた「日本株解析のプロフェッショナル」環境。
 
 ## リポジトリ構造
 
@@ -15,7 +15,7 @@ stock_hacker/
 │   ├── skills/            # スキル11種（analyze-stock 等、下表参照）
 │   ├── agents/            # サブエージェント4種（stock-analyst 等）
 │   └── commands/          # スラッシュコマンド13種（/analyze、/portfolio 等）
-├── knowledge/             # 日本株ナレッジベース（Markdown、73文書）
+├── knowledge/             # 日本株ナレッジベース（Markdown、81文書）
 │   ├── 00-index.md        # 全文書の索引（必ず最新に保つ）
 │   ├── market-structure/  # 市場制度・取引所・売買の仕組み
 │   ├── history/           # 日本株市場の歴史
@@ -37,7 +37,8 @@ stock_hacker/
 │   ├── daily_brief.py     # CLI: 市況+ウォッチリストのデイリーブリーフ
 │   ├── fundamentals_report.py # CLI: 業績推移・決算分析
 │   ├── research_journal.py # CLI: リサーチジャーナル（仮説の記録・期日確認・検証）
-│   ├── universe/          # ユニバース定義（liquid30.csv: code,name,sector、2025年時点）
+│   ├── adr_parity.py      # CLI: ADRパリティ・モニタ（東証終値×ADR終値×ドル円の乖離）
+│   ├── universe/          # ユニバース定義（liquid30.csv: code,name,sector、2025年時点。adr_map.csv: ADR対応表）
 │   ├── templates/         # portfolio/watchlist の CSV テンプレート
 │   └── tests/             # pytest（python3 -m pytest analysis/tests）
 ├── scripts/               # hooks 用スクリプト
@@ -63,9 +64,11 @@ stock_hacker/
 | ポートフォリオ評価 | `python3 analysis/portfolio_review.py --file data/portfolio.csv --period 1y` | 損益・セクター配分・加重β・VaR・HHI のレポート（`reports/portfolio-...`） |
 | デイリーブリーフ | `python3 analysis/daily_brief.py --watchlist data/watchlist.csv` | 市況サマリー+ウォッチ銘柄シグナル（`reports/brief-...`） |
 | 業績・決算分析 | `python3 analysis/fundamentals_report.py 7203 --years 5` | 売上/利益推移・CAGR・マージンのレポート（`reports/fundamentals-...`） |
+| ADRパリティ・モニタ | `python3 analysis/adr_parity.py 7203`（単銘柄）/ `--all`（`analysis/universe/adr_map.csv` の全銘柄） | 東証終値×ADR終値×ドル円の理論価格・乖離%・円換算ADR価格のレポート（`reports/adr-...`。終値の暦日ずれの注意付き） |
 | リサーチジャーナル | `python3 analysis/research_journal.py new --codes 7203 --title "..." --direction up --review-days 60`（他に `due` / `verify <path>` / `list`） | `journal/<YYYY>/` に仮説エントリを生成（記録時点の終値を自動スナップショット）。`verify` が hit/miss/mixed を判定し検証結果を追記 |
 
 - 上表のオプションは代表例。全オプションは各 CLI の `--help` で確認できる。
+- `--in-currency USD|EUR|GBP`（analyze_stock / compare / run_backtest / portfolio_review / screen / daily_brief 共通、海外投資家視点。`--in-usd` は `--in-currency USD` の後方互換エイリアス）: 基準通貨建て評価を併記する。換算はクロス円レート（USDJPY=X・EURJPY=X・GBPJPY=X、`stocklib.currency.SUPPORTED_CURRENCIES` のホワイトリスト）の同日終値・ヘッジなし近似。バックテストでは売買シグナルは常に円建て価格で計算し、確定した日次リターンを恒等式 $(1+r^{B})=(1+r^{JPY})/(1+r^{FX})$ で換算する。スクリーニング（screen）では各銘柄の O/H/L/C を換算してから RSI・SMA・リターン条件を評価する（PER/PBR/配当利回りは通貨に依存しない比率、出来高は無変換）。デイリーブリーフ（daily_brief）では市況テーブルに基準通貨建て ^N225 行を併記する（RESULT 行・exit code の自動実行契約は不変）。ポートフォリオでは基準通貨建ての評価額・年率ボラ・VaR は全銘柄で計算し、保有 CSV の任意列 `fx_at_cost`（取得時のクロス円レート、円/基準通貨。指定した基準通貨のレートで入力する）がある銘柄は損益も基準通貨建てで併記して「うち株価要因（円建て損益÷直近為替）」「うち為替要因（残差）」に分解する。`fx_at_cost` 未入力の銘柄の損益は円建てのみ（現在為替での近似換算はせず、レポートに「取得時為替未入力のため円建てのみ」と注記される）。
 - 銘柄コードは4桁数字で渡す（内部で yfinance の `7203.T` に正規化）。`^N225`・`USDJPY=X` などの指数・為替ティッカーはそのまま渡せる。
 - 価格データは `data/cache/` に CSV でキャッシュされる（gitignore 済み）。
 - 既定のデータソースは yfinance（非公式 API）。日本株では分割・配当調整の不備が起きうるため、レポートで異常な騰落やギャップを見たらまずデータ品質を疑う。制約の詳細は `knowledge/data-sources/data-apis-and-tools.md` の「yfinance：手軽さと引き換えのリスク」「調整後株価とコーポレートアクションの注意点」を参照し、重要なレポートにはデータソースと取得日を明記する。

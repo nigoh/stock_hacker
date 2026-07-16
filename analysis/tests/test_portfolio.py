@@ -43,6 +43,10 @@ def test_load_portfolio_template() -> None:
     assert first.cost_value == 300 * 2450
     # memo は省略可（空文字）
     assert positions[1].memo == ""
+    # fx_at_cost は任意列: 入力あり → float、空欄 → None（テンプレートは 9984 が空欄）
+    assert first.fx_at_cost == pytest.approx(157.50)
+    assert positions[2].code == "9984"
+    assert positions[2].fx_at_cost is None
 
 
 def test_load_portfolio_without_memo_column(tmp_path: Path) -> None:
@@ -54,6 +58,38 @@ def test_load_portfolio_without_memo_column(tmp_path: Path) -> None:
     positions = load_portfolio(p)
     assert len(positions) == 1
     assert positions[0].memo == ""
+    # fx_at_cost 列が無い CSV は後方互換（None のまま）
+    assert positions[0].fx_at_cost is None
+
+
+def test_load_portfolio_fx_at_cost_optional_per_row(tmp_path: Path) -> None:
+    p = tmp_path / "pf.csv"
+    p.write_text(
+        "code,shares,avg_cost,acquired_date,fx_at_cost\n"
+        "7203,100,2500,2024-01-10,150.25\n"
+        "6758,50,13000,2024-06-03,\n",  # 空欄 → None
+        encoding="utf-8",
+    )
+    positions = load_portfolio(p)
+    assert positions[0].fx_at_cost == pytest.approx(150.25)
+    assert positions[1].fx_at_cost is None
+
+
+def test_load_portfolio_rejects_invalid_fx_at_cost(tmp_path: Path) -> None:
+    p = tmp_path / "pf.csv"
+    p.write_text(
+        "code,shares,avg_cost,acquired_date,fx_at_cost\n"
+        "7203,100,2500,2024-01-10,abc\n"    # 2行目: 非数値
+        "6758,50,13000,2024-06-03,-150\n"   # 3行目: 負
+        "9984,10,8200,2024-06-03,0\n",      # 4行目: ゼロ
+        encoding="utf-8",
+    )
+    with pytest.raises(PortfolioValidationError) as exc_info:
+        load_portfolio(p)
+    msg = str(exc_info.value)
+    assert "2行目" in msg and "fx_at_cost" in msg
+    assert "3行目" in msg and "正の数" in msg
+    assert "4行目" in msg
 
 
 def test_load_portfolio_missing_file(tmp_path: Path) -> None:

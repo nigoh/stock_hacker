@@ -4,12 +4,21 @@
 使い方（リポジトリルートから）:
     python3 analysis/daily_brief.py [--watchlist data/watchlist.csv] [--period 1y]
                                     [--synthetic] [--max-alerts N]
+                                    [--in-currency USD|EUR|GBP]
 
 市況（^N225・1306.T・USDJPY=X・^GSPC の前日比・5日・1ヶ月リターン）と、
 ウォッチリスト各銘柄の現在値・前日比・検出シグナル（stocklib.signals）をまとめて
 stdout に出力し、reports/brief-<日付>.md にも保存する。
 ウォッチリスト CSV（列: code,note）が無い場合は
 analysis/templates/watchlist-example.csv を案内して市況のみで続行する。
+
+--in-currency USD|EUR|GBP（--in-usd は --in-currency USD の後方互換エイリアス）を
+指定すると、市況テーブルに基準通貨建て ^N225 の行（前日比・5日・1ヶ月を基準通貨建てで
+算出）を併記する（海外投資家の定点観測向け。円建て終値を同日のクロス円終値で除した
+同日終値換算・為替ヘッジなしの近似。stocklib.currency を利用）。
+このオプションは下記の自動実行契約（RESULT 行・exit code）を一切変更しない。
+為替レートの取得に失敗した場合は基準通貨建て行を省略して「取得失敗」節に記録するのみで、
+``data=`` 判定・``watch=`` の分子分母・exit code には影響しない。
 
 自動実行（Routine / cron）向けの機械可読な契約:
 
@@ -36,7 +45,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from stocklib import report, signals
+from stocklib import currency, report, signals
 from stocklib.data import REPO_ROOT, DataFetchError, fetch_prices
 
 DEFAULT_WATCHLIST: Path = REPO_ROOT / "data" / "watchlist.csv"
@@ -84,10 +93,21 @@ def _lagged_return(close: pd.Series, lag: int) -> float:
     return float(close.iloc[-1] / close.iloc[-1 - lag] - 1.0)
 
 
-def build_market_section(period: str, synthetic: bool) -> tuple[list[str], list[str], int]:
-    """市況セクションの行リスト・取得失敗リスト・取得成功数を返す。"""
+def build_market_section(
+    period: str, synthetic: bool, in_currency: str | None = None
+) -> tuple[list[str], list[str], int]:
+    """市況セクションの行リスト・取得失敗リスト・取得成功数を返す。
+
+    ``in_currency``（``"USD"`` / ``"EUR"`` / ``"GBP"``）を指定すると、円建て ^N225 の
+    直下に基準通貨建て ^N225 の行（前日比・5日・1ヶ月を基準通貨建て系列で算出）を
+    併記する（``stocklib.currency.to_base_series``、同日終値換算・為替ヘッジなしの近似）。
+    為替の取得に失敗した場合は行を省略して取得失敗リストに記録するのみで、
+    戻り値の取得成功数（自動実行契約の ``data=`` 判定に使われる）には為替の成否を含めない。
+    """
     rows: list[list[object]] = []
     errors: list[str] = []
+    n225_close: pd.Series | None = None
+    n225_row_idx: int | None = None
     for ticker, label in MARKET_TICKERS:
         try:
             df = fetch_prices(ticker, period=period, synthetic=synthetic)[ticker]
@@ -95,6 +115,9 @@ def build_market_section(period: str, synthetic: bool) -> tuple[list[str], list[
             errors.append(f"{ticker}: {exc}")
             continue
         close = df["Close"]
+        if ticker == "^N225":
+            n225_close = close
+            n225_row_idx = len(rows)
         rows.append([
             f"{label}（{ticker}）",
             report.fmt_num(float(close.iloc[-1])),
@@ -102,18 +125,46 @@ def build_market_section(period: str, synthetic: bool) -> tuple[list[str], list[
             report.fmt_pct(_lagged_return(close, 5)),
             report.fmt_pct(_lagged_return(close, 21)),
         ])
+    n_market = len(rows)  # 基準通貨建て行を数える前に確定（RESULT 契約の data= 判定用）
+
+    fx_note: str | None = None
+    if in_currency is not None and n225_close is not None and n225_row_idx is not None:
+        ccy_label = currency.currency_label(in_currency)
+        fx_ticker = currency.get_fx_ticker(in_currency)
+        try:
+            fx_df = currency.fetch_fx(in_currency, period, synthetic=synthetic)
+            base_close = currency.to_base_series(n225_close, fx_df["Close"])
+        except (DataFetchError, ValueError) as exc:
+            errors.append(f"{fx_ticker}: {exc}（{ccy_label}建て行は省略）")
+        else:
+            rows.insert(n225_row_idx + 1, [
+                f"日経平均（^N225、{ccy_label}建て）",
+                report.fmt_num(float(base_close.iloc[-1])),
+                report.fmt_pct(_lagged_return(base_close, 1)),
+                report.fmt_pct(_lagged_return(base_close, 5)),
+                report.fmt_pct(_lagged_return(base_close, 21)),
+            ])
+            fx_note = (
+                f"{ccy_label}建て ^N225 は円建て終値を同日の {fx_ticker} 終値"
+                f"（1{ccy_label}あたり円）で除した換算（同日終値換算・為替ヘッジなしの近似。"
+                f"恒等式 (1+r_{in_currency})=(1+r_JPY)/(1+r_FX) に従う）。"
+            )
+
     lines: list[str] = ["## 市況", ""]
     if rows:
         lines.append(report.markdown_table(["指標", "直近値", "前日比", "5日", "1ヶ月"], rows))
         lines.append("")
-        lines.append(
+        note = (
             "注: TOPIX そのものは yfinance で取得しづらいため 1306.T（TOPIX連動ETF）で代替。"
             "^GSPC（S&P500）は日本時間から見て前営業日終値ベース。「1ヶ月」は21営業日前比。"
         )
+        if fx_note is not None:
+            note += fx_note
+        lines.append(note)
     else:
         lines.append("（市況データを取得できませんでした）")
     lines.append("")
-    return lines, errors, len(rows)
+    return lines, errors, n_market
 
 
 def load_watchlist(path: Path) -> pd.DataFrame:
@@ -202,12 +253,19 @@ def build_watchlist_section(
 
 
 def build_report(
-    watchlist_path: Path, period: str, synthetic: bool, max_alerts: int | None = None
+    watchlist_path: Path,
+    period: str,
+    synthetic: bool,
+    max_alerts: int | None = None,
+    in_currency: str | None = None,
 ) -> tuple[str, list[str], int, int, int]:
     """ブリーフ本文（Markdown）・会話向け通知メッセージ・検出シグナル総数・
     ウォッチリスト取得成功数・ウォッチリスト総数を構築する。
 
     ウォッチリスト未設定（ファイルなし）のとき成功数・総数はともに 0。
+    ``in_currency`` は市況テーブルに基準通貨建て ^N225 行を併記するのみで、
+    RESULT 行・exit code の自動実行契約には影響しない
+    （:func:`build_market_section` を参照）。
 
     Raises:
         BriefUnavailableError: 市況・ウォッチリストとも1件もデータを取得できなかった場合
@@ -221,9 +279,14 @@ def build_report(
         lines.append(
             "- **データ: 合成データ（--synthetic）による手法デモであり、実際の市況・株価ではありません**"
         )
+    if in_currency is not None:
+        lines.append(
+            f"- 基準通貨併記: {in_currency}"
+            f"（市況の ^N225 を{currency.currency_label(in_currency)}建てでも表示。海外投資家視点）"
+        )
     lines.append("")
 
-    market_lines, errors, n_market = build_market_section(period, synthetic)
+    market_lines, errors, n_market = build_market_section(period, synthetic, in_currency)
     lines.extend(market_lines)
 
     n_watch = 0
@@ -278,13 +341,28 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-alerts", type=int, default=None, metavar="N",
                         help="シグナル詳細の表示を種別優先度の上位 N 件に絞る"
                              f"（優先度: {_ALERT_PRIORITY_LABEL}。既定: 制限なし）")
+    parser.add_argument(
+        "--in-currency",
+        type=str.upper,
+        choices=sorted(currency.SUPPORTED_CURRENCIES),
+        default=None,
+        help="市況テーブルに基準通貨建て ^N225 行を併記する（海外投資家視点、クロス円レートで"
+        "換算。RESULT 行・exit code の自動実行契約には影響しない）",
+    )
+    parser.add_argument(
+        "--in-usd",
+        action="store_true",
+        help="--in-currency USD のエイリアス（後方互換）",
+    )
     args = parser.parse_args(argv)
     if args.max_alerts is not None and args.max_alerts < 1:
         parser.error("--max-alerts には 1 以上の整数を指定してください")
+    in_currency: str | None = args.in_currency or ("USD" if args.in_usd else None)
 
     try:
         content, notices, n_signals, n_watch, n_watch_total = build_report(
-            args.watchlist, args.period, args.synthetic, args.max_alerts
+            args.watchlist, args.period, args.synthetic, args.max_alerts,
+            in_currency=in_currency,
         )
     except DataFetchError as exc:
         # 実データ全滅（--synthetic では発生しない）。自動実行側が判別できるよう
