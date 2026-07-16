@@ -12,9 +12,9 @@ stock_hacker/
 ├── requirements.txt       # 依存パッケージ（pandas/numpy/yfinance/pytest）
 ├── .claude/               # Claude Code 設定
 │   ├── settings.json      # 権限・hooks（SessionStart / PostToolUse）
-│   ├── skills/            # スキル9種（analyze-stock 等、下表参照）
+│   ├── skills/            # スキル11種（analyze-stock 等、下表参照）
 │   ├── agents/            # サブエージェント4種（stock-analyst 等）
-│   └── commands/          # スラッシュコマンド11種（/analyze、/portfolio 等）
+│   └── commands/          # スラッシュコマンド13種（/analyze、/portfolio 等）
 ├── knowledge/             # 日本株ナレッジベース（Markdown、73文書）
 │   ├── 00-index.md        # 全文書の索引（必ず最新に保つ）
 │   ├── market-structure/  # 市場制度・取引所・売買の仕組み
@@ -28,7 +28,7 @@ stock_hacker/
 │   ├── data-sources/      # データソース・API・ツール
 │   └── strategies/        # 投資戦略・ファクター・イベントドリブン
 ├── analysis/              # 分析コード（Python 3.11+）
-│   ├── stocklib/          # 共通ライブラリ（data/indicators/metrics/backtest/report/portfolio/signals/charts/edinet/fundamentals）
+│   ├── stocklib/          # 共通ライブラリ（data/indicators/metrics/backtest/report/portfolio/signals/charts/edinet/fundamentals/jquants/journal）
 │   ├── analyze_stock.py   # CLI: 個別銘柄の総合分析
 │   ├── screen.py          # CLI: 銘柄スクリーニング
 │   ├── compare.py         # CLI: 複数銘柄の相対比較・相関
@@ -36,12 +36,16 @@ stock_hacker/
 │   ├── portfolio_review.py # CLI: 保有ポートフォリオの評価・リスクレビュー
 │   ├── daily_brief.py     # CLI: 市況+ウォッチリストのデイリーブリーフ
 │   ├── fundamentals_report.py # CLI: 業績推移・決算分析
+│   ├── research_journal.py # CLI: リサーチジャーナル（仮説の記録・期日確認・検証）
 │   ├── universe/          # ユニバース定義（liquid30.csv: code,name,sector、2025年時点）
 │   ├── templates/         # portfolio/watchlist の CSV テンプレート
 │   └── tests/             # pytest（python3 -m pytest analysis/tests）
 ├── scripts/               # hooks 用スクリプト
 │   ├── session_start.sh   # SessionStart: 依存導入・ディレクトリ作成・環境文脈の注入
 │   └── check_knowledge_index.py  # PostToolUse: knowledge 文書の索引未反映を検出
+├── docs/                  # 運用ガイド（automation.md: デイリーブリーフの自動実行）
+├── journal/               # リサーチジャーナル（分析仮説の記録と事後検証。git 管理対象。書式は journal/README.md）
+│   └── <YYYY>/            # エントリ（<YYYY-MM-DD>-<slug>.md、YAML frontmatter + 本文）
 ├── reports/               # レポート出力先（gitignore、.gitkeep のみコミット）
 └── data/                  # ローカルデータ（gitignore対象。data/cache/ に価格CSVキャッシュ）
 ```
@@ -59,6 +63,7 @@ stock_hacker/
 | ポートフォリオ評価 | `python3 analysis/portfolio_review.py --file data/portfolio.csv --period 1y` | 損益・セクター配分・加重β・VaR・HHI のレポート（`reports/portfolio-...`） |
 | デイリーブリーフ | `python3 analysis/daily_brief.py --watchlist data/watchlist.csv` | 市況サマリー+ウォッチ銘柄シグナル（`reports/brief-...`） |
 | 業績・決算分析 | `python3 analysis/fundamentals_report.py 7203 --years 5` | 売上/利益推移・CAGR・マージンのレポート（`reports/fundamentals-...`） |
+| リサーチジャーナル | `python3 analysis/research_journal.py new --codes 7203 --title "..." --direction up --review-days 60`（他に `due` / `verify <path>` / `list`） | `journal/<YYYY>/` に仮説エントリを生成（記録時点の終値を自動スナップショット）。`verify` が hit/miss/mixed を判定し検証結果を追記 |
 
 - 上表のオプションは代表例。全オプションは各 CLI の `--help` で確認できる。
 - 銘柄コードは4桁数字で渡す（内部で yfinance の `7203.T` に正規化）。`^N225`・`USDJPY=X` などの指数・為替ティッカーはそのまま渡せる。
@@ -93,10 +98,12 @@ stock_hacker/
 | `/portfolio [ファイル]` | portfolio-review | 保有ポートフォリオの損益・リスク・集中度レビュー |
 | `/brief` | daily-brief | 市況+ウォッチリストのシグナル定点観測 |
 | `/earnings 7203` | earnings-analysis | 業績推移・決算の時系列深掘り |
+| `/journal 7203 決算後の上方修正期待` | research-journal | 分析仮説を journal/ に記録（終値スナップショット・反証条件付き） |
+| `/journal-review` | journal-review | 検証期日が来た仮説の機械判定（hit/miss/mixed）と振り返り |
 | `/kb PERとPBRの関係` | （スキルなし） | ナレッジベースを検索し出典パス付きで回答 |
 | `/review-report reports/backtest-....md` | （スキルなし。risk-officer に委譲） | レポートの敵対的レビュー（引数省略時は reports/ の最新ファイル） |
 
-使い分けの原則: 1銘柄の深掘り → analyze-stock、業績の時系列深掘り → earnings-analysis、複数銘柄の横比較 → compare-stocks、条件による絞り込み → screen-market、売買ルールの検証 → backtest-strategy、市場全体 → market-review、保有銘柄のレビュー → portfolio-review、ウォッチ銘柄の定点観測 → daily-brief、知識の追加 → knowledge-doc。**重要なレポートを外部共有・意思決定に使う前は必ず `/review-report` を通す**（risk-officer による品質ゲート。統計的誤り・ルックアヘッド・投資助言化・合成データ偽装を検出）。
+使い分けの原則: 1銘柄の深掘り → analyze-stock、業績の時系列深掘り → earnings-analysis、複数銘柄の横比較 → compare-stocks、条件による絞り込み → screen-market、売買ルールの検証 → backtest-strategy、市場全体 → market-review、保有銘柄のレビュー → portfolio-review、ウォッチ銘柄の定点観測 → daily-brief、知識の追加 → knowledge-doc、仮説の記録 → research-journal、期日が来た仮説の検証 → journal-review。**重要なレポートを外部共有・意思決定に使う前は必ず `/review-report` を通す**（risk-officer による品質ゲート。統計的誤り・ルックアヘッド・投資助言化・合成データ偽装を検出）。
 
 サブエージェント（`.claude/agents/`。重い作業の委譲先）:
 
@@ -114,6 +121,10 @@ stock_hacker/
 | SessionStart | `scripts/session_start.sh` | 依存パッケージの導入確認、`reports/`・`data/cache/` の作成、stocklib のスモークチェック、環境の要点をセッション文脈に注入 |
 | PostToolUse (Write\|Edit) | `scripts/check_knowledge_index.py` | knowledge/ 配下の Markdown が `00-index.md` から参照されていないと exit 2 でブロックし、索引反映を促す |
 | PostToolUse (Write\|Edit) | `scripts/check_report_disclaimer.py` | reports/ 配下の Markdown に免責文（「投資助言ではありません」または「免責」）が無いと exit 2 でブロックし、`stocklib.report.DISCLAIMER` の追記を促す |
+
+### 自動実行（Routine / cron）
+
+デイリーブリーフ（`daily_brief.py` / `/brief`）は定期自動実行を想定した機械可読な契約を持つ: stdout の最終行に `RESULT signals=<検出シグナル総数> data=<real|synthetic|unavailable>` を出力し、実データが全滅した場合は exit 2（レポート非生成）、CSV 不正等は exit 1。セットアップ（ローカル cron / Claude Code の Routine、exit code と RESULT 行による通知の振り分け、シグナル検出時のみ通知する原則）は `docs/automation.md` を参照。**自動実行で実データが取れないときに `--synthetic` で代替して「今日の市況」のように見せることは禁止**（データ取得不可を明示して静かに終了する）。
 
 ### 免責（必須）
 
