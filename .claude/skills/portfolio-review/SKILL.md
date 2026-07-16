@@ -15,7 +15,7 @@ argument-hint: "[ポートフォリオCSVのパス（省略時: data/portfolio.c
 ### 1. ポートフォリオ CSV の確認
 
 - 引数でパスが指定されていればそれを、省略時は `data/portfolio.csv` を使う。
-- CSV の列は `code,shares,avg_cost,acquired_date,memo`（memo のみ省略可）。code は4桁の銘柄コード、acquired_date は `YYYY-MM-DD`。
+- CSV の列は `code,shares,avg_cost,acquired_date,memo,fx_at_cost`（memo と fx_at_cost は省略可）。code は4桁の銘柄コード、acquired_date は `YYYY-MM-DD`。fx_at_cost は取得時のクロス円レート（円/基準通貨、正の数）で、基準通貨建て損益の算出に使う（下記 `--in-currency`）。
 - `data/portfolio.csv` が無い場合は、テンプレート `analysis/templates/portfolio-example.csv` を案内し、ユーザーに保有銘柄を確認してから作成する。勝手に架空の保有内容をでっち上げない。
 - **設計上の注意（ユーザーにも一言添える）**: 保有情報は `data/` 配下に置く。`data/` は `.gitignore` 対象なので、個人の保有情報が誤って git にコミットされることはない。テンプレート（`analysis/templates/portfolio-example.csv`）だけがコミット対象。保有 CSV を `analysis/` や `knowledge/` など git 管理下のディレクトリにコピーしない。
 
@@ -28,6 +28,7 @@ python3 analysis/portfolio_review.py [--file <パス>] [--period 1y]
 ```
 
 - `reports/portfolio-<日付>.md` が生成され、パスが stdout に出力される。内容は (1) 銘柄ごとの現在値・評価額・損益・損益率・ウエイト・β、(2) 合計損益、(3) セクター配分、(4) 加重β・年率ボラ・ヒストリカルVaR(95%)・HHI 集中度、(5) 日次リターン相関行列。
+- 海外投資家視点の依頼（「ドル建てで評価して」「米国から見たリスクは？」）のときは `--in-currency USD|EUR|GBP`（`--in-usd` は `--in-currency USD` のエイリアス）を付ける。評価額・年率ボラ・VaR が基準通貨建てで併記される（クロス円レートの同日終値・ヘッジなし近似）。損益は CSV の任意列 `fx_at_cost`（取得時のクロス円レート）を入力した銘柄に限り基準通貨建てで併記され、「うち株価要因」「うち為替要因」に分解される。`fx_at_cost` の無い銘柄の損益は円建てのみ（現在為替での近似換算はしない）——この理由はレポートに自動で明記される。
 - CSV のバリデーションエラー（列不足・数値不正・日付不正・コード重複）は行番号付きで stderr に出る。ユーザーに修正箇所をそのまま伝える。
 - **ネットワークが使えない場合**は `--synthetic` を付けて再実行し、最終レポートに「合成データによる手法デモであり、実データではない」ことを必ず明記する。合成データでの損益・評価額は実際の保有状況とは無関係である点を強調する。
 

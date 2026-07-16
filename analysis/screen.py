@@ -7,9 +7,16 @@
         [--price-above-sma 200] [--price-below-sma 200]
         [--volume-surge 2.0] [--return-below -10] [--return-above 10]
         [--per-below 15] [--pbr-below 1.0] [--dividend-yield-above 3.0]
-        [--period 1y] [--synthetic]
+        [--period 1y] [--synthetic] [--in-currency USD|EUR|GBP]
 
 結果テーブルを stdout に出力し、reports/screen-<日付>.md も生成する。
+
+- --in-currency USD|EUR|GBP（--in-usd は --in-currency USD の後方互換エイリアス）:
+  各銘柄の円建て O/H/L/C を同日のクロス円レート終値（USDJPY=X 等、1基準通貨あたり円）で
+  除して基準通貨建てに換算してから、RSI・SMA・リターン条件を評価する（海外投資家視点。
+  stocklib.currency.to_base_currency、同日終値換算・為替ヘッジなしの近似）。
+  PER/PBR/配当利回りは通貨に依存しない比率のため円建てのまま、出来高（株数）も無換算。
+  リターンの関係は恒等式 (1+r_B)=(1+r_JPY)/(1+r_FX) に従う。
 """
 
 from __future__ import annotations
@@ -23,7 +30,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from stocklib import indicators, metrics, report
+from stocklib import currency, indicators, metrics, report
 from stocklib.data import DataFetchError, fetch_info, fetch_prices
 
 DEFAULT_UNIVERSE = Path(__file__).resolve().parent / "universe" / "liquid30.csv"
@@ -195,12 +202,28 @@ def screen(
     period: str,
     criteria: ScreenCriteria,
     synthetic: bool,
+    in_currency: str | None = None,
 ) -> tuple[pd.DataFrame, list[str]]:
-    """各銘柄の指標を計算し、条件を満たす銘柄の表と取得失敗リストを返す。"""
+    """各銘柄の指標を計算し、条件を満たす銘柄の表と取得失敗リストを返す。
+
+    Args:
+        in_currency: 基準通貨コード（``"USD"`` / ``"EUR"`` / ``"GBP"``）。指定すると
+            各銘柄の円建て O/H/L/C を同日のクロス円終値で基準通貨建てに換算してから
+            RSI・SMA・リターン条件を評価する（``stocklib.currency.to_base_currency``、
+            同日終値換算・為替ヘッジなしの近似）。PER/PBR/配当利回りは通貨に依存しない
+            比率のため無変換、出来高（株数）も無変換。``None`` なら円建てのまま評価する。
+
+    Raises:
+        DataFetchError: ``in_currency`` 指定時に為替レートを取得できなかった場合
+            （為替なしでは全銘柄の換算が不可能なため、銘柄単位の失敗と違い全体を中断する）。
+    """
     rows: list[dict[str, object]] = []
     errors: list[str] = []
     sma_windows = criteria.sma_windows()
     use_valuation = criteria.needs_info()
+    fx_df: pd.DataFrame | None = None
+    if in_currency is not None:
+        fx_df = currency.fetch_fx(in_currency, period, synthetic=synthetic)
     for rec in universe.to_dict("records"):
         code = str(rec["code"])
         try:
@@ -208,6 +231,12 @@ def screen(
         except DataFetchError as exc:
             errors.append(f"{code}: {exc}")
             continue
+        if fx_df is not None:
+            try:
+                df = currency.to_base_currency(df, fx_df)
+            except ValueError as exc:  # 為替と株価に共通の日付が無い等
+                errors.append(f"{code}: {exc}")
+                continue
         close = df["Close"]
         volume = df["Volume"] if "Volume" in df.columns else None
         last = float(close.iloc[-1])
@@ -298,7 +327,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dividend-yield-above", type=float, default=None, metavar="PCT",
                         help="配当利回りがこの値（%%）超の銘柄に絞る（高配当。例: 3.0）。値が取得できない銘柄は除外")
     parser.add_argument("--synthetic", action="store_true", help="合成データで実行（ネットワーク不要）")
+    parser.add_argument(
+        "--in-currency",
+        type=str.upper,
+        choices=sorted(currency.SUPPORTED_CURRENCIES),
+        default=None,
+        help="基準通貨建てで条件評価する（海外投資家視点。円建て O/H/L/C を同日のクロス円"
+        "終値で換算してから RSI・SMA・リターン条件を評価。PER/PBR/配当利回り・出来高は無変換）",
+    )
+    parser.add_argument(
+        "--in-usd",
+        action="store_true",
+        help="--in-currency USD のエイリアス（後方互換）",
+    )
     args = parser.parse_args(argv)
+    in_currency: str | None = args.in_currency or ("USD" if args.in_usd else None)
 
     try:
         universe = load_universe(args.universe)
@@ -318,19 +361,41 @@ def main(argv: list[str] | None = None) -> int:
         pbr_below=args.pbr_below,
         dividend_yield_above=args.dividend_yield_above,
     )
-    result, errors = screen(universe, args.period, criteria, args.synthetic)
+    try:
+        result, errors = screen(
+            universe, args.period, criteria, args.synthetic, in_currency=in_currency
+        )
+    except DataFetchError as exc:
+        print(f"エラー: 為替レートを取得できないため基準通貨建て評価を中断します: {exc}",
+              file=sys.stderr)
+        return 1
 
     conditions = criteria.describe()
     cond_text = "、".join(conditions) if conditions else "なし（全銘柄の指標一覧）"
     table = result_table(result)
 
+    if in_currency is not None:
+        ccy_label = currency.currency_label(in_currency)
+        title = f"スクリーニング結果（{ccy_label}建て）"
+    else:
+        ccy_label = None
+        title = "スクリーニング結果"
     lines = [
-        report.report_header("スクリーニング結果"),
+        report.report_header(title),
         f"- ユニバース: {args.universe}（{len(universe)} 銘柄）",
         f"- 期間: {args.period}",
         f"- 条件: {cond_text}",
         f"- 合致: {len(result)} 銘柄",
     ]
+    if in_currency is not None:
+        fx_ticker = currency.get_fx_ticker(in_currency)
+        lines.append(
+            f"- 基準通貨: {in_currency}（{ccy_label}建て）。円建て O/H/L/C を同日の"
+            f" {fx_ticker} 終値（1{ccy_label}あたり円）で除して換算し、RSI・SMA・リターン条件を"
+            f"{ccy_label}建て系列で評価（同日終値換算・為替ヘッジなしの近似）。"
+            "表の close/sma 列も同換算。PER/PBR/配当利回りは通貨に依存しない比率のため無変換、"
+            "出来高（株数）も無変換。"
+        )
     if args.synthetic:
         lines.append("- **データ: 合成データ（--synthetic、実在の株価ではありません）**")
         if criteria.needs_info():
@@ -345,9 +410,12 @@ def main(argv: list[str] | None = None) -> int:
         lines.append("")
     content = "\n".join(lines)
 
+    if in_currency is not None:
+        print(f"基準通貨: {in_currency}（{ccy_label}建てで条件評価、同日終値換算・為替ヘッジなしの近似）")
     print(f"条件: {cond_text}")
     print(table)
-    filename = f"screen-{dt.date.today().isoformat()}.md"
+    ccy_part = f"-{in_currency.lower()}" if in_currency is not None else ""
+    filename = f"screen{ccy_part}-{dt.date.today().isoformat()}.md"
     path = report.save_report(content, filename)
     print(f"\nレポート: {path}")
     return 0

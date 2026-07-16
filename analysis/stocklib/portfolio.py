@@ -1,8 +1,13 @@
 """ポートフォリオ管理モジュール。
 
-保有銘柄 CSV（``code,shares,avg_cost,acquired_date,memo``）の読み込み・バリデーションと、
-ポートフォリオ評価（現在値・損益・ウエイト・セクター配分・加重ベータ・相関行列・
-年率ボラティリティ・ヒストリカル VaR・HHI 集中度）を提供する。
+保有銘柄 CSV（``code,shares,avg_cost,acquired_date,memo,fx_at_cost``。memo と
+fx_at_cost は任意）の読み込み・バリデーションと、ポートフォリオ評価（現在値・損益・
+ウエイト・セクター配分・加重ベータ・相関行列・年率ボラティリティ・
+ヒストリカル VaR・HHI 集中度）を提供する。
+
+``fx_at_cost`` は取得時のクロス円レート（円/基準通貨、正の数）。入力した銘柄は
+``--in-currency`` 指定時に損益も基準通貨建てで算出し、株価要因と為替要因に分解する
+（:class:`BaseCurrencyPnl` 参照）。未入力の銘柄は損益を円建てのみとする現行設計を維持する。
 
 保有情報 CSV は ``data/portfolio.csv`` に置く想定（``data/`` は gitignore 対象のため、
 個人の保有情報が誤ってコミットされない）。テンプレートは
@@ -20,7 +25,7 @@ from typing import Sequence
 import numpy as np
 import pandas as pd
 
-from stocklib import metrics, report
+from stocklib import currency, metrics, report
 from stocklib.data import (
     REPO_ROOT,
     DataFetchError,
@@ -30,7 +35,7 @@ from stocklib.data import (
 )
 
 REQUIRED_COLUMNS: tuple[str, ...] = ("code", "shares", "avg_cost", "acquired_date")
-OPTIONAL_COLUMNS: tuple[str, ...] = ("memo",)
+OPTIONAL_COLUMNS: tuple[str, ...] = ("memo", "fx_at_cost")
 
 DEFAULT_UNIVERSE_CSV: Path = REPO_ROOT / "analysis" / "universe" / "liquid30.csv"
 UNKNOWN_SECTOR: str = "不明"
@@ -59,6 +64,9 @@ class Position:
     avg_cost: float
     acquired_date: dt.date
     memo: str = ""
+    #: 取得時のクロス円レート（円/基準通貨、正の数）。CSV の任意列 ``fx_at_cost``。
+    #: None（列なし・空欄）なら基準通貨建て損益は計算しない（円建てのみ）。
+    fx_at_cost: float | None = None
 
     @property
     def cost_value(self) -> float:
@@ -85,6 +93,85 @@ class PositionValuation:
     memo: str = ""
 
 
+@dataclass(frozen=True)
+class BaseCurrencyPnl:
+    """基準通貨建て損益の内訳（``fx_at_cost`` を入力した銘柄のみ計算する）。
+
+    基準通貨建て取得原価 = 円建て取得原価 ÷ ``fx_at_cost``、
+    基準通貨建て評価額 = 円建て評価額 ÷ 直近為替。損益率の恒等式
+    $(1 + r^{B}) = (1 + r^{JPY}) / (1 + r^{FX})$（$r^{FX}$: 取得時→直近の為替変化率）
+    に基づき、損益を
+
+    - 株価要因 ``pnl_price`` = 円建て損益 ÷ 直近為替
+    - 為替要因 ``pnl_fx`` = 残差 = 円建て取得原価 × (fx_at_cost/直近為替 − 1) ÷ fx_at_cost
+
+    に分解する。``pnl == pnl_price + pnl_fx`` が（丸め誤差を除き）恒等的に成り立つ。
+
+    Attributes:
+        code: 銘柄コード。
+        fx_at_cost: 取得時のクロス円レート（円/基準通貨、CSV 入力値）。
+        cost_value: 基準通貨建て取得原価。
+        market_value: 基準通貨建て評価額。
+        pnl: 基準通貨建て損益（``market_value - cost_value``）。
+        pnl_pct: 基準通貨建て損益率。
+        pnl_price: うち株価要因。
+        pnl_fx: うち為替要因。
+    """
+
+    code: str
+    fx_at_cost: float
+    cost_value: float
+    market_value: float
+    pnl: float
+    pnl_pct: float
+    pnl_price: float
+    pnl_fx: float
+
+
+@dataclass
+class BaseCurrencyValuation:
+    """ポートフォリオの基準通貨建て評価（海外投資家視点、``--in-currency``）。
+
+    基準通貨建ての**評価額とリスク指標（年率ボラ・VaR）**は全銘柄で計算する。
+    損益の基準通貨建て換算は、取得時のクロス円レート（CSV の任意列 ``fx_at_cost``）を
+    入力した銘柄に限り行い、株価要因と為替要因に分解する（:class:`BaseCurrencyPnl`）。
+    ``fx_at_cost`` の無い銘柄は損益を換算しない——現在為替での換算は購入時からの
+    為替損益を無視した近似にしかならないため、円建てのみを正とする。
+
+    Attributes:
+        ccy: 基準通貨コード（``"USD"`` / ``"EUR"`` / ``"GBP"``）。
+        fx_ticker: 換算に使ったクロス円ティッカー（``USDJPY=X`` / ``EURJPY=X`` 等）。
+        fx_rate: 換算に使った直近のクロス円終値（円/基準通貨）。
+        fx_change: 価格期間におけるクロス円レートの変化率（正=円安方向）。
+        market_values: 銘柄コード → 基準通貨建て評価額。
+        total_market_value: 基準通貨建て評価額合計。
+        ann_vol: 基準通貨建てポートフォリオ日次リターンの年率ボラティリティ。
+        var_95: 基準通貨建てヒストリカル VaR（95%、日次）。
+        pnl_breakdown: 銘柄コード → :class:`BaseCurrencyPnl`（``fx_at_cost`` 入力銘柄のみ）。
+        no_fx_at_cost: ``fx_at_cost`` 未入力のため損益を円建てのみとした銘柄コード。
+    """
+
+    fx_ticker: str
+    fx_rate: float
+    fx_change: float
+    market_values: dict[str, float]
+    total_market_value: float
+    ann_vol: float
+    var_95: float
+    ccy: str = "USD"
+    pnl_breakdown: dict[str, BaseCurrencyPnl] = field(default_factory=dict)
+    no_fx_at_cost: list[str] = field(default_factory=list)
+
+    @property
+    def label(self) -> str:
+        """基準通貨の日本語表示名（「ドル」「ユーロ」「ポンド」）。"""
+        return currency.CURRENCY_LABELS.get(self.ccy.upper(), self.ccy.upper())
+
+
+# 後方互換エイリアス（旧 USD 固定の名称）
+UsdValuation = BaseCurrencyValuation
+
+
 @dataclass
 class PortfolioReview:
     """ポートフォリオ全体の評価結果。:meth:`to_markdown` で Markdown 化できる。"""
@@ -105,6 +192,8 @@ class PortfolioReview:
     hhi: float
     hhi_interpretation: str
     correlation: pd.DataFrame = field(repr=False, default_factory=pd.DataFrame)
+    # 基準通貨建て評価（USD/EUR/GBP）。属性名は後方互換のため ``usd`` のまま維持する。
+    usd: BaseCurrencyValuation | None = None
 
     def to_markdown(self) -> str:
         """レポート本文（Markdown、見出し ``##`` 以下）を生成する。
@@ -161,6 +250,94 @@ class PortfolioReview:
             "実際の取得タイミング・売買履歴は反映していない。"
         )
         lines.append("")
+
+        if self.usd is not None:
+            u = self.usd
+            label = u.label
+            lines.append(f"## {label}建て評価（海外投資家視点）")
+            lines.append("")
+            lines.append(
+                f"- 換算: {u.fx_ticker} の**同日終値・ヘッジなしの近似**"
+                f"（直近 {u.fx_rate:.2f} 円/{label}、期間変動 {report.fmt_pct(u.fx_change)}）。"
+                "リスク指標は円建て日次リターンを恒等式 "
+                f"$(1 + r^{{{u.ccy}}}) = (1 + r^{{JPY}}) / (1 + r^{{FX}})$ で換算した系列から計算。"
+            )
+            if u.pnl_breakdown:
+                lines.append(
+                    f"- 損益（{u.ccy}）は CSV の任意列 `fx_at_cost`（取得時のクロス円レート、"
+                    f"円/{u.ccy}）を入力した銘柄（{len(u.pnl_breakdown)}/{len(self.positions)} 銘柄）"
+                    f"について算出: {label}建て取得原価 = 円建て取得原価 ÷ fx_at_cost、"
+                    f"{label}建て評価額 = 円建て評価額 ÷ 直近為替。恒等式 "
+                    f"$(1 + r^{{{u.ccy}}}) = (1 + r^{{JPY}}) / (1 + r^{{FX}})$ に基づき、"
+                    "**うち株価要因 = 円建て損益 ÷ 直近為替**、**うち為替要因 = 残差**"
+                    "（円建て取得原価 × (fx_at_cost/直近為替 − 1) ÷ fx_at_cost）に分解する"
+                    "（両者の合計 = 損益）。"
+                )
+                if u.no_fx_at_cost:
+                    lines.append(
+                        "- **取得時為替未入力のため円建てのみ**（`fx_at_cost` が空欄で、"
+                        f"損益の{label}建て換算をしない銘柄）: "
+                        + ", ".join(u.no_fx_at_cost)
+                        + "。現在為替での換算は購入時からの為替損益を無視した近似になるため行わない。"
+                    )
+            else:
+                lines.append(
+                    f"- **損益（P&L）の{label}建て換算は行わない**: 購入時点の為替レートが保有 CSV に"
+                    "無いため、現在為替での損益換算は購入時からの為替損益を無視した近似にしか"
+                    f"ならない。損益は円建て（上表）を正とし、{label}建ては評価額とリスク指標に限定する。"
+                    "取得時のクロス円レートを CSV の任意列 `fx_at_cost` に入力すると、"
+                    f"{label}建て損益と株価/為替要因の分解を併記できる。"
+                )
+            lines.append(
+                "- ウエイト・セクター配分・HHI は同一為替レートで全銘柄を除すため"
+                "円建てと同一（上表参照）。"
+            )
+            lines.append("")
+            if u.pnl_breakdown:
+                fx_rows: list[list[object]] = []
+                for c, mv in u.market_values.items():
+                    b = u.pnl_breakdown.get(c)
+                    if b is None:
+                        fx_rows.append([c, report.fmt_num(mv, 0), "-", "-", "-", "-", "-"])
+                    else:
+                        fx_rows.append([
+                            c,
+                            report.fmt_num(mv, 0),
+                            report.fmt_num(b.fx_at_cost, 2),
+                            report.fmt_num(b.cost_value, 0),
+                            report.fmt_num(b.pnl, 0),
+                            report.fmt_num(b.pnl_price, 0),
+                            report.fmt_num(b.pnl_fx, 0),
+                        ])
+                lines.append(report.markdown_table(
+                    ["コード", f"評価額（{u.ccy}）", "取得時為替", f"取得原価（{u.ccy}）",
+                     f"損益（{u.ccy}）", "うち株価要因", "うち為替要因"],
+                    fx_rows,
+                ))
+            else:
+                fx_rows = [
+                    [c, report.fmt_num(mv, 0)] for c, mv in u.market_values.items()
+                ]
+                lines.append(report.markdown_table(["コード", f"評価額（{u.ccy}）"], fx_rows))
+            lines.append("")
+            summary_rows: list[list[object]] = [
+                [f"評価額合計（{u.ccy}）", report.fmt_num(u.total_market_value, 0)],
+            ]
+            if u.pnl_breakdown:
+                summary_rows.extend([
+                    [f"損益合計（{u.ccy}、fx_at_cost 入力 {len(u.pnl_breakdown)} 銘柄）",
+                     report.fmt_num(sum(b.pnl for b in u.pnl_breakdown.values()), 0)],
+                    ["うち株価要因合計",
+                     report.fmt_num(sum(b.pnl_price for b in u.pnl_breakdown.values()), 0)],
+                    ["うち為替要因合計",
+                     report.fmt_num(sum(b.pnl_fx for b in u.pnl_breakdown.values()), 0)],
+                ])
+            summary_rows.extend([
+                [f"ポートフォリオ年率ボラティリティ（{label}建て）", report.fmt_pct(u.ann_vol)],
+                [f"ヒストリカルVaR（95%、日次、{label}建て）", report.fmt_pct(u.var_95)],
+            ])
+            lines.append(report.markdown_table(["項目", "値"], summary_rows))
+            lines.append("")
 
         lines.append("## セクター配分")
         lines.append("")
@@ -248,6 +425,22 @@ def _parse_row(row: dict[str, str], lineno: int, errors: list[str]) -> Position 
         if acquired > dt.date.today():
             row_errors.append(f"{lineno}行目: acquired_date {raw_date!r} が未来の日付です")
 
+    fx_at_cost: float | None = None
+    raw_fx = (row.get("fx_at_cost") or "").strip()
+    if raw_fx:  # 任意列: 空欄なら None のまま（円建てのみの現行動作）
+        try:
+            fx_value = float(raw_fx)
+        except ValueError:
+            row_errors.append(f"{lineno}行目: fx_at_cost {raw_fx!r} を数値に変換できません")
+        else:
+            if not np.isfinite(fx_value) or fx_value <= 0:
+                row_errors.append(
+                    f"{lineno}行目: fx_at_cost は正の数（取得時のクロス円レート、"
+                    f"円/基準通貨）を指定してください（{raw_fx!r}）"
+                )
+            else:
+                fx_at_cost = fx_value
+
     if row_errors:
         errors.extend(row_errors)
         return None
@@ -257,13 +450,16 @@ def _parse_row(row: dict[str, str], lineno: int, errors: list[str]) -> Position 
         avg_cost=avg_cost,
         acquired_date=acquired,
         memo=(row.get("memo") or "").strip(),
+        fx_at_cost=fx_at_cost,
     )
 
 
 def load_portfolio(path: str | Path) -> list[Position]:
     """ポートフォリオ CSV を読み込み、バリデーション済みの :class:`Position` リストを返す。
 
-    CSV の列は ``code,shares,avg_cost,acquired_date,memo``（memo のみ省略可）。
+    CSV の列は ``code,shares,avg_cost,acquired_date,memo,fx_at_cost``
+    （memo・fx_at_cost は省略可）。``fx_at_cost`` は取得時のクロス円レート
+    （円/基準通貨、正の数）で、列自体が無い・空欄の銘柄は ``None``（円建てのみ）。
     不正な行はすべて集約し、行番号付きで :class:`PortfolioValidationError` として報告する。
 
     Raises:
@@ -350,6 +546,8 @@ def evaluate_portfolio(
     period: str = "1y",
     benchmark: str = "^N225",
     synthetic: bool = False,
+    in_usd: bool = False,
+    in_currency: str | None = None,
 ) -> PortfolioReview:
     """保有ポジションを評価し、:class:`PortfolioReview` を返す。
 
@@ -365,6 +563,17 @@ def evaluate_portfolio(
         period: 価格取得期間（yfinance 形式、既定 ``"1y"``）。
         benchmark: β計算のベンチマーク（既定 ``"^N225"``）。
         synthetic: True なら合成データで評価（ネットワーク不要）。
+        in_usd: True なら ``in_currency="USD"`` と同義（後方互換エイリアス。
+            ``in_currency`` 指定時はそちらが優先）。
+        in_currency: 基準通貨コード（``"USD"`` / ``"EUR"`` / ``"GBP"``）。指定すると
+            :class:`BaseCurrencyValuation`（基準通貨建ての評価額・年率ボラ・VaR）を
+            ``usd`` 属性に付与する。さらに ``fx_at_cost``（取得時のクロス円レート、
+            CSV の任意列）を持つ銘柄については損益も基準通貨建てで算出し、株価要因と
+            為替要因に分解する（:class:`BaseCurrencyPnl`）。``fx_at_cost`` の無い銘柄の
+            損益は円建てのみ（購入時為替なしでの換算は近似になるため行わない。
+            :class:`BaseCurrencyValuation` の docstring 参照）。為替は同日終値・
+            ヘッジなしの近似。``fx_at_cost`` は指定した基準通貨のクロス円レートで
+            入力されている前提（USD 建て評価に EURJPY の値を混ぜない）。
 
     Raises:
         ValueError: positions が空の場合。
@@ -419,6 +628,49 @@ def evaluate_portfolio(
     hhi = float(np.nansum(weights ** 2))
     portfolio_beta = float(np.nansum([v.weight * v.beta for v in valuations]))
 
+    ccy: str | None = in_currency if in_currency is not None else ("USD" if in_usd else None)
+    usd: BaseCurrencyValuation | None = None
+    if ccy is not None:
+        ccy = ccy.strip().upper()
+        fx_df = currency.fetch_fx(ccy, period, synthetic=synthetic)
+        fx_aligned = currency.align_fx(closes.index, fx_df["Close"])
+        fx_last = float(fx_aligned.iloc[-1])
+        port_rets_base = currency.to_base_returns(port_rets, fx_df["Close"])
+        pnl_breakdown: dict[str, BaseCurrencyPnl] = {}
+        no_fx_at_cost: list[str] = []
+        for pos in positions:
+            if pos.fx_at_cost is None:
+                no_fx_at_cost.append(pos.code)
+                continue
+            cost_base = pos.cost_value / pos.fx_at_cost
+            mv_base = market_values[pos.code] / fx_last
+            # 恒等式 (1+r_B) = (1+r_JPY)/(1+r_FX) に基づく分解:
+            # 株価要因 = 円建て損益 ÷ 直近為替、為替要因 = 残差（合計 = 損益）
+            pnl_price = (market_values[pos.code] - pos.cost_value) / fx_last
+            pnl_fx = pos.cost_value * (pos.fx_at_cost / fx_last - 1.0) / pos.fx_at_cost
+            pnl_breakdown[pos.code] = BaseCurrencyPnl(
+                code=pos.code,
+                fx_at_cost=pos.fx_at_cost,
+                cost_value=cost_base,
+                market_value=mv_base,
+                pnl=mv_base - cost_base,
+                pnl_pct=mv_base / cost_base - 1.0,
+                pnl_price=pnl_price,
+                pnl_fx=pnl_fx,
+            )
+        usd = BaseCurrencyValuation(
+            fx_ticker=currency.get_fx_ticker(ccy),
+            fx_rate=fx_last,
+            fx_change=float(fx_aligned.iloc[-1] / fx_aligned.iloc[0] - 1.0),
+            market_values={c: market_values[c] / fx_last for c in codes},
+            total_market_value=total_mv / fx_last,
+            ann_vol=metrics.ann_vol(port_rets_base),
+            var_95=metrics.var_historical(port_rets_base, 0.95),
+            ccy=ccy,
+            pnl_breakdown=pnl_breakdown,
+            no_fx_at_cost=no_fx_at_cost,
+        )
+
     return PortfolioReview(
         as_of=dt.date.today(),
         period=period,
@@ -436,4 +688,5 @@ def evaluate_portfolio(
         hhi=hhi,
         hhi_interpretation=interpret_hhi(hhi),
         correlation=metrics.correlation_matrix(returns),
+        usd=usd,
     )

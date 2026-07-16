@@ -75,6 +75,16 @@ def _seed_from_code(code: str) -> int:
     return zlib.crc32(normalize_code(code).encode("utf-8"))
 
 
+# synthetic モードのクロス円レートの初期水準レンジ（円/基準通貨、2020年代の実勢に
+# 合わせた緩い範囲）。未登録の為替ペアは _FX_DEFAULT_RANGE を使う。
+_FX_SYNTHETIC_RANGES: dict[str, tuple[float, float]] = {
+    "USDJPY=X": (100.0, 180.0),
+    "EURJPY=X": (110.0, 190.0),
+    "GBPJPY=X": (140.0, 220.0),
+}
+_FX_DEFAULT_RANGE: tuple[float, float] = (100.0, 180.0)
+
+
 def synthetic_prices(code: str, days: int = 500, seed: int | None = None) -> pd.DataFrame:
     """合成 OHLCV データを生成する（ネットワーク不要、シード固定で再現可能）。
 
@@ -82,6 +92,11 @@ def synthetic_prices(code: str, days: int = 500, seed: int | None = None) -> pd.
 
     $$ r_t = \\mu + \\sigma_t z_t,\\quad
        \\sigma_t^2 = \\omega + \\alpha r_{t-1}^2 + \\beta \\sigma_{t-1}^2 $$
+
+    ``"USDJPY=X"`` / ``"EURJPY=X"`` のような為替ペア（``=X`` サフィックス）は、
+    株式より現実的なパラメータ（ドリフト 0・長期ボラ年率10%・通貨ごとの現実的な
+    水準レンジ ``_FX_SYNTHETIC_RANGES``、例: USDJPY 100〜180 円・EURJPY 110〜190 円・
+    GBPJPY 140〜220 円程度）で決定論的に生成する（基準通貨建て換算のオフライン検証用）。
 
     Args:
         code: 銘柄コード（シード導出に使用。同じコードは常に同じ系列を返す）。
@@ -93,14 +108,21 @@ def synthetic_prices(code: str, days: int = 500, seed: int | None = None) -> pd.
     """
     if days < 2:
         raise ValueError("days は 2 以上を指定してください")
+    ticker = normalize_code(code)
+    is_fx = ticker.upper().endswith("=X")
     if seed is None:
         seed = _seed_from_code(code)
     rng = np.random.default_rng(seed)
 
-    mu = 0.06 / 252.0  # 年率6%相当のドリフト
-    # 長期ボラ 年率20% 相当: var = (0.20/sqrt(252))^2, omega = var * (1 - alpha - beta)
+    if is_fx:
+        mu = 0.0  # 為替はドリフトなし
+        long_run_vol = 0.10  # 長期ボラ 年率10% 相当
+    else:
+        mu = 0.06 / 252.0  # 年率6%相当のドリフト
+        long_run_vol = 0.20  # 長期ボラ 年率20% 相当
+    # var = (vol/sqrt(252))^2, omega = var * (1 - alpha - beta)
     alpha, beta_ = 0.10, 0.85
-    long_run_var = (0.20 / np.sqrt(252.0)) ** 2
+    long_run_var = (long_run_vol / np.sqrt(252.0)) ** 2
     omega = long_run_var * (1.0 - alpha - beta_)
 
     var = np.empty(days)
@@ -112,7 +134,12 @@ def synthetic_prices(code: str, days: int = 500, seed: int | None = None) -> pd.
             var[t] = omega + alpha * ret[t - 1] ** 2 + beta_ * var[t - 1]
         ret[t] = mu + np.sqrt(var[t]) * z[t]
 
-    base_price = 300.0 + float(seed % 9000)  # コードごとに異なる価格帯
+    if is_fx:
+        # 為替: 通貨ペアごとの現実的な水準レンジ内でシードから決定論的に初期値を選ぶ
+        lo, hi = _FX_SYNTHETIC_RANGES.get(ticker.upper(), _FX_DEFAULT_RANGE)
+        base_price = lo + float(seed % int(hi - lo))
+    else:
+        base_price = 300.0 + float(seed % 9000)  # コードごとに異なる価格帯
     close = base_price * np.exp(np.cumsum(ret))
 
     prev_close = np.concatenate([[base_price], close[:-1]])

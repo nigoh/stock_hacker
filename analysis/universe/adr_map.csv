@@ -1,0 +1,15 @@
+# 東証現地株 ↔ 米国ADR の対応表（ADRパリティ・モニタ用）
+# ratio は「1ADRあたりの現地株数 n」（理論ADR価格 = 東証終値 × n ÷ ドル円）。
+# ADR比率は2025年時点。株式分割・預託銀行の比率変更で変わりうるため要確認。
+# listing: NYSE = スポンサードADR（SEC継続開示あり）、OTC = 店頭（アンスポンサード等）。
+code,adr_ticker,ratio,listing
+7203,TM,10,NYSE
+6758,SONY,1,NYSE
+8306,MUFG,1,NYSE
+7267,HMC,3,NYSE
+4502,TAK,0.5,NYSE
+8411,MFG,0.1,NYSE
+8316,SMFG,0.6,NYSE
+8604,NMR,1,NYSE
+7974,NTDOY,0.25,OTC
+6861,KYCCY,0.1,OTC

@@ -173,6 +173,7 @@ def plot_price_chart(
 def plot_relative_performance(
     dfs: Mapping[str, pd.DataFrame],
     out_path: Path | str,
+    title: str | None = None,
 ) -> Path:
     """期首=100 の相対パフォーマンス比較線グラフを PNG 出力する（compare 用）。
 
@@ -181,6 +182,8 @@ def plot_relative_performance(
     Args:
         dfs: 銘柄コードをキー、``Close`` 列を持つ DataFrame を値とする辞書。
         out_path: 出力 PNG パス。
+        title: チャートタイトル（豆腐化回避のため英数字推奨）。``None`` なら
+            銘柄コードから自動生成する。
 
     Returns:
         保存した PNG の絶対パス。
@@ -202,7 +205,9 @@ def plot_relative_performance(
     ax.axhline(100.0, color="#6b7280", linewidth=0.8, linestyle="--", alpha=0.6)
     ax.set_ylabel("Relative Performance (start = 100)")
     ax.set_xlabel("Date")
-    ax.set_title(f"Relative Performance: {' / '.join(str(c) for c in normalized.columns)}")
+    if title is None:
+        title = f"Relative Performance: {' / '.join(str(c) for c in normalized.columns)}"
+    ax.set_title(title)
     ax.legend(loc="upper left", fontsize=9, frameon=False)
     _style_axes(ax)
 

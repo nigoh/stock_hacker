@@ -109,8 +109,8 @@ set -a && source .env && set +a
 
 | ディレクトリ | 内容 |
 |---|---|
-| `knowledge/` | 日本株ナレッジベース（73文書）。市場制度・歴史・数学/クオンツ・ファンダ/テクニカル分析・マクロ・デリバティブ・規制税制・データソース・投資戦略。入口は [`knowledge/00-index.md`](knowledge/00-index.md)。索引経由のナビゲーションを前提とした設計で、索引の整合は hooks が自動チェックし、重複統合・陳腐化検出は knowledge-curator エージェントが担う |
-| `analysis/` | 分析コード（Python 3.11+）。共通ライブラリ `stocklib`、8本の CLI、ユニバース定義、pytest テスト |
+| `knowledge/` | 日本株ナレッジベース（81文書）。市場制度・歴史・数学/クオンツ・ファンダ/テクニカル分析・マクロ・デリバティブ・規制税制・データソース・投資戦略。入口は [`knowledge/00-index.md`](knowledge/00-index.md)。索引経由のナビゲーションを前提とした設計で、索引の整合は hooks が自動チェックし、重複統合・陳腐化検出は knowledge-curator エージェントが担う |
+| `analysis/` | 分析コード（Python 3.11+）。共通ライブラリ `stocklib`、9本の CLI、ユニバース定義、pytest テスト |
 | `journal/` | リサーチジャーナル（分析仮説の記録と事後検証。git 管理対象。入口は [`journal/README.md`](journal/README.md)） |
 | `docs/` | 運用ガイド（[`docs/automation.md`](docs/automation.md): デイリーブリーフの自動実行） |
 | `.claude/` | Claude Code 設定。スキル11種・サブエージェント4種・コマンド13種・hooks |
