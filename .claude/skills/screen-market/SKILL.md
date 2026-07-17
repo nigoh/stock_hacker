@@ -63,22 +63,32 @@ python3 analysis/screen.py --rsi-below 30 --price-above-sma 200
 
 - デフォルトユニバース `analysis/universe/liquid30.csv` は**主要流動30銘柄のサンプル**（2025年時点）にすぎない。東証全上場銘柄（約3,900銘柄）のスクリーニングではない。
 - 「該当なし」は「市場全体に該当銘柄がない」ことを意味しない。この点を結果報告に必ず書く。
-- 全銘柄スクリーニングには J-Quants API 等のデータソースが必要。本リポジトリには接続モジュール `stocklib.jquants` が実装済みで、環境変数 `JQUANTS_REFRESH_TOKEN`（https://jpx-jquants.com/ の無料プラン登録で発行）が設定されていれば、次の要領で全銘柄ユニバースの CSV を構築し `--universe` に渡せる:
+- 全銘柄スクリーニングには J-Quants API 等のデータソースが必要（下記）。
 
-  ```python
-  # リポジトリルートから: PYTHONPATH=analysis python3 で実行
-  from stocklib.jquants import fetch_listed_info
-  listed = fetch_listed_info()  # 全上場銘柄（Code は5桁形式）
-  df = listed.rename(columns={"CompanyName": "name", "Sector33CodeName": "sector"})
-  df["code"] = df["Code"].str[:4]  # screen.py 用に4桁化（英字入り5桁コードは除外を検討）
-  df[["code", "name", "sector"]].to_csv("analysis/universe/jquants-all.csv", index=False)
-  ```
+#### liquid30 を超えたい場合（J-Quants 全銘柄ユニバースの構築）
 
-  ```bash
-  python3 analysis/screen.py --universe analysis/universe/jquants-all.csv --rsi-below 30
-  ```
+環境変数 `JQUANTS_REFRESH_TOKEN`（https://jpx-jquants.com/ の無料プラン登録で発行、有効期限約1週間）が設定されていれば、`analysis/build_universe.py` で全上場銘柄から screen.py 互換のユニバース CSV（列: code,name,sector）を構築し、`--universe` に渡せる:
 
-  価格取得は yfinance 経由のため全銘柄では時間がかかる点、Free プランの銘柄一覧は最新でない可能性がある点をレポートに明記する。トークン未設定なら `JQuantsAuthError` が導入手順を表示するので、それをユーザーに案内する。詳細・注意点（5桁コード・調整系列）は `knowledge/data-sources/data-apis-and-tools.md` の J-Quants 節を参照。
+```bash
+# 全上場銘柄（ETF・REIT 等の普通株以外は既定で除外）→ data/universe/jquants-all.csv
+python3 analysis/build_universe.py
+
+# 市場区分・33業種の部分一致で絞る例（出力先は --out で指定）
+python3 analysis/build_universe.py --market プライム --out data/universe/prime.csv
+python3 analysis/build_universe.py --sector33 銀行 --out data/universe/banks.csv
+
+# 生成したユニバースでスクリーニング（例: 低PBR・高配当の発見的スクリーニング）
+python3 analysis/screen.py --universe data/universe/prime.csv --pbr-below 1.0 --dividend-yield-above 3.5
+```
+
+- 主なオプション: `--out`（既定 `data/universe/jquants-all.csv`。data/ は gitignore 範囲なので個人の生成物はコミットされない）、`--market <名>`（市場区分の部分一致）、`--sector33 <名>`（33業種名の部分一致）、`--no-exclude-etf-reit`（既定では33業種・市場区分が「その他」の ETF・REIT・インフラファンド等を除外する）。J-Quants の5桁コードは自動で4桁化され、4桁化できない優先株等はスキップ件数が stdout に報告される。
+- トークン未設定・期限切れなら `JQuantsAuthError` が導入手順つきメッセージを表示するので、それをそのままユーザーに案内する（勝手に `--synthetic` の全銘柄風レポートで代替しない）。
+- **全銘柄スクリーニングの注意（レポートに必ず明記する）**:
+  - **多重比較の産物**: 約3,900銘柄（2025年時点）に条件を掛ければ、偶然だけでも相当数がヒットする。全銘柄スクリーニングの結果は仮説生成にすぎず、「市場全体から発見した有望銘柄」ではない。試した条件の数と合わせて報告する。
+  - **小型株のデータ品質・流動性**: 価格取得は yfinance 経由のため、小型株では分割・配当調整の不備や欠損が起きやすい。売買代金の薄い銘柄は指標がノイズになりやすく、実際に売買するにはスプレッド・約定リスクも大きい。ヒットした小型株はまずデータ品質を疑ってから深掘りする。
+  - **所要時間**: 全銘柄では価格取得だけで長時間かかる（バリュエーション条件併用時はさらに顕著）。まず `--market` / `--sector33` でユニバースを絞ることを推奨し、ユーザーに所要時間の見込みを伝える。
+  - **データ遅延**: J-Quants Free プランの銘柄一覧・株価は12週間遅延（2025年時点）。銘柄一覧は直近の新規上場・上場廃止を反映していない可能性がある。
+- 詳細・注意点（5桁コード・調整系列の非互換）は `knowledge/data-sources/data-apis-and-tools.md` の J-Quants 節を参照。
 
 ### 4. 結果の解釈 — スクリーニングは仮説生成であり結論ではない
 

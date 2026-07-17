@@ -68,5 +68,5 @@ $$
 
 - ETF・J-REIT・上場ファンドの市場（market-structure/etf-reit-and-listed-funds）
 - 投資部門別売買状況と投資家構成（market-structure/investor-composition-and-flows）
-- NISA・iDeCoと個人投資家の税制（個人投資家関連の別稿）
+- [株式税制と新NISA](../regulation-tax/taxation-and-nisa.md)・[iDeCo・企業型DCの税制と新NISAとの使い分け](../regulation-tax/ideco-and-corporate-dc.md) — 個人投資家の税制
 - 日銀の金融政策と株式市場（macro/boj-and-equities）
