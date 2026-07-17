@@ -24,6 +24,12 @@ import コストを抑えるため同様に遅延 import とし、matplotlib 未
 理論価格・乖離率・円換算ADR価格。対応表は ``analysis/universe/adr_map.csv``、
 CLI は ``analysis/adr_parity.py``）がある。同様に遅延 import で解決する。
 
+サブモジュール ``stocklib.planning`` に資産形成プランニング（積立の複利予測 +
+シード固定モンテカルロのファンチャート系列、目標額からの必要積立額の逆算、
+定額/定率の取り崩しと枯渇確率、NISA 非課税メリットの定量化）がある。
+価格データを使わないネットワーク不要の純計算モジュールで、CLI は
+``analysis/asset_plan.py``。同様に遅延 import で解決する。
+
 サブモジュール ``stocklib.journal`` にリサーチジャーナル（分析仮説の記録と
 事後検証。``journal/`` 配下の frontmatter 付き Markdown を読み書きし、
 記録時スナップショットとベンチマーク調整後リターンで hit/miss/mixed を判定）が
@@ -90,7 +96,7 @@ def __getattr__(name: str) -> ModuleType:
     ``import stocklib; stocklib.jquants.fetch_listed_info()`` のような属性アクセスを、
     パッケージ import 時のコスト・依存を増やさずに成立させる。
     """
-    if name in ("jquants", "charts", "edinet", "fundamentals", "journal", "adr"):
+    if name in ("jquants", "charts", "edinet", "fundamentals", "journal", "adr", "planning"):
         return import_module(f"stocklib.{name}")
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
@@ -102,6 +108,7 @@ __all__ = [
     "fundamentals",
     "journal",
     "adr",
+    "planning",
     "DataFetchError",
     "fetch_prices",
     "fetch_info",

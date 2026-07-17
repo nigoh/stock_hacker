@@ -1,0 +1,10 @@
+date,code,side,shares,price,fee,account,memo
+2024-01-15,,deposit,1,2000000,0,taxable,証券口座へ入金
+2024-01-16,7203,buy,300,2450,275,taxable,主力・輸送用機器
+2024-03-27,7203,dividend,300,25,1523,taxable,期末配当（1株25円。fee に源泉徴収税を計上）
+2024-09-02,,deposit,1,1500000,0,nisa_growth,NISA成長投資枠へ入金
+2024-09-03,6758,buy,100,12800,325,nisa_growth,
+2025-01-20,9984,buy,100,8200,275,taxable,高ボラ枠
+2025-06-10,9984,sell,50,9500,250,taxable,一部売却
+2025-07-01,,withdraw,1,300000,0,taxable,生活資金の引き出し
+2026-03-26,7203,dividend,300,30,1828,taxable,期末配当（1株30円。fee に源泉徴収税を計上）

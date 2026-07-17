@@ -3,12 +3,47 @@
 
 使い方（リポジトリルートから）:
     python3 analysis/portfolio_review.py [--file data/portfolio.csv] [--period 1y]
-        [--in-currency USD|EUR|GBP] [--synthetic]
+        [--in-currency USD|EUR|GBP] [--drift-band 5.0] [--synthetic]
 
-保有銘柄 CSV（列: code,shares,avg_cost,acquired_date,memo,fx_at_cost。memo と
-fx_at_cost は省略可）を読み込み、評価額・損益・セクター配分・加重β・相関・年率ボラ・
-VaR・HHI 集中度をまとめた reports/portfolio-<日付>.md を生成し、そのパスを stdout に
-出力する。
+保有銘柄 CSV（列: code,shares,avg_cost,acquired_date,memo,fx_at_cost,account,
+target_weight,manual_price,proxy_ticker。memo・fx_at_cost・account・target_weight・
+manual_price・proxy_ticker は省略可）を読み込み、評価額・損益・セクター配分・加重β・
+相関・年率ボラ・VaR・HHI 集中度・下落ストレス感応度（β近似）をまとめた
+reports/portfolio-<日付>.md を生成し、そのパスを stdout に出力する。
+
+任意列 account（nisa_tsumitate / nisa_growth / taxable。空欄・列なしは taxable 扱い）
+を持つ CSV では、レポートに「NISA口座状況」節を追加する: 口座区分別の評価額・損益、
+NISA枠の使用状況（年間投資枠 つみたて120万・成長240万、生涯投資枠1,800万うち成長
+1,200万に対する簿価ベース使用率、2024年制度）、非課税メリットの推計
+（NISA口座の含み益 × 20.315%、2025年時点税率）。account 列の無い既存 CSV は
+従来どおり動作する（節ごと省略）。
+
+任意列 target_weight（目標ウエイト%。全行入力・合計ほぼ100%が必要）を持つ CSV では、
+レポートに「目標配分とのドリフト」節を追加する: 銘柄別/セクター別の現状ウエイトと
+目標の乖離（%pt）、目標に戻すための機械的な調整額試算（円）、閾値バンド
+（--drift-band、既定 ±5%pt）による超過/圏内判定、リバランスの摩擦（課税口座の
+売却課税 20.315%〔2025年時点〕、NISA 年間枠は当年復活せず生涯枠は翌年復活
+〔2024年制度〕）の注記。売買の推奨はしない（乖離の測定と機械的試算のみ）。
+
+任意列 manual_price（手入力の現在値。投信の基準価額や現金 1 を想定）を持つ行は
+yfinance を引かず手入力値で評価に組み入れる（現金・国内投信を含む全体資産ビュー。
+yfinance は国内投信の基準価額を取得できない）。手入力行に限り code は4桁以外の
+任意の識別子（emaxis-slim-allcountry、cash 等）を許容する。手入力行のうち任意列
+proxy_ticker（連動対象とみなす上場プロキシ。例: 全世界株投信 → 2559.T、TOPIX投信 →
+1306.T。指定はユーザーの判断）を持つ行は、プロキシの価格系列で β・年率ボラ・VaR・
+相関・下落ストレス感応度に組み込む（評価額は従来どおり manual_price で計算。
+信託報酬差・為替ヘッジ差・基準価額の1営業日ズレは反映されない近似である旨が
+レポートに自動で注記される）。proxy_ticker 未指定の手入力行は従来どおり β・年率ボラ・
+VaR・相関の計算対象外（リスク指標は対象外の行を除くウエイト再正規化で計算）で、
+手入力値の取得日・鮮度の管理はユーザーの責任（レポートに自動で注記される）。
+
+レポートには「下落ストレス感応度（β近似）」節が常に入る: ベンチマークが
+-10%/-20%/-30% 下落した場合の推定損益・推定評価額を ΔV ≈ Σ MV_i・β_i・Δm で
+機械的に試算する（β不明の手入力行は対象外＝変動ゼロ扱いの近似と明記。予測ではなく
+β一定仮定の感応度試算であり、ストレス時はβ・相関が上昇しがちという限界も併記）。
+また account=nisa_tsumitate に上場銘柄コードがある場合は「つみたて投資枠では個別株は
+購入できない（2024年制度）——口座区分の入力ミスの可能性」という警告をレポートに出す
+（エラーにはしない）。
 
 --in-currency USD|EUR|GBP（海外投資家視点。--in-usd は --in-currency USD の後方互換
 エイリアス）は基準通貨建て評価節を追加する。基準通貨建ての評価額とリスク指標
@@ -81,9 +116,18 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="--in-currency USD のエイリアス（後方互換）",
     )
+    parser.add_argument(
+        "--drift-band",
+        type=float,
+        default=5.0,
+        help="目標配分ドリフトの閾値バンド（%%pt、既定: 5.0。CSV に target_weight 列が"
+        "ある場合のみ使用。バンド内の乖離は「圏内」、超えると「超過」と判定する）",
+    )
     parser.add_argument("--synthetic", action="store_true", help="合成データで実行（ネットワーク不要）")
     args = parser.parse_args(argv)
     in_currency: str | None = args.in_currency or ("USD" if args.in_usd else None)
+    if args.drift_band <= 0:
+        parser.error("--drift-band は正の数（%pt）を指定してください")
 
     path: Path = args.file if args.file is not None else DEFAULT_PORTFOLIO_CSV
     if not path.exists():
@@ -109,6 +153,7 @@ def main(argv: list[str] | None = None) -> int:
             benchmark=args.benchmark,
             synthetic=args.synthetic,
             in_currency=in_currency,
+            drift_band=args.drift_band / 100.0,  # %pt → 割合
         )
         content = build_report(review, path)
     except (PortfolioValidationError, DataFetchError, ValueError) as exc:

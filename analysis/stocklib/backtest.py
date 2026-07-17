@@ -133,6 +133,294 @@ def run_backtest(
     )
 
 
+@dataclass
+class DCAResult:
+    """積立（ドルコスト平均法）シミュレーションの結果。
+
+    Attributes:
+        monthly_amount: 毎月の買付金額（円）。
+        day_of_month: 目標買付日（暦日。非営業日・月に存在しない日は翌営業日へ繰越）。
+        cost_bps: 片道取引コスト（ベーシスポイント）。買付金額から控除してから株数換算する。
+        n_buys: 実際に約定した買付回数。
+        total_invested: 累計投資額（円、コスト込みの拠出総額）。
+        total_shares: 最終保有株数（端株許容、金額ベース買付）。
+        avg_cost: 平均取得単価（円、コスト込み）$= \\text{累計投資額} / \\text{保有株数}$。
+        avg_buy_price: 買付日終値の単純平均（円）。定額買付では安値で多く買うため、
+            コストが小さければ ``avg_cost``（調和平均に相当）はこれを下回る。
+        final_value: 最終評価額（円）。
+        total_return: トータル損益率 $= \\text{最終評価額}/\\text{累計投資額} - 1$。
+        min_pnl: 期間中の最低損益率（最悪時点の評価損益率）。
+        max_drawdown_pp: 損益率曲線のピークからの最大下落幅（パーセントポイント、負値）。
+            追加拠出が損益率を希薄化する効果を含むため保守的な値になる点に注意。
+        buy_prices: 買付日終値の系列（インデックス=約定日）。
+        invested_curve: 累計投資額の時系列（円）。
+        value_curve: 評価額の時系列（円）。
+        pnl_curve: 損益率の時系列（初回買付前は NaN）。
+        avg_cost_curve: 平均取得単価の時系列（円、初回買付前は NaN）。
+    """
+
+    monthly_amount: float
+    day_of_month: int
+    cost_bps: float
+    n_buys: int
+    total_invested: float
+    total_shares: float
+    avg_cost: float
+    avg_buy_price: float
+    final_value: float
+    total_return: float
+    min_pnl: float
+    max_drawdown_pp: float
+    buy_prices: pd.Series = field(repr=False)
+    invested_curve: pd.Series = field(repr=False)
+    value_curve: pd.Series = field(repr=False)
+    pnl_curve: pd.Series = field(repr=False)
+    avg_cost_curve: pd.Series = field(repr=False)
+
+
+@dataclass
+class LumpSumResult:
+    """期初一括投資シミュレーションの結果（積立との比較用）。
+
+    Attributes:
+        amount: 投資額（円、コスト込みの拠出総額）。
+        cost_bps: 片道取引コスト（ベーシスポイント）。
+        total_shares: 保有株数（端株許容）。
+        avg_cost: 取得単価（円、コスト込み）。
+        final_value: 最終評価額（円）。
+        total_return: トータル損益率。
+        min_pnl: 期間中の最低損益率。
+        max_drawdown_pp: 損益率曲線のピークからの最大下落幅（パーセントポイント、負値）。
+            :class:`DCAResult` と同一定義で、積立との比較を同じ物差しで行うためのもの。
+        invested_curve: 累計投資額の時系列（円、期初から一定）。
+        value_curve: 評価額の時系列（円）。
+        pnl_curve: 損益率の時系列。
+    """
+
+    amount: float
+    cost_bps: float
+    total_shares: float
+    avg_cost: float
+    final_value: float
+    total_return: float
+    min_pnl: float
+    max_drawdown_pp: float
+    invested_curve: pd.Series = field(repr=False)
+    value_curve: pd.Series = field(repr=False)
+    pnl_curve: pd.Series = field(repr=False)
+
+
+@dataclass
+class DCAComparison:
+    """積立と期初一括の比較結果。
+
+    ``lump_sum`` は積立の累計投資額と同額を**期初の終値で一括投資**した場合。
+    「期初に全額を用意できた」という後知恵の前提を置いた比較である点に注意
+    （毎月の収入から拠出する現実の積立投資家には選べないことが多い）。
+    """
+
+    dca: DCAResult
+    lump_sum: LumpSumResult
+
+
+def _to_close(df: pd.DataFrame | pd.Series) -> pd.Series:
+    """OHLCV DataFrame または終値 Series から終値系列を取り出す（NaN 除去済み）。"""
+    close = df["Close"] if isinstance(df, pd.DataFrame) else df
+    close = close.dropna()
+    if close.empty:
+        raise ValueError("価格系列が空です")
+    return close
+
+
+def _pnl_drawdown_pp(pnl: pd.Series) -> float:
+    """損益率曲線のピークからの最大下落幅（パーセントポイント、負値）を計算する。
+
+    $$ \\mathrm{DD} = \\min_t \\left( \\mathrm{pnl}_t - \\max_{s \\le t} \\mathrm{pnl}_s \\right) $$
+    """
+    pnl = pnl.dropna()
+    if len(pnl) == 0:
+        return float("nan")
+    return float((pnl - pnl.cummax()).min())
+
+
+def dca_schedule(index: pd.DatetimeIndex, day_of_month: int = 1) -> pd.DatetimeIndex:
+    """毎月の目標買付日を営業日インデックス上の約定日に割り当てる。
+
+    各暦月について ``day_of_month`` 日（月にその日が無ければ月末日に丸める）を目標日とし、
+    目標日が非営業日（``index`` に無い日）なら **翌営業日に繰越** する。繰越の結果が
+    翌月にまたがることも許容する（例: 12月末の目標日が年末休場で1月頭に約定）。
+    系列開始前の目標日は系列初日に繰り越される。系列終了後にしか約定できない月はスキップする。
+
+    Args:
+        index: 営業日の ``DatetimeIndex``（昇順）。
+        day_of_month: 目標買付日（1〜31）。
+
+    Returns:
+        約定日の ``DatetimeIndex``（重複なし・昇順）。
+    """
+    if not 1 <= day_of_month <= 31:
+        raise ValueError(f"day_of_month ({day_of_month}) は 1〜31 で指定してください")
+    if len(index) == 0:
+        return pd.DatetimeIndex([])
+    dates: list[pd.Timestamp] = []
+    period = index[0].to_period("M")
+    last_period = index[-1].to_period("M")
+    while period <= last_period:
+        target = pd.Timestamp(
+            year=period.year, month=period.month,
+            day=min(day_of_month, period.days_in_month),
+        )
+        pos = int(index.searchsorted(target))
+        if pos < len(index):
+            exec_date = index[pos]
+            if not dates or exec_date != dates[-1]:
+                dates.append(exec_date)
+        period += 1
+    return pd.DatetimeIndex(dates)
+
+
+def dca_backtest(
+    df: pd.DataFrame | pd.Series,
+    monthly_amount: float,
+    day_of_month: int = 1,
+    cost_bps: float = 0.0,
+) -> DCAResult:
+    """毎月定額買付（ドルコスト平均法）のシミュレーションを実行する。
+
+    毎月 ``day_of_month`` 日（非営業日なら翌営業日に繰越）の終値で ``monthly_amount`` 円を
+    買い付ける。端株（小数株数）を許容する金額ベースの買付で、取得株数は
+
+    $$ \\Delta q_t = \\frac{A \\cdot (1 - \\mathrm{cost}/10^4)}{P_t} $$
+
+    （$A$: 月額、$P_t$: 約定日終値）。累計投資額はコスト込みの拠出額 $A$ で数える
+    ため、平均取得単価 ``avg_cost`` は取引コストを含む。
+
+    Args:
+        df: OHLCV DataFrame（``Close`` 列を使用）または終値 Series。
+        monthly_amount: 毎月の買付金額（円、正値）。
+        day_of_month: 目標買付日（1〜31。月に存在しない日は月末日に丸める）。
+        cost_bps: 片道取引コスト（ベーシスポイント）。
+
+    Returns:
+        :class:`DCAResult`
+    """
+    if monthly_amount <= 0:
+        raise ValueError(f"monthly_amount ({monthly_amount}) は正の値で指定してください")
+    if cost_bps < 0:
+        raise ValueError(f"cost_bps ({cost_bps}) は 0 以上で指定してください")
+    close = _to_close(df)
+    buy_dates = dca_schedule(close.index, day_of_month)
+    if len(buy_dates) == 0:
+        raise ValueError("買付可能な営業日がありません（期間が短すぎます）")
+
+    cash_flow = pd.Series(0.0, index=close.index)
+    cash_flow.loc[buy_dates] = monthly_amount
+    net_factor = 1.0 - cost_bps / 1e4
+    shares_bought = cash_flow * net_factor / close
+    shares_cum = shares_bought.cumsum()
+    invested_curve = cash_flow.cumsum()
+    value_curve = shares_cum * close
+    with np.errstate(invalid="ignore", divide="ignore"):
+        pnl_curve = (value_curve / invested_curve - 1.0).where(invested_curve > 0)
+        avg_cost_curve = (invested_curve / shares_cum).where(shares_cum > 0)
+
+    buy_prices = close.loc[buy_dates]
+    total_invested = float(invested_curve.iloc[-1])
+    total_shares = float(shares_cum.iloc[-1])
+    final_value = float(value_curve.iloc[-1])
+    return DCAResult(
+        monthly_amount=monthly_amount,
+        day_of_month=day_of_month,
+        cost_bps=cost_bps,
+        n_buys=len(buy_dates),
+        total_invested=total_invested,
+        total_shares=total_shares,
+        avg_cost=total_invested / total_shares,
+        avg_buy_price=float(buy_prices.mean()),
+        final_value=final_value,
+        total_return=final_value / total_invested - 1.0,
+        min_pnl=float(pnl_curve.dropna().min()),
+        max_drawdown_pp=_pnl_drawdown_pp(pnl_curve),
+        buy_prices=buy_prices,
+        invested_curve=invested_curve,
+        value_curve=value_curve,
+        pnl_curve=pnl_curve,
+        avg_cost_curve=avg_cost_curve,
+    )
+
+
+def lump_sum_backtest(
+    df: pd.DataFrame | pd.Series,
+    amount: float,
+    cost_bps: float = 0.0,
+) -> LumpSumResult:
+    """期初一括投資のシミュレーションを実行する（積立との比較用）。
+
+    系列初日の終値で ``amount`` 円（コスト込み）を全額投資し、以後保有し続ける。
+    端株を許容する金額ベースの買付（:func:`dca_backtest` と同じ約定・コストの扱い）。
+
+    Args:
+        df: OHLCV DataFrame（``Close`` 列を使用）または終値 Series。
+        amount: 投資額（円、正値）。
+        cost_bps: 片道取引コスト（ベーシスポイント）。
+
+    Returns:
+        :class:`LumpSumResult`
+    """
+    if amount <= 0:
+        raise ValueError(f"amount ({amount}) は正の値で指定してください")
+    if cost_bps < 0:
+        raise ValueError(f"cost_bps ({cost_bps}) は 0 以上で指定してください")
+    close = _to_close(df)
+    net_factor = 1.0 - cost_bps / 1e4
+    shares = amount * net_factor / float(close.iloc[0])
+    invested_curve = pd.Series(amount, index=close.index)
+    value_curve = shares * close
+    pnl_curve = value_curve / amount - 1.0
+    final_value = float(value_curve.iloc[-1])
+    return LumpSumResult(
+        amount=amount,
+        cost_bps=cost_bps,
+        total_shares=shares,
+        avg_cost=amount / shares,
+        final_value=final_value,
+        total_return=final_value / amount - 1.0,
+        min_pnl=float(pnl_curve.min()),
+        max_drawdown_pp=_pnl_drawdown_pp(pnl_curve),
+        invested_curve=invested_curve,
+        value_curve=value_curve,
+        pnl_curve=pnl_curve,
+    )
+
+
+def compare_dca_lump_sum(
+    df: pd.DataFrame | pd.Series,
+    monthly_amount: float,
+    day_of_month: int = 1,
+    cost_bps: float = 0.0,
+) -> DCAComparison:
+    """積立と期初一括を同一総投資額で比較する。
+
+    まず :func:`dca_backtest` を実行し、その累計投資額と**同額**を期初の終値で
+    一括投資した :func:`lump_sum_backtest` と並べて返す。一括側は「期初に全額を
+    用意できた」という後知恵の前提を置いた参照値であることに注意。
+
+    Args:
+        df: OHLCV DataFrame（``Close`` 列を使用）または終値 Series。
+        monthly_amount: 毎月の買付金額（円、正値）。
+        day_of_month: 目標買付日（1〜31）。
+        cost_bps: 片道取引コスト（ベーシスポイント、両手法共通）。
+
+    Returns:
+        :class:`DCAComparison`
+    """
+    dca = dca_backtest(
+        df, monthly_amount, day_of_month=day_of_month, cost_bps=cost_bps
+    )
+    lump = lump_sum_backtest(df, dca.total_invested, cost_bps=cost_bps)
+    return DCAComparison(dca=dca, lump_sum=lump)
+
+
 def ma_cross_signal(prices: pd.Series, fast: int = 25, slow: int = 75) -> pd.Series:
     """移動平均クロス戦略のポジション系列（0/1）を生成する。
 

@@ -7,6 +7,8 @@
         [--split 0.7] [--sweep] [--synthetic]
     python3 analysis/run_backtest.py --strategy rsi_reversal --code 7203
         [--rsi-window 14 --rsi-lower 30 --rsi-upper 50] [--split 0.7] [--sweep] [--synthetic]
+    python3 analysis/run_backtest.py --strategy dca --code 7203
+        [--monthly 30000 --day-of-month 1] [--period 5y] [--cost-bps 10] [--synthetic]
 
 戦略とバイ&ホールドの統計を stdout に出力し、
 reports/backtest-<strategy>-<code>-<日付>.md に保存する。
@@ -22,6 +24,10 @@ reports/backtest-<strategy>-<code>-<日付>.md に保存する。
   系列に基づく判定となり、執行と乖離したルックアヘッド類似の歪みが生じる。基準通貨建て換算は
   確定した円建て日次リターンに対して恒等式 (1+r_B)=(1+r_JPY)/(1+r_FX) を適用する
   （stocklib.currency.to_base_returns、同日終値換算・為替ヘッジなしの近似）。
+- --strategy dca: 売買シグナル戦略ではなく毎月定額買付（ドルコスト平均法）の積立
+  シミュレーション。--monthly（月額円）・--day-of-month（買付日、非営業日なら翌営業日に
+  繰越）を取り、累計投資額と同額の期初一括投資との比較表・チャートを出力する。
+  --split / --sweep / --in-currency とは併用できない。
 """
 
 from __future__ import annotations
@@ -30,12 +36,15 @@ import argparse
 import datetime as dt
 import sys
 from collections.abc import Callable
+from pathlib import Path
 
 import pandas as pd
 
 from stocklib import charts, currency, metrics, report
 from stocklib.backtest import (
     BacktestResult,
+    DCAComparison,
+    compare_dca_lump_sum,
     ma_cross_signal,
     parameter_sweep,
     rsi_reversal_signal,
@@ -44,7 +53,7 @@ from stocklib.backtest import (
 )
 from stocklib.data import DataFetchError, fetch_prices
 
-STRATEGIES: tuple[str, ...] = ("ma_cross", "rsi_reversal")
+STRATEGIES: tuple[str, ...] = ("ma_cross", "rsi_reversal", "dca")
 
 METRIC_LABELS: tuple[str, ...] = (
     "トータルリターン",
@@ -252,6 +261,197 @@ def _fx_section(
     return lines
 
 
+def _dca_chart_lines(cmp: DCAComparison, code: str, img_stem: str) -> list[str]:
+    """累計投資額 vs 評価額（積立・一括）のチャート PNG を生成し、埋め込み用 Markdown 行を返す。
+
+    チャート生成は補助情報のため、matplotlib 未導入・描画失敗時は警告して空リストを返す。
+    """
+    if not charts.charts_available():
+        print("警告: matplotlib が利用できないため、チャートなしで続行します", file=sys.stderr)
+        return []
+    try:
+        import matplotlib.pyplot as plt  # charts の import 時に Agg バックエンド設定済み
+
+        fig, ax = plt.subplots(figsize=(10, 5), constrained_layout=True)
+        dca = cmp.dca
+        ax.plot(
+            dca.value_curve.index, dca.value_curve,
+            color="#2a6fdb", linewidth=1.6, label="DCA value",
+        )
+        ax.plot(
+            dca.invested_curve.index, dca.invested_curve,
+            color="#6b7280", linewidth=1.4, linestyle="--", label="DCA invested (cum.)",
+        )
+        ax.plot(
+            cmp.lump_sum.value_curve.index, cmp.lump_sum.value_curve,
+            color="#e8a33d", linewidth=1.4, alpha=0.9, label="Lump-sum value",
+        )
+        ax.scatter(
+            dca.buy_prices.index,
+            dca.value_curve.loc[dca.buy_prices.index],
+            color="#2a6fdb", s=12, zorder=3, label="Buy dates",
+        )
+        ax.set_ylabel("JPY")
+        ax.set_xlabel("Date")
+        ax.set_title(f"{code} DCA: Invested vs Value (vs Lump-sum)")
+        ax.legend(loc="upper left", fontsize=8, frameon=False)
+        ax.grid(True, alpha=0.3, linewidth=0.5)
+        ax.set_axisbelow(True)
+        for spine in ("top", "right"):
+            ax.spines[spine].set_visible(False)
+        path = Path(charts.IMG_DIR) / f"{img_stem}-dca.png"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(path, dpi=110)
+        plt.close(fig)
+    except Exception as exc:
+        print(f"警告: チャート生成に失敗しました（チャートなしで続行します）: {exc}", file=sys.stderr)
+        return []
+    return [
+        f"![chart](img/{path.name})",
+        "",
+        "（実線: 評価額（青=積立、橙=期初一括）、破線: 積立の累計投資額、点: 買付日）",
+        "",
+    ]
+
+
+def build_dca_report(args: argparse.Namespace, img_stem: str | None = None) -> str:
+    """積立（ドルコスト平均法）バックテストのレポート本文（Markdown）を構築する。"""
+    if args.split is not None or args.sweep:
+        raise ValueError("--split / --sweep は --strategy dca では使用できません")
+    if args.in_currency is not None:
+        raise ValueError("--in-currency は --strategy dca では未対応です（円建てのみ）")
+
+    code: str = args.code
+    df = fetch_prices(code, period=args.period, synthetic=args.synthetic)[code]
+    cmp = compare_dca_lump_sum(
+        df, args.monthly, day_of_month=args.day_of_month, cost_bps=args.cost_bps
+    )
+    dca, lump = cmp.dca, cmp.lump_sum
+    close = df["Close"].dropna()
+
+    lines: list[str] = [
+        report.report_header(f"積立（ドルコスト平均法）バックテスト: {code}")
+    ]
+    lines.append(f"- 期間: {args.period}（{_span(close)}）")
+    lines.append(
+        f"- 買付ルール: 毎月 {args.day_of_month} 日（非営業日・月に無い日は翌営業日に繰越）の"
+        f"終値で {report.fmt_num(float(args.monthly), 0)} 円を定額買付（端株許容の金額ベース）"
+    )
+    lines.append(
+        f"- 取引コスト: 片道 {args.cost_bps} bps（買付金額から控除して株数換算。"
+        "平均取得単価はコスト込み）"
+    )
+    lines.append("- 配当は考慮しない（無配再投資なしの価格リターンのみ）")
+    if args.synthetic:
+        lines.append("- **データ: 合成データ（--synthetic、実在の株価ではありません）**")
+    lines.append("")
+
+    lines.append("## 積立シミュレーション結果")
+    lines.append("")
+    price_discount = dca.avg_cost / dca.avg_buy_price - 1.0
+    below_avg = int((dca.buy_prices < dca.avg_buy_price).sum())
+    dca_rows: list[list[object]] = [
+        ["買付回数", dca.n_buys],
+        ["累計投資額", f"{report.fmt_num(dca.total_invested, 0)} 円"],
+        ["最終評価額", f"{report.fmt_num(dca.final_value, 0)} 円"],
+        ["トータル損益率", report.fmt_pct(dca.total_return)],
+        ["最終保有株数（端株許容）", report.fmt_num(dca.total_shares, 2)],
+        ["平均取得単価（コスト込み）", f"{report.fmt_num(dca.avg_cost, 2)} 円"],
+        ["買付日終値の単純平均", f"{report.fmt_num(dca.avg_buy_price, 2)} 円"],
+        ["期間中の最低損益率", report.fmt_pct(dca.min_pnl)],
+        ["損益率の最大下落幅（%pt）", report.fmt_pct(dca.max_drawdown_pp)],
+    ]
+    lines.append(report.markdown_table(["指標", "値"], dca_rows))
+    lines.append("")
+
+    lines.append("## 積立 vs 期初一括の比較（同一総投資額）")
+    lines.append("")
+    lines.append(
+        f"- 一括側は積立の累計投資額と同額（{report.fmt_num(dca.total_invested, 0)} 円）を"
+        "**期初の終値で一括投資**した参照値。「期初に全額を用意できた」という後知恵の前提であり、"
+        "毎月の収入から拠出する現実の積立投資家には選べないことが多い点に注意。"
+    )
+    lines.append("")
+    cmp_rows: list[list[object]] = [
+        [
+            "最終評価額",
+            f"{report.fmt_num(dca.final_value, 0)} 円",
+            f"{report.fmt_num(lump.final_value, 0)} 円",
+        ],
+        ["トータル損益率", report.fmt_pct(dca.total_return), report.fmt_pct(lump.total_return)],
+        [
+            "投資効率（最終評価額÷投資額）",
+            report.fmt_num(dca.final_value / dca.total_invested, 3),
+            report.fmt_num(lump.final_value / lump.amount, 3),
+        ],
+        [
+            "平均取得単価（コスト込み）",
+            f"{report.fmt_num(dca.avg_cost, 2)} 円",
+            f"{report.fmt_num(lump.avg_cost, 2)} 円",
+        ],
+        ["期間中の最低損益率", report.fmt_pct(dca.min_pnl), report.fmt_pct(lump.min_pnl)],
+        [
+            "損益率の最大下落幅（%pt）",
+            report.fmt_pct(dca.max_drawdown_pp),
+            report.fmt_pct(lump.max_drawdown_pp),
+        ],
+    ]
+    lines.append(report.markdown_table(["指標", "積立（DCA）", "期初一括"], cmp_rows))
+    lines.append("")
+    lines.append(
+        "- 損益率の最大下落幅は「損益率のピークからの下落幅（パーセントポイント）」で、"
+        "積立・一括を同じ物差しで比較するための定義。積立側は追加拠出が損益率を"
+        "希薄化する効果を含むため保守的な値になる。"
+    )
+    lines.append("")
+
+    lines.append("## 下落局面での買付効果")
+    lines.append("")
+    lines.append(
+        f"- 平均取得単価 {report.fmt_num(dca.avg_cost, 2)} 円は買付日終値の単純平均 "
+        f"{report.fmt_num(dca.avg_buy_price, 2)} 円に対して {report.fmt_pct(price_discount)}。"
+        "定額買付は安値で多くの株数・高値で少ない株数を買うため、取得単価は買付価格の"
+        "調和平均 $\\bar{P}_{HM} = n / \\sum_i (1/P_i)$ に近づき、"
+        "単純平均を上回らない（取引コスト分を除く）。"
+    )
+    lines.append(
+        f"- 単純平均を下回る価格での買付: {below_avg} / {dca.n_buys} 回。"
+        "下落局面の買付が多いほど取得単価の平準化効果は大きいが、"
+        "それは下落局面を経験したことの裏返しでもある。"
+    )
+    lines.append("")
+
+    if img_stem is not None:
+        lines.extend(_dca_chart_lines(cmp, code, img_stem))
+
+    lines.append("## 積立と一括をどう読むか（判断の枠組み）")
+    lines.append("")
+    lines.append(
+        "- **実証知見**: 株式市場は長期では上昇してきた期間が多いため、「期初一括が積立を"
+        "上回る確率が歴史的には高い」ことが複数の実証研究で知られている（資金を早く・長く"
+        "市場に晒すほど期待リターンを取り込めるため）。本レポートの結果が一括優位でも、"
+        "それ自体は歴史的傾向の再確認にすぎない。"
+    )
+    lines.append(
+        "- **積立の価値はリターン最大化ではない**: (1) 毎月の収入から拠出する現実の資金制約に"
+        "合致する、(2) 高値掴みの後悔やタイミング判断の心理的負担を減らし**行動の継続性**を"
+        "高める、(3) 取得単価を平準化し特定時点への依存を減らす**リスク平準化**——という"
+        "運用の継続装置としての価値が本質である。整理は "
+        "`knowledge/strategies/long-term-wealth-building.md` を参照。"
+    )
+    lines.append(
+        "- **期間依存性**: 本結果は対象期間のレジームに強く依存する（右肩上がりの期間は一括"
+        "優位、期初に下落しその後回復する期間は積立優位になりやすい）。単一銘柄・単一期間の"
+        "比較で手法の優劣を結論しないこと。"
+    )
+    lines.append(
+        "- **個別株の積立は分散投資ではない**: 時間分散はしても銘柄集中リスクは残る。"
+        "指数連動商品の積立とは別物として読むこと。"
+    )
+    lines.append("")
+    return "\n".join(lines)
+
+
 def build_report(args: argparse.Namespace, img_stem: str | None = None) -> str:
     """バックテストレポート本文（Markdown）を構築する。
 
@@ -259,6 +459,8 @@ def build_report(args: argparse.Namespace, img_stem: str | None = None) -> str:
         img_stem: チャート PNG のファイル名接頭辞（``reports/img/<img_stem>-equity.png``）。
             ``None`` の場合はチャートを生成しない。
     """
+    if args.strategy == "dca":
+        return build_dca_report(args, img_stem=img_stem)
     code: str = args.code
     close = fetch_prices(code, period=args.period, synthetic=args.synthetic)[code]["Close"]
     signal_fn, params, strategy_label = build_strategy(args)
@@ -408,6 +610,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--rsi-upper", type=float, default=50.0,
         help="[rsi_reversal] イグジット閾値（RSI がこの値超で手仕舞い。既定: 50）",
+    )
+    parser.add_argument(
+        "--monthly", type=float, default=30000.0,
+        help="[dca] 毎月の買付金額（円。既定: 30000）",
+    )
+    parser.add_argument(
+        "--day-of-month", type=int, default=1,
+        help="[dca] 目標買付日（1〜31。非営業日・月に無い日は翌営業日に繰越。既定: 1）",
     )
     parser.add_argument("--cost-bps", type=float, default=10.0, help="片道取引コスト bps（既定: 10）")
     parser.add_argument(

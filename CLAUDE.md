@@ -1,7 +1,7 @@
 # stock_hacker — 日本株 総合分析リポジトリ
 
 日本株（東証上場株式）に関する分析を一手に担うためのリポジトリ。
-知識ベース（`knowledge/`、81文書）を土台に、分析ライブラリ（`analysis/stocklib`）・CLI・スキル/エージェント/コマンド/hooks を備えた「日本株解析のプロフェッショナル」環境。
+知識ベース（`knowledge/`、88文書）を土台に、分析ライブラリ（`analysis/stocklib`）・CLI・スキル/エージェント/コマンド/hooks を備えた「日本株解析のプロフェッショナル」環境。
 
 ## リポジトリ構造
 
@@ -12,10 +12,10 @@ stock_hacker/
 ├── requirements.txt       # 依存パッケージ（pandas/numpy/yfinance/pytest）
 ├── .claude/               # Claude Code 設定
 │   ├── settings.json      # 権限・hooks（SessionStart / PostToolUse）
-│   ├── skills/            # スキル11種（analyze-stock 等、下表参照）
+│   ├── skills/            # スキル15種（analyze-stock 等、下表参照）
 │   ├── agents/            # サブエージェント4種（stock-analyst 等）
-│   └── commands/          # スラッシュコマンド13種（/analyze、/portfolio 等）
-├── knowledge/             # 日本株ナレッジベース（Markdown、81文書）
+│   └── commands/          # スラッシュコマンド17種（/analyze、/portfolio 等）
+├── knowledge/             # 日本株ナレッジベース（Markdown、88文書）
 │   ├── 00-index.md        # 全文書の索引（必ず最新に保つ）
 │   ├── market-structure/  # 市場制度・取引所・売買の仕組み
 │   ├── history/           # 日本株市場の歴史
@@ -28,7 +28,7 @@ stock_hacker/
 │   ├── data-sources/      # データソース・API・ツール
 │   └── strategies/        # 投資戦略・ファクター・イベントドリブン
 ├── analysis/              # 分析コード（Python 3.11+）
-│   ├── stocklib/          # 共通ライブラリ（data/indicators/metrics/backtest/report/portfolio/signals/charts/edinet/fundamentals/jquants/journal）
+│   ├── stocklib/          # 共通ライブラリ（data/indicators/metrics/backtest/report/portfolio/signals/charts/edinet/fundamentals/jquants/journal/adr/currency/planning/income/performance）
 │   ├── analyze_stock.py   # CLI: 個別銘柄の総合分析
 │   ├── screen.py          # CLI: 銘柄スクリーニング
 │   ├── compare.py         # CLI: 複数銘柄の相対比較・相関
@@ -38,8 +38,13 @@ stock_hacker/
 │   ├── fundamentals_report.py # CLI: 業績推移・決算分析
 │   ├── research_journal.py # CLI: リサーチジャーナル（仮説の記録・期日確認・検証）
 │   ├── adr_parity.py      # CLI: ADRパリティ・モニタ（東証終値×ADR終値×ドル円の乖離）
+│   ├── asset_plan.py      # CLI: 資産形成プランニング（積立予測・目標逆算・進捗確認・取り崩し、NISA非課税比較。ネットワーク不要）
+│   ├── income_report.py   # CLI: 配当インカム・レポート（TTM実績配当・YOC・税引後手取り・NISA非課税メリット）
+│   ├── tax_report.py      # CLI: 課税口座の含み損益 税価値ビュー（損出し・損益通算の判断材料の機械的整理）
+│   ├── performance_report.py # CLI: 実運用パフォーマンス（取引履歴CSV → 金額加重リターン XIRR・損益内訳・ベンチマーク比較）
+│   ├── build_universe.py  # CLI: J-Quants の全上場銘柄から screen.py 互換のユニバース CSV を構築（要 JQUANTS_REFRESH_TOKEN）
 │   ├── universe/          # ユニバース定義（liquid30.csv: code,name,sector、2025年時点。adr_map.csv: ADR対応表）
-│   ├── templates/         # portfolio/watchlist の CSV テンプレート
+│   ├── templates/         # portfolio/watchlist/transactions の CSV テンプレート
 │   └── tests/             # pytest（python3 -m pytest analysis/tests）
 ├── scripts/               # hooks 用スクリプト
 │   ├── session_start.sh   # SessionStart: 依存導入・ディレクトリ作成・環境文脈の注入
@@ -66,8 +71,15 @@ stock_hacker/
 | 業績・決算分析 | `python3 analysis/fundamentals_report.py 7203 --years 5` | 売上/利益推移・CAGR・マージンのレポート（`reports/fundamentals-...`） |
 | ADRパリティ・モニタ | `python3 analysis/adr_parity.py 7203`（単銘柄）/ `--all`（`analysis/universe/adr_map.csv` の全銘柄） | 東証終値×ADR終値×ドル円の理論価格・乖離%・円換算ADR価格のレポート（`reports/adr-...`。終値の暦日ずれの注意付き） |
 | リサーチジャーナル | `python3 analysis/research_journal.py new --codes 7203 --title "..." --direction up --review-days 60`（他に `due` / `verify <path>` / `list`） | `journal/<YYYY>/` に仮説エントリを生成（記録時点の終値を自動スナップショット）。`verify` が hit/miss/mixed を判定し検証結果を追記 |
+| 資産形成プランニング | `python3 analysis/asset_plan.py project --monthly 50000 --years 20 --return 5 --nisa`（他に `goal`: 目標額から必要積立額を逆算 / `progress`: 現在資産+積立ペースでの目標到達確認（要求リターン逆算・到達確率） / `decumulate`: 定額・定率取り崩し） | 決定論的複利+モンテカルロのファンチャート付きレポート（`reports/plan-<サブコマンド>-<日付>.md`。ネットワーク不要・価格データ不使用。率は%表記、想定リターンはユーザーの仮定である旨を自動明記） |
+| 配当インカム・レポート | `python3 analysis/income_report.py --file data/portfolio.csv --period 1y` | 銘柄別の年間受取配当見込み（TTM実績ベース）・YOC・時価利回り・口座区分別の税引後手取り・NISA非課税メリット試算のレポート（`reports/income-...`。TTM≠会社予想・減配リスク・株式数比例配分方式の注記付き。`manual_price` 行は配当集計の対象外） |
+| 含み損益の税価値ビュー | `python3 analysis/tax_report.py --file data/portfolio.csv --period 1y` | 課税口座の銘柄別含み損益と「実現した場合の税価値（試算）」= 含み損 × 20.315%（2025年時点）、NISA口座（損益通算・繰越控除の対象外）との対比、実務上の注意（同日買戻し・申告要件・行動バイアス）のレポート（`reports/tax-...`。売る銘柄の判断はしない条件付き試算） |
+| 実運用パフォーマンス（XIRR） | `python3 analysis/performance_report.py --file data/transactions.csv`（配当込み比較は `--benchmark 1306.T`） | 取引履歴CSV（買付・売却・配当・入出金。テンプレート: `analysis/templates/transactions-example.csv`）から、入出金を調整した実績年率＝金額加重リターン（MWR = XIRR）・期間損益の内訳（実現+未実現+受取配当）・同じキャッシュフローをベンチマークに投じた場合の比較のレポート（`reports/performance-...`。入出金行があれば口座モード、約定のみならポジションモードに自動判定。既定の ^N225 は配当を含まない価格指数である旨の注記付き） |
 
 - 上表のオプションは代表例。全オプションは各 CLI の `--help` で確認できる。
+- `--horizon short|mid|long`（analyze_stock）: 投資時間軸フレーム。short=〜数週間（`--period` 未指定時 6mo）/ mid=数ヶ月〜1年（2y）/ long=数年〜（5y）。指定すると該当時間軸の「視点」節がレポートに追加され（short: 5/25日線・RSI・ATR倍数のストップ目安・出来高急増・直近20日高安値、mid: 25/75/200日線の並び・3/6/12ヶ月モメンタム・52週高値からの距離、long: 年率リターン/ボラ・最大DD・配当利回り・PBR/PER の長期文脈・積立適性）、出力ファイル名は `analyze-<code>-<horizon>-<日付>.md` になる。省略時は従来どおりの全部入り。
+- `--strategy dca`（run_backtest）: 売買シグナル戦略ではなく毎月定額買付（ドルコスト平均法）の積立バックテスト。`--monthly`（毎月の買付金額、既定 30000円）と `--day-of-month`（目標買付日、非営業日は翌営業日に繰越、既定 1）で設定し、同一総投資額の期初一括投資との比較（最終評価額・損益率・平均取得単価等）をレポート化する。`--split` / `--sweep` / `--in-currency` は dca では使用不可（円建てのみ）。
+- 保有 CSV の任意列 `account`（portfolio_review。`nisa_tsumitate` / `nisa_growth` / `taxable`、空欄・列なしは taxable 扱い）: 1銘柄でも指定があるとレポートに「NISA口座状況」節が追加される——口座区分別の内訳（簿価・評価額・損益）、年間投資枠（`acquired_date` の暦年で集計。つみたて投資枠120万円・成長投資枠240万円/年）と生涯投資枠（1,800万円、うち成長投資枠1,200万円。簿価残高方式）の使用率、非課税メリット推計（NISA含み益 × 20.315%、2025年時点の課税口座税率との比較。含み損なら0円）。いずれも2024年開始の新NISA制度の値。保有中の銘柄の簿価のみからの集計で、売却済み分・投資信託の買付を含まないため金融機関側の枠残高管理値とはずれうる。
 - `--in-currency USD|EUR|GBP`（analyze_stock / compare / run_backtest / portfolio_review / screen / daily_brief 共通、海外投資家視点。`--in-usd` は `--in-currency USD` の後方互換エイリアス）: 基準通貨建て評価を併記する。換算はクロス円レート（USDJPY=X・EURJPY=X・GBPJPY=X、`stocklib.currency.SUPPORTED_CURRENCIES` のホワイトリスト）の同日終値・ヘッジなし近似。バックテストでは売買シグナルは常に円建て価格で計算し、確定した日次リターンを恒等式 $(1+r^{B})=(1+r^{JPY})/(1+r^{FX})$ で換算する。スクリーニング（screen）では各銘柄の O/H/L/C を換算してから RSI・SMA・リターン条件を評価する（PER/PBR/配当利回りは通貨に依存しない比率、出来高は無変換）。デイリーブリーフ（daily_brief）では市況テーブルに基準通貨建て ^N225 行を併記する（RESULT 行・exit code の自動実行契約は不変）。ポートフォリオでは基準通貨建ての評価額・年率ボラ・VaR は全銘柄で計算し、保有 CSV の任意列 `fx_at_cost`（取得時のクロス円レート、円/基準通貨。指定した基準通貨のレートで入力する）がある銘柄は損益も基準通貨建てで併記して「うち株価要因（円建て損益÷直近為替）」「うち為替要因（残差）」に分解する。`fx_at_cost` 未入力の銘柄の損益は円建てのみ（現在為替での近似換算はせず、レポートに「取得時為替未入力のため円建てのみ」と注記される）。
 - 銘柄コードは4桁数字で渡す（内部で yfinance の `7203.T` に正規化）。`^N225`・`USDJPY=X` などの指数・為替ティッカーはそのまま渡せる。
 - 価格データは `data/cache/` に CSV でキャッシュされる（gitignore 済み）。
@@ -80,11 +92,11 @@ stock_hacker/
 
 ### `--synthetic` フラグ
 
-全 CLI 共通のオプション。ネットワーク不要の合成データ（シード固定の幾何ブラウン運動 + ボラティリティクラスタ）で全機能が動く。yfinance への接続に失敗したら `--synthetic` を付けて再実行すること。ただし合成データで作ったレポートには**「合成データによる手法デモであり実データではない」ことを必ず明記する**。
+価格データを使う全 CLI 共通のオプション（`asset_plan.py` はそもそも価格データ・ネットワークを使わないため対象外）。ネットワーク不要の合成データ（シード固定の幾何ブラウン運動 + ボラティリティクラスタ）で全機能が動く。yfinance への接続に失敗したら `--synthetic` を付けて再実行すること。ただし合成データで作ったレポートには**「合成データによる手法デモであり実データではない」ことを必ず明記する**。
 
 ### J-Quants 接続（オプション、実データ全銘柄対応）
 
-環境変数 `JQUANTS_REFRESH_TOKEN` にリフレッシュトークン（https://jpx-jquants.com/ の無料プラン登録で発行、**有効期限約1週間**なので認証エラー時はまず再発行を疑う）を設定すると、`stocklib.jquants` 経由で JPX 公式の J-Quants API が使える。`fetch_listed_info()` が全上場銘柄の一覧（コード・社名・33業種等）を返すので、liquid30 を超える**全銘柄スクリーニングのユニバース CSV 構築**に使える。`fetch_daily_quotes()` は `fetch_prices` と同じ OHLCV DataFrame 形式で日足を返す（分割・併合調整済み系列を優先。Free プランは12週間遅延データ、2025年時点）。トークンは `.env`（gitignore 済み、雛形は `.env.example`）に置き `set -a && source .env && set +a` で読み込む運用を推奨。トークンをコード・レポート・コミットに含めないこと。トークン未設定・期限切れ時は `JQuantsAuthError` が導入手順つきのメッセージを出す。詳細・注意点（5桁コード、配当調整の非互換等）は `knowledge/data-sources/data-apis-and-tools.md` の J-Quants 節を参照。テストは `analysis/tests/test_jquants.py`（ネットワーク不要のモックで検証）。
+環境変数 `JQUANTS_REFRESH_TOKEN` にリフレッシュトークン（https://jpx-jquants.com/ の無料プラン登録で発行、**有効期限約1週間**なので認証エラー時はまず再発行を疑う）を設定すると、`stocklib.jquants` 経由で JPX 公式の J-Quants API が使える。`fetch_listed_info()` が全上場銘柄の一覧（コード・社名・33業種等）を返すので、liquid30 を超える**全銘柄スクリーニングのユニバース CSV 構築**に使える（`python3 analysis/build_universe.py` が screen.py 互換の `code,name,sector` CSV を生成。`--market` / `--sector33` で絞り込み可）。`fetch_daily_quotes()` は `fetch_prices` と同じ OHLCV DataFrame 形式で日足を返す（分割・併合調整済み系列を優先。Free プランは12週間遅延データ、2025年時点）。トークンは `.env`（gitignore 済み、雛形は `.env.example`）に置き `set -a && source .env && set +a` で読み込む運用を推奨。トークンをコード・レポート・コミットに含めないこと。トークン未設定・期限切れ時は `JQuantsAuthError` が導入手順つきのメッセージを出す。詳細・注意点（5桁コード、配当調整の非互換等）は `knowledge/data-sources/data-apis-and-tools.md` の J-Quants 節を参照。テストは `analysis/tests/test_jquants.py`（ネットワーク不要のモックで検証）。
 
 ### スラッシュコマンド・スキル・エージェントの一覧と使い分け
 
@@ -103,10 +115,14 @@ stock_hacker/
 | `/earnings 7203` | earnings-analysis | 業績推移・決算の時系列深掘り |
 | `/journal 7203 決算後の上方修正期待` | research-journal | 分析仮説を journal/ に記録（終値スナップショット・反証条件付き） |
 | `/journal-review` | journal-review | 検証期日が来た仮説の機械判定（hit/miss/mixed）と振り返り |
+| `/plan 毎月5万円を20年` | asset-planning | 資産形成プランニング（積立シミュレーション・目標逆算・取り崩し・新NISA非課税メリット試算） |
+| `/income [ファイル]` | dividend-income | 保有銘柄の配当インカム集計（年間受取見込み・YOC・税引後手取り・NISA非課税メリット） |
+| `/tax [ファイル]` | tax-view | 課税口座の含み損益 税価値ビュー（損出し・損益通算の判断材料の機械的整理。売る銘柄の判断はしない） |
+| `/performance [ファイル]` | performance-review | 取引履歴からの実運用パフォーマンス測定（入出金調整後の実績年率 XIRR・損益内訳・ベンチマーク比較） |
 | `/kb PERとPBRの関係` | （スキルなし） | ナレッジベースを検索し出典パス付きで回答 |
 | `/review-report reports/backtest-....md` | （スキルなし。risk-officer に委譲） | レポートの敵対的レビュー（引数省略時は reports/ の最新ファイル） |
 
-使い分けの原則: 1銘柄の深掘り → analyze-stock、業績の時系列深掘り → earnings-analysis、複数銘柄の横比較 → compare-stocks、条件による絞り込み → screen-market、売買ルールの検証 → backtest-strategy、市場全体 → market-review、保有銘柄のレビュー → portfolio-review、ウォッチ銘柄の定点観測 → daily-brief、知識の追加 → knowledge-doc、仮説の記録 → research-journal、期日が来た仮説の検証 → journal-review。**重要なレポートを外部共有・意思決定に使う前は必ず `/review-report` を通す**（risk-officer による品質ゲート。統計的誤り・ルックアヘッド・投資助言化・合成データ偽装を検出）。
+使い分けの原則: 1銘柄の深掘り → analyze-stock、業績の時系列深掘り → earnings-analysis、複数銘柄の横比較 → compare-stocks、条件による絞り込み → screen-market、売買ルールの検証 → backtest-strategy、市場全体 → market-review、保有銘柄のレビュー → portfolio-review、ウォッチ銘柄の定点観測 → daily-brief、知識の追加 → knowledge-doc、仮説の記録 → research-journal、期日が来た仮説の検証 → journal-review、積立額・目標額・取り崩し・NISA枠の試算 → asset-planning、保有銘柄の配当収入の集計 → dividend-income、含み損益の税務整理 → tax-view、取引履歴からの実績リターン（XIRR）測定 → performance-review。**重要なレポートを外部共有・意思決定に使う前は必ず `/review-report` を通す**（risk-officer による品質ゲート。統計的誤り・ルックアヘッド・投資助言化・合成データ偽装を検出）。
 
 サブエージェント（`.claude/agents/`。重い作業の委譲先）:
 
@@ -127,7 +143,7 @@ stock_hacker/
 
 ### 自動実行（Routine / cron）
 
-デイリーブリーフ（`daily_brief.py` / `/brief`）は定期自動実行を想定した機械可読な契約を持つ: stdout の最終行に `RESULT signals=<検出シグナル総数> data=<real|synthetic|unavailable>` を出力し、実データが全滅した場合は exit 2（レポート非生成）、CSV 不正等は exit 1。セットアップ（ローカル cron / Claude Code の Routine、exit code と RESULT 行による通知の振り分け、シグナル検出時のみ通知する原則）は `docs/automation.md` を参照。**自動実行で実データが取れないときに `--synthetic` で代替して「今日の市況」のように見せることは禁止**（データ取得不可を明示して静かに終了する）。
+デイリーブリーフ（`daily_brief.py` / `/brief`）は定期自動実行を想定した機械可読な契約を持つ: stdout の最終行に `RESULT signals=<検出シグナル総数> watch=<取得成功数>/<ウォッチリスト総数> data=<real|synthetic|unavailable>` を出力し、実データが全滅した場合は exit 2（レポート非生成）、CSV 不正等は exit 1。セットアップ（ローカル cron / Claude Code の Routine、exit code と RESULT 行による通知の振り分け、シグナル検出時のみ通知する原則）は `docs/automation.md` を参照。**自動実行で実データが取れないときに `--synthetic` で代替して「今日の市況」のように見せることは禁止**（データ取得不可を明示して静かに終了する）。
 
 ### 免責（必須）
 

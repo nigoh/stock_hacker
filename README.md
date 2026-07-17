@@ -24,6 +24,8 @@ claude                            # Claude Code を起動
 
 各 CLI の全オプションは `--help` で確認できる（例: `python3 analysis/analyze_stock.py --help`）。
 
+ゼロから個人の資産形成を立ち上げる通しの順路（前提整理 → 計画 → 新NISA → セットアップ → 定点観測 → データの限界）は [`docs/getting-started.md`](docs/getting-started.md) を参照。
+
 ## 出力イメージ
 
 `python3 analysis/analyze_stock.py 7203 --period 1y --synthetic` を実行すると、次のような Markdown レポートが `reports/analyze-7203-<日付>.md` に生成される（抜粋。`--synthetic` による合成データのため数値は実在の株価ではない）:
@@ -57,21 +59,37 @@ claude                            # Claude Code を起動
 
 | 入口 | 内容 |
 |---|---|
-| `/analyze 7203` | 個別銘柄の総合分析レポート（テクニカル・ファンダ・リスク・セクター文脈） |
+| `/analyze 7203` | 個別銘柄の総合分析レポート（テクニカル・ファンダ・リスク・セクター文脈。`--horizon short\|mid\|long` で短期・中期・長期の時間軸別「視点」節を追加） |
 | `/screen RSI30以下` | 主要流動30銘柄からの条件スクリーニング |
 | `/compare 7203 6758 9984` | 複数銘柄の相対パフォーマンス・相関比較 |
-| `/backtest ゴールデンクロス 7203` | 売買戦略のバックテストと統計的検証（t統計量・多重検定・バイアスチェック） |
+| `/backtest ゴールデンクロス 7203` | 売買戦略のバックテストと統計的検証（t統計量・多重検定・バイアスチェック）。`--strategy dca` で毎月定額積立（ドルコスト平均法）を期初一括投資と比較する積立バックテストも可能 |
 | `/market` | 指数・為替・米国市場を横断した市況レビュー |
 | `/kb PERとPBRの関係` | ナレッジベース検索（出典ファイルパス付きで回答） |
 | `/learn 空売り規制の歴史` | 調査してナレッジ文書を追加・更新 |
 | `/review-report` | レポートの敵対的レビュー（risk-officer による品質ゲート。引数省略時は最新レポート） |
-| `/portfolio` | 保有ポートフォリオの損益・セクター配分・β・VaR・集中度レビュー（保有CSVは git 管理外） |
+| `/portfolio` | 保有ポートフォリオの損益・セクター配分・β・VaR・集中度レビュー（保有CSVは git 管理外）。CSV の `account` 列（`nisa_tsumitate`/`nisa_growth`/`taxable`）を書けば新NISAの口座区分別損益・年間/生涯投資枠の使用率・非課税メリット推計も併記 |
 | `/brief` | 市況+ウォッチリストのデイリーブリーフ（RSI・クロス・出来高急増などのシグナル検出） |
 | `/earnings 7203` | 業績推移・決算の深掘り（CAGR・マージン・ROE推移、EDINET 書類の確認導線） |
 | `/journal 7203 決算後の上方修正期待` | 分析仮説をリサーチジャーナルに記録（記録時点の終値スナップショット付き） |
 | `/journal-review` | 検証期日が来た仮説の答え合わせ（hit/miss/mixed の機械判定と振り返り） |
+| `/plan 毎月5万円を20年` | 資産形成プランニング：積立シミュレーション・目標額からの必要積立額の逆算・進捗確認・取り崩し（定額/定率）・新NISAの非課税メリット試算（モンテカルロのファンチャート付き、ネットワーク不要） |
+| `/income` | 保有銘柄の配当インカム集計：年間受取配当見込み（TTM実績ベース）・YOC・時価利回り・口座区分別の税引後手取り・NISA非課税メリット |
+| `/tax` | 課税口座の含み損益 税価値ビュー：損出し・損益通算の判断材料の機械的整理（どの銘柄を売るかの判断はしない） |
+| `/performance` | 取引履歴（買付・売却・配当・入出金の CSV、git 管理外）からの実運用パフォーマンス測定：入出金のタイミングを調整した実績年率（金額加重リターン XIRR）・損益の内訳・同じキャッシュフローをベンチマークに投じた場合との比較 |
 
 スラッシュコマンドを使わなくても、`python3 analysis/analyze_stock.py 7203` のように CLI を直接実行できる（詳細は `CLAUDE.md` の「分析環境の使い方」、各 CLI の `--help`）。
+
+### 資産形成のための使い方 — 時間軸で入口を選ぶ
+
+同じ銘柄・同じ資金でも、時間軸によって見るべきものは変わる。迷ったら次の対応で入口を選ぶ（枠組みは [`knowledge/strategies/investment-horizons-framework.md`](knowledge/strategies/investment-horizons-framework.md)）。
+
+| 時間軸 | 入口 |
+|---|---|
+| 短期（〜数週間） | `/brief` でウォッチ銘柄のシグナルを定点観測し、気になった銘柄を `/analyze 7203`（`--horizon short`: 短期線・RSI・ATRベースのストップ目安・出来高）で確認 |
+| 中期（数ヶ月〜1年） | `/analyze`（`--horizon mid`）と `/earnings` で株価と業績を突き合わせ、仮説は `/journal` に記録して後日 `/journal-review` で答え合わせ |
+| 長期（数年〜、新NISA） | `/plan` で積立・目標逆算・取り崩しを試算し、`/portfolio`（`account` 列）で NISA 枠の使用状況と非課税メリットを確認、`/backtest --strategy dca` で積立という買い方自体を過去データで検証。年1回は `/performance` で入出金調整後の実績年率（XIRR）とベンチマーク比較を確認し、`/plan` の想定リターンと実績の乖離を点検 |
+
+いずれの出力も判断材料（数値・枠組み・トレードオフ）の提供であり、投資助言ではない。
 
 ### リサーチジャーナル — 分析を「やりっぱなし」にしない
 
@@ -109,11 +127,11 @@ set -a && source .env && set +a
 
 | ディレクトリ | 内容 |
 |---|---|
-| `knowledge/` | 日本株ナレッジベース（81文書）。市場制度・歴史・数学/クオンツ・ファンダ/テクニカル分析・マクロ・デリバティブ・規制税制・データソース・投資戦略。入口は [`knowledge/00-index.md`](knowledge/00-index.md)。索引経由のナビゲーションを前提とした設計で、索引の整合は hooks が自動チェックし、重複統合・陳腐化検出は knowledge-curator エージェントが担う |
-| `analysis/` | 分析コード（Python 3.11+）。共通ライブラリ `stocklib`、9本の CLI、ユニバース定義、pytest テスト |
+| `knowledge/` | 日本株ナレッジベース（88文書）。市場制度・歴史・数学/クオンツ・ファンダ/テクニカル分析・マクロ・デリバティブ・規制税制・データソース・投資戦略。入口は [`knowledge/00-index.md`](knowledge/00-index.md)。索引経由のナビゲーションを前提とした設計で、索引の整合は hooks が自動チェックし、重複統合・陳腐化検出は knowledge-curator エージェントが担う |
+| `analysis/` | 分析コード（Python 3.11+）。共通ライブラリ `stocklib`、14本の CLI、ユニバース定義、pytest テスト |
 | `journal/` | リサーチジャーナル（分析仮説の記録と事後検証。git 管理対象。入口は [`journal/README.md`](journal/README.md)） |
-| `docs/` | 運用ガイド（[`docs/automation.md`](docs/automation.md): デイリーブリーフの自動実行） |
-| `.claude/` | Claude Code 設定。スキル11種・サブエージェント4種・コマンド13種・hooks |
+| `docs/` | 運用ガイド（[`docs/getting-started.md`](docs/getting-started.md): ゼロから始める資産形成の通し順路、[`docs/automation.md`](docs/automation.md): デイリーブリーフの自動実行） |
+| `.claude/` | Claude Code 設定。スキル15種・サブエージェント4種・コマンド17種・hooks |
 | `scripts/` | hooks 用スクリプト（環境セットアップ、ナレッジ索引の整合チェック） |
 | `reports/` | 生成レポートの出力先（git 管理外） |
 | `data/` | 価格データのローカルキャッシュ（git 管理外） |
