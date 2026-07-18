@@ -32,7 +32,13 @@ from pathlib import Path
 from typing import Sequence
 
 from stocklib import report
-from stocklib.data import REPO_ROOT, DataFetchError, fetch_prices
+from stocklib.data import (
+    REPO_ROOT,
+    DataFetchError,
+    add_source_argument,
+    fetch_prices,
+    set_default_source,
+)
 from stocklib.portfolio import (
     ACCOUNT_LABELS,
     ACCOUNT_TAXABLE,
@@ -485,7 +491,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--synthetic", action="store_true", help="合成データで実行（ネットワーク不要）",
     )
+    add_source_argument(parser)
     args = parser.parse_args(argv)
+    set_default_source(args.source)
 
     path: Path = args.file if args.file is not None else DEFAULT_PORTFOLIO_CSV
     if not path.exists():

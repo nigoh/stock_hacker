@@ -44,6 +44,8 @@ from stocklib.data import (
     fetch_info,
     fetch_prices,
     normalize_code,
+    resolve_source,
+    set_default_source,
     synthetic_prices,
 )
 from stocklib.indicators import atr, bollinger, ema, ichimoku, macd, rsi, sma
@@ -113,6 +115,8 @@ __all__ = [
     "fetch_prices",
     "fetch_info",
     "normalize_code",
+    "resolve_source",
+    "set_default_source",
     "synthetic_prices",
     "sma",
     "ema",

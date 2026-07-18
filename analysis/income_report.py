@@ -39,7 +39,12 @@ import sys
 from pathlib import Path
 
 from stocklib import report
-from stocklib.data import REPO_ROOT, DataFetchError
+from stocklib.data import (
+    REPO_ROOT,
+    DataFetchError,
+    add_source_argument,
+    set_default_source,
+)
 from stocklib.income import IncomeReport, build_income_report
 from stocklib.portfolio import PortfolioValidationError, load_portfolio
 
@@ -84,7 +89,9 @@ def main(argv: list[str] | None = None) -> int:
         "--synthetic", action="store_true",
         help="合成データで実行（ネットワーク不要。レポートに合成データである旨を明記）",
     )
+    add_source_argument(parser)
     args = parser.parse_args(argv)
+    set_default_source(args.source)
 
     path: Path = args.file if args.file is not None else DEFAULT_PORTFOLIO_CSV
     if not path.exists():

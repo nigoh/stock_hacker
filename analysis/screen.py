@@ -31,7 +31,13 @@ from pathlib import Path
 import pandas as pd
 
 from stocklib import currency, indicators, metrics, report
-from stocklib.data import DataFetchError, fetch_info, fetch_prices
+from stocklib.data import (
+    DataFetchError,
+    add_source_argument,
+    fetch_info,
+    fetch_prices,
+    set_default_source,
+)
 
 DEFAULT_UNIVERSE = Path(__file__).resolve().parent / "universe" / "liquid30.csv"
 
@@ -327,6 +333,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dividend-yield-above", type=float, default=None, metavar="PCT",
                         help="配当利回りがこの値（%%）超の銘柄に絞る（高配当。例: 3.0）。値が取得できない銘柄は除外")
     parser.add_argument("--synthetic", action="store_true", help="合成データで実行（ネットワーク不要）")
+    add_source_argument(parser)
     parser.add_argument(
         "--in-currency",
         type=str.upper,
@@ -341,6 +348,7 @@ def main(argv: list[str] | None = None) -> int:
         help="--in-currency USD のエイリアス（後方互換）",
     )
     args = parser.parse_args(argv)
+    set_default_source(args.source)
     in_currency: str | None = args.in_currency or ("USD" if args.in_usd else None)
 
     try:

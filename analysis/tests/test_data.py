@@ -1,17 +1,42 @@
-"""data モジュールの検証（合成データ・コード正規化。ネットワーク不使用）。"""
+"""data モジュールの検証（合成データ・コード正規化・データソース選択。ネットワーク不使用）。"""
 
 from __future__ import annotations
+
+import argparse
+import os
 
 import pandas as pd
 import pytest
 
+import stocklib.data as data_mod
+import stocklib.jquants as jquants_mod
 from stocklib.data import (
+    SOURCE_ENV,
+    VALID_SOURCES,
+    DataFetchError,
+    _cache_path,
+    add_source_argument,
     fetch_info,
     fetch_prices,
     normalize_code,
     period_to_days,
+    resolve_source,
+    set_default_source,
     synthetic_prices,
 )
+
+
+@pytest.fixture(autouse=True)
+def _isolate_source_env():
+    """各テストの前後で ``STOCK_HACKER_SOURCE`` を復元し、環境変数の汚染を防ぐ。"""
+    original = os.environ.get(SOURCE_ENV)
+    try:
+        yield
+    finally:
+        if original is None:
+            os.environ.pop(SOURCE_ENV, None)
+        else:
+            os.environ[SOURCE_ENV] = original
 
 
 def test_normalize_code() -> None:
@@ -97,3 +122,105 @@ def test_fetch_info_synthetic() -> None:
     assert "PER（実績）" in info
     assert "時価総額" in info
     assert info == fetch_info("7203", synthetic=True)  # 決定論的
+
+
+# ---------------------------------------------------------------------------
+# データソース選択（yfinance / jquants）
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_source_precedence(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(SOURCE_ENV, raising=False)
+    assert resolve_source() == "yfinance"  # 既定
+    assert resolve_source("jquants") == "jquants"
+    assert resolve_source("JQuants") == "jquants"  # 大文字小文字を吸収
+    monkeypatch.setenv(SOURCE_ENV, "jquants")
+    assert resolve_source() == "jquants"  # 環境変数を参照
+    assert resolve_source("yfinance") == "yfinance"  # 引数が環境変数に優先
+    for bad in ("bloomberg", "quandl"):
+        with pytest.raises(ValueError):
+            resolve_source(bad)
+
+
+def test_set_default_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(SOURCE_ENV, raising=False)
+    set_default_source(None)
+    assert SOURCE_ENV not in os.environ  # None は no-op
+    set_default_source("")
+    assert SOURCE_ENV not in os.environ  # 空文字も no-op
+    set_default_source("jquants")
+    assert os.environ[SOURCE_ENV] == "jquants"
+    with pytest.raises(ValueError):
+        set_default_source("nope")
+
+
+def test_cache_path_includes_source() -> None:
+    p_yf = _cache_path("7203.T", "1y", "1d", "yfinance")
+    p_jq = _cache_path("7203.T", "1y", "1d", "jquants")
+    assert p_yf != p_jq  # ソースごとにキャッシュを分離
+    assert p_yf.name.endswith("-yfinance.csv")
+    assert p_jq.name.endswith("-jquants.csv")
+
+
+def test_add_source_argument() -> None:
+    parser = argparse.ArgumentParser()
+    add_source_argument(parser)
+    assert parser.parse_args([]).source is None  # 既定は None（=環境変数/既定に委ねる）
+    assert parser.parse_args(["--source", "jquants"]).source == "jquants"
+    with pytest.raises(SystemExit):  # choices 外は argparse が弾く
+        parser.parse_args(["--source", "bogus"])
+
+
+def test_fetch_prices_source_jquants_dispatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: dict[str, object] = {}
+
+    def fake_fetch_daily_quotes(codes, period="1y", **_kw):  # type: ignore[no-untyped-def]
+        calls["codes"], calls["period"] = codes, period
+        return {codes: synthetic_prices(str(codes), days=30)}
+
+    monkeypatch.setattr(jquants_mod, "fetch_daily_quotes", fake_fetch_daily_quotes)
+    # yfinance には出ないことを保証
+    monkeypatch.setattr(
+        data_mod, "_fetch_one_yfinance",
+        lambda *a, **k: pytest.fail("jquants ソースで yfinance が呼ばれてはいけない"),
+    )
+    out = fetch_prices("7203", period="6mo", source="jquants", use_cache=False)
+    assert set(out.keys()) == {"7203"}
+    assert calls["codes"] == "7203" and calls["period"] == "6mo"
+
+
+def test_fetch_prices_source_jquants_index_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    # 指数・為替は J-Quants 非対応 → yfinance にフォールバックする
+    seen: dict[str, str] = {}
+
+    def fake_yf(ticker, period, interval):  # type: ignore[no-untyped-def]
+        seen["ticker"] = ticker
+        return synthetic_prices(ticker, days=20)
+
+    monkeypatch.setattr(data_mod, "_fetch_one_yfinance", fake_yf)
+    monkeypatch.setattr(
+        jquants_mod, "fetch_daily_quotes",
+        lambda *a, **k: pytest.fail("指数は jquants を呼ばずフォールバックすべき"),
+    )
+    out = fetch_prices("^N225", period="1mo", source="jquants", use_cache=False)
+    assert "^N225" in out
+    assert seen["ticker"] == "^N225"
+
+
+def test_fetch_prices_jquants_interval_guard() -> None:
+    # 日足以外 + jquants はネットワークに出る前にエラー
+    with pytest.raises(DataFetchError):
+        fetch_prices("7203", period="1mo", interval="1wk", source="jquants", use_cache=False)
+
+
+def test_fetch_prices_synthetic_ignores_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        jquants_mod, "fetch_daily_quotes",
+        lambda *a, **k: pytest.fail("synthetic は価格ソースを呼んではいけない"),
+    )
+    out = fetch_prices("7203", period="1mo", synthetic=True, source="jquants")
+    assert "7203" in out
+
+
+def test_valid_sources_constant() -> None:
+    assert VALID_SOURCES == ("yfinance", "jquants")

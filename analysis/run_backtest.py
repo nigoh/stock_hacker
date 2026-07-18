@@ -51,7 +51,12 @@ from stocklib.backtest import (
     run_backtest,
     split_series,
 )
-from stocklib.data import DataFetchError, fetch_prices
+from stocklib.data import (
+    DataFetchError,
+    add_source_argument,
+    fetch_prices,
+    set_default_source,
+)
 
 STRATEGIES: tuple[str, ...] = ("ma_cross", "rsi_reversal", "dca")
 
@@ -629,6 +634,7 @@ def main(argv: list[str] | None = None) -> int:
         help="パラメータ近傍グリッドをスイープし、試行回数 N と成績分布を表化する",
     )
     parser.add_argument("--synthetic", action="store_true", help="合成データで実行（ネットワーク不要）")
+    add_source_argument(parser)
     parser.add_argument("--no-charts", action="store_true", help="チャート画像の生成・埋め込みを無効化する")
     parser.add_argument(
         "--in-currency",
@@ -644,6 +650,7 @@ def main(argv: list[str] | None = None) -> int:
         help="--in-currency USD のエイリアス（後方互換）",
     )
     args = parser.parse_args(argv)
+    set_default_source(args.source)
     if args.in_currency is None and args.in_usd:
         args.in_currency = "USD"
 

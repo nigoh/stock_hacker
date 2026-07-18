@@ -458,7 +458,7 @@ CLI に組み込んでいないものも含め、**無料で使える主な入�
 - **業績・開示の一次情報で裏を取りたい** → EDINET API（財務）＋ TDnet（適時開示）。
 - **遅延なしの日次運用・イベントドリブン** → J-Quants 有料プラン（月額数千円〜）＋ EDINET API ＋ TDnet 監視。
 
-詳細な比較・取得実務・落とし穴（5桁コード、調整後株価の分割調整と配当調整の違い、生存者バイアス等）は [`knowledge/data-sources/data-apis-and-tools.md`](knowledge/data-sources/data-apis-and-tools.md) を参照。
+**無料でデータを見る/取る具体的な手順**（ブラウザで見る → CLI で機械処理する → J-Quants 切替 → EDINET）は [`docs/data-sources.md`](docs/data-sources.md) にまとめてある。詳細な比較・取得実務・落とし穴（5桁コード、調整後株価の分割調整と配当調整の違い、生存者バイアス、無料リアルタイム源の限界等）は [`knowledge/data-sources/data-apis-and-tools.md`](knowledge/data-sources/data-apis-and-tools.md) を参照。
 
 ---
 
@@ -474,6 +474,24 @@ cp .env.example .env        # JQUANTS_REFRESH_TOKEN=... を記入
 set -a && source .env && set +a
 ```
 
+### 価格ソースを J-Quants に切り替える
+
+トークンを設定したら、価格取得の CLI で **`--source jquants`** を指定するか、環境変数 **`STOCK_HACKER_SOURCE=jquants`** をエクスポートすれば、日足 OHLCV を yfinance ではなく J-Quants から取得する（既定は `yfinance`）。
+
+```bash
+# ① コマンドごとに指定
+python3 analysis/analyze_stock.py 7203 --source jquants
+
+# ② セッション全体で既定を切り替え（全 CLI に一括で効く）
+export STOCK_HACKER_SOURCE=jquants
+python3 analysis/screen.py --rsi-below 30
+```
+
+- `--source` は価格系列（OHLCV）を扱う各 CLI（`analyze_stock` / `compare` / `screen` / `run_backtest` / `daily_brief` / `portfolio_review` / `income_report` / `tax_report` / `performance_report` / `adr_parity` / `research_journal`）に対応。優先順位は **`--source` 引数 > `STOCK_HACKER_SOURCE` > 既定 `yfinance`**。
+- `^N225` などの**指数・為替（`USDJPY=X` 等）は J-Quants が扱わないため自動的に yfinance にフォールバック**する（ベンチマークや為替換算はそのまま動く）。
+- J-Quants は**日足のみ**対応。PER/PBR などの基本情報（`fetch_info`）は引き続き yfinance を使う（価格系列のみソースが切り替わる）。
+- **無料プランは12週間遅延**のため、`daily_brief`（当日の市況）用途には向かない。直近が要る場合は yfinance か J-Quants 有料プランを使う。
+
 ---
 
 ## ディレクトリ構成
@@ -483,7 +501,7 @@ set -a && source .env && set +a
 | `knowledge/` | 日本株ナレッジベース（88文書）。市場制度・歴史・数学/クオンツ・ファンダ/テクニカル分析・マクロ・デリバティブ・規制税制・データソース・投資戦略。入口は [`knowledge/00-index.md`](knowledge/00-index.md)。索引の整合は hooks が自動チェックし、重複統合・陳腐化検出は knowledge-curator エージェントが担う |
 | `analysis/` | 分析コード（Python 3.11+）。共通ライブラリ `stocklib`、14本の CLI、ユニバース定義、pytest テスト |
 | `journal/` | リサーチジャーナル（分析仮説の記録と事後検証。git 管理対象。入口は [`journal/README.md`](journal/README.md)） |
-| `docs/` | 運用ガイド（[`docs/getting-started.md`](docs/getting-started.md): ゼロから始める資産形成の通し順路、[`docs/automation.md`](docs/automation.md): デイリーブリーフの自動実行） |
+| `docs/` | 運用ガイド（[`docs/getting-started.md`](docs/getting-started.md): ゼロから始める資産形成の通し順路、[`docs/data-sources.md`](docs/data-sources.md): 無料でデータを見る/取る実践ガイド、[`docs/automation.md`](docs/automation.md): デイリーブリーフの自動実行） |
 | `.claude/` | Claude Code 設定。スキル15種・サブエージェント4種・コマンド17種・hooks |
 | `scripts/` | hooks 用スクリプト（環境セットアップ、ナレッジ索引の整合チェック） |
 | `reports/` | 生成レポートの出力先（git 管理外） |

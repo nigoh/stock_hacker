@@ -16,7 +16,12 @@ import sys
 import pandas as pd
 
 from stocklib import charts, currency, metrics, report
-from stocklib.data import DataFetchError, fetch_prices
+from stocklib.data import (
+    DataFetchError,
+    add_source_argument,
+    fetch_prices,
+    set_default_source,
+)
 
 
 def _chart_lines(
@@ -128,6 +133,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("codes", nargs="+", help="銘柄コード（2つ以上、例: 7203 6758 9984）")
     parser.add_argument("--period", default="1y", help="取得期間（既定: 1y）")
     parser.add_argument("--synthetic", action="store_true", help="合成データで実行（ネットワーク不要）")
+    add_source_argument(parser)
     parser.add_argument("--no-charts", action="store_true", help="チャート画像の生成・埋め込みを無効化する")
     parser.add_argument(
         "--in-currency",
@@ -143,6 +149,7 @@ def main(argv: list[str] | None = None) -> int:
         help="--in-currency USD のエイリアス（後方互換）",
     )
     args = parser.parse_args(argv)
+    set_default_source(args.source)
     in_currency: str | None = args.in_currency or ("USD" if args.in_usd else None)
 
     if len(args.codes) < 2:

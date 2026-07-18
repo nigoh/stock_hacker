@@ -46,7 +46,13 @@ from pathlib import Path
 import pandas as pd
 
 from stocklib import currency, report, signals
-from stocklib.data import REPO_ROOT, DataFetchError, fetch_prices
+from stocklib.data import (
+    REPO_ROOT,
+    DataFetchError,
+    add_source_argument,
+    fetch_prices,
+    set_default_source,
+)
 
 DEFAULT_WATCHLIST: Path = REPO_ROOT / "data" / "watchlist.csv"
 TEMPLATE_WATCHLIST: Path = Path(__file__).resolve().parent / "templates" / "watchlist-example.csv"
@@ -338,6 +344,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--period", default="1y",
                         help="取得期間（既定: 1y。52週高安・75日線の判定には 1y 以上を推奨）")
     parser.add_argument("--synthetic", action="store_true", help="合成データで実行（ネットワーク不要）")
+    add_source_argument(parser)
     parser.add_argument("--max-alerts", type=int, default=None, metavar="N",
                         help="シグナル詳細の表示を種別優先度の上位 N 件に絞る"
                              f"（優先度: {_ALERT_PRIORITY_LABEL}。既定: 制限なし）")
@@ -355,6 +362,7 @@ def main(argv: list[str] | None = None) -> int:
         help="--in-currency USD のエイリアス（後方互換）",
     )
     args = parser.parse_args(argv)
+    set_default_source(args.source)
     if args.max_alerts is not None and args.max_alerts < 1:
         parser.error("--max-alerts には 1 以上の整数を指定してください")
     in_currency: str | None = args.in_currency or ("USD" if args.in_usd else None)
