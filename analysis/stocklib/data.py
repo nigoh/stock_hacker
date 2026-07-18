@@ -8,6 +8,7 @@ data/cache/ への CSV キャッシュ）と、
 from __future__ import annotations
 
 import datetime as dt
+import os
 import re
 import zlib
 from pathlib import Path
@@ -24,9 +25,66 @@ OHLCV_COLUMNS: tuple[str, ...] = ("Open", "High", "Low", "Close", "Volume")
 
 _PERIOD_RE = re.compile(r"^(\d+)(d|mo|y)$")
 
+# 価格データソースの選択。fetch_prices は既定でこの環境変数を参照する（未設定なら
+# "yfinance"）。CLI の --source フラグやプログラムからの source 引数でも上書きできる。
+SOURCE_ENV: str = "STOCK_HACKER_SOURCE"
+VALID_SOURCES: tuple[str, ...] = ("yfinance", "jquants")
+
 
 class DataFetchError(RuntimeError):
     """株価・銘柄情報の取得に失敗したことを示す例外。"""
+
+
+def resolve_source(source: str | None = None) -> str:
+    """価格データソース名を解決する（優先順位: 引数 > 環境変数 ``STOCK_HACKER_SOURCE`` > 既定 ``"yfinance"``）。
+
+    Args:
+        source: 明示的に指定するデータソース名（``"yfinance"`` / ``"jquants"``）。
+            ``None`` の場合は環境変数、それも無ければ既定の ``"yfinance"`` を使う。
+
+    Returns:
+        小文字化・検証済みのデータソース名。
+
+    Raises:
+        ValueError: ``VALID_SOURCES`` にない値が指定された場合。
+    """
+    if source is None:
+        source = os.environ.get(SOURCE_ENV, "").strip() or "yfinance"
+    source = source.lower()
+    if source not in VALID_SOURCES:
+        raise ValueError(
+            f"未知のデータソース: {source!r}（{', '.join(VALID_SOURCES)} のいずれかを指定してください）"
+        )
+    return source
+
+
+def set_default_source(source: str | None) -> None:
+    """CLI の ``--source`` 引数を環境変数に反映し、以降の :func:`fetch_prices` の既定ソースにする。
+
+    ``stocklib`` 内部（``portfolio`` / ``currency`` など）から呼ばれる ``fetch_prices`` にも
+    一括で効かせるため、値を ``STOCK_HACKER_SOURCE`` に書き込む。``source`` が ``None`` /
+    空文字なら何もしない（既存の環境変数・既定を尊重する）。
+
+    Raises:
+        ValueError: ``source`` に未知の値が指定された場合。
+    """
+    if source:
+        os.environ[SOURCE_ENV] = resolve_source(source)
+
+
+def add_source_argument(parser: object) -> None:
+    """argparse パーサに共通の ``--source`` フラグを追加する（各 CLI で使い回す）。
+
+    パース後に :func:`set_default_source` へ ``args.source`` を渡すことで、その CLI 内の
+    すべての :func:`fetch_prices` 呼び出し（``stocklib`` 内部経由を含む）に効かせられる。
+    """
+    parser.add_argument(  # type: ignore[attr-defined]
+        "--source",
+        choices=list(VALID_SOURCES),
+        default=None,
+        help="価格データソース（既定: yfinance。jquants は要 JQUANTS_REFRESH_TOKEN・日足のみ・"
+        "無料プランは12週間遅延。指数/為替は yfinance に自動フォールバック）",
+    )
 
 
 def normalize_code(code: str) -> str:
@@ -157,9 +215,9 @@ def synthetic_prices(code: str, days: int = 500, seed: int | None = None) -> pd.
     )
 
 
-def _cache_path(ticker: str, period: str, interval: str) -> Path:
+def _cache_path(ticker: str, period: str, interval: str, source: str = "yfinance") -> Path:
     safe = ticker.replace("^", "_").replace("/", "_").replace("=", "_")
-    return CACHE_DIR / f"{safe}-{period}-{interval}.csv"
+    return CACHE_DIR / f"{safe}-{period}-{interval}-{source}.csv"
 
 
 def _load_cache(path: Path) -> pd.DataFrame | None:
@@ -208,6 +266,29 @@ def _fetch_one_yfinance(ticker: str, period: str, interval: str) -> pd.DataFrame
     return df
 
 
+def _fetch_one_jquants(code: str, ticker: str, period: str, interval: str) -> pd.DataFrame:
+    """J-Quants（JPX 公式）から日足 OHLCV を取得する。
+
+    指数（``^N225``）・為替（``USDJPY=X``）など J-Quants が扱わないコードは、
+    ベンチマークや為替換算をそのまま使えるよう **yfinance にフォールバック**する。
+    株価は分割・併合調整済み系列を優先する（配当落ち調整は含まない。詳細は
+    ``knowledge/data-sources/data-apis-and-tools.md`` の J-Quants 節を参照）。
+    """
+    from stocklib import jquants  # 循環 import 回避のため遅延 import
+
+    try:
+        jquants.normalize_jquants_code(code)
+    except ValueError:
+        # J-Quants 非対応コード（指数・通貨ペア等）は yfinance で取得する
+        return _fetch_one_yfinance(ticker, period, interval)
+    if interval != "1d":
+        raise DataFetchError(
+            "J-Quants ソースは日足（interval='1d'）のみ対応です。"
+            "分足・週足が必要な場合は yfinance ソース（--source yfinance）を使用してください。"
+        )
+    return jquants.fetch_daily_quotes(code, period=period)[code]
+
+
 def fetch_prices(
     codes: str | Sequence[str],
     period: str = "1y",
@@ -215,6 +296,7 @@ def fetch_prices(
     *,
     synthetic: bool = False,
     use_cache: bool = True,
+    source: str | None = None,
 ) -> dict[str, pd.DataFrame]:
     """1つ以上の銘柄の OHLCV 株価を取得する。
 
@@ -222,15 +304,21 @@ def fetch_prices(
         codes: 銘柄コード（4桁数字は内部で ``.T`` を付与）。単一文字列またはリスト。
         period: 取得期間（yfinance 形式: ``"6mo"``, ``"1y"``, ``"2y"``, ``"max"`` 等）。
         interval: 足の間隔（通常 ``"1d"``）。
-        synthetic: True なら yfinance を使わず、シード固定の合成データを返す。
+        synthetic: True なら価格ソースを使わず、シード固定の合成データを返す
+            （``source`` より優先）。
         use_cache: True なら ``data/cache/`` の当日キャッシュを利用・更新する。
+        source: 価格データソース（``"yfinance"`` / ``"jquants"``）。``None`` の場合は
+            環境変数 ``STOCK_HACKER_SOURCE``、それも無ければ ``"yfinance"``。
+            ``"jquants"`` は日足のみ対応で、指数・為替コードは yfinance にフォールバックする。
 
     Returns:
         入力コード（正規化前の文字列）をキー、OHLCV DataFrame を値とする辞書。
 
     Raises:
         DataFetchError: 取得失敗または空データの場合。
+        ValueError: ``source`` に未知の値が指定された場合。
     """
+    resolved_source = resolve_source(source)
     code_list: list[str] = [codes] if isinstance(codes, str) else list(codes)
     result: dict[str, pd.DataFrame] = {}
     for code in code_list:
@@ -238,10 +326,13 @@ def fetch_prices(
         if synthetic:
             result[code] = synthetic_prices(ticker, days=period_to_days(period))
             continue
-        cache = _cache_path(ticker, period, interval)
+        cache = _cache_path(ticker, period, interval, resolved_source)
         df = _load_cache(cache) if use_cache else None
         if df is None:
-            df = _fetch_one_yfinance(ticker, period, interval)
+            if resolved_source == "jquants":
+                df = _fetch_one_jquants(code, ticker, period, interval)
+            else:
+                df = _fetch_one_yfinance(ticker, period, interval)
             if use_cache:
                 _save_cache(cache, df)
         result[code] = df

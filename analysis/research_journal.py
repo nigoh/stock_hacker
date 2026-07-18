@@ -39,7 +39,7 @@ import sys
 from pathlib import Path
 
 from stocklib import journal, report
-from stocklib.data import DataFetchError
+from stocklib.data import DataFetchError, add_source_argument, set_default_source
 from stocklib.journal import JOURNAL_DIR, JournalEntry, JournalError
 
 
@@ -160,6 +160,7 @@ def build_parser() -> argparse.ArgumentParser:
                        help=f"ベンチマークティッカー（既定: {journal.DEFAULT_BENCHMARK}）")
     p_new.add_argument("--slug", default=None, help="ファイル名スラッグ（省略時はタイトル/コードから生成）")
     p_new.add_argument("--synthetic", action="store_true", help="合成データで実行（ネットワーク不要）")
+    add_source_argument(p_new)
     p_new.set_defaults(func=cmd_new)
 
     p_due = sub.add_parser("due", help="検証期日を迎えた open エントリを一覧する")
@@ -170,6 +171,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_verify = sub.add_parser("verify", help="エントリを検証し ## 検証結果 を追記する")
     p_verify.add_argument("path", type=Path, help="エントリファイルのパス")
     p_verify.add_argument("--synthetic", action="store_true", help="合成データで実行（ネットワーク不要）")
+    add_source_argument(p_verify)
     p_verify.set_defaults(func=cmd_verify)
 
     p_list = sub.add_parser("list", help="全エントリのサマリーテーブルを表示する")
@@ -181,6 +183,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    set_default_source(getattr(args, "source", None))
     try:
         return int(args.func(args))
     except (JournalError, DataFetchError, ValueError, OSError) as exc:

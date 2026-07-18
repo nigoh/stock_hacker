@@ -20,7 +20,7 @@ import sys
 
 from stocklib import adr, report
 from stocklib.currency import fetch_usdjpy
-from stocklib.data import DataFetchError
+from stocklib.data import DataFetchError, add_source_argument, set_default_source
 
 
 def build_report(
@@ -138,7 +138,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--all", action="store_true", help="adr_map.csv の全銘柄を評価する")
     parser.add_argument("--period", default="1mo", help="取得期間（既定: 1mo。直近終値のみ使用）")
     parser.add_argument("--synthetic", action="store_true", help="合成データで実行（ネットワーク不要）")
+    add_source_argument(parser)
     args = parser.parse_args(argv)
+    set_default_source(args.source)
 
     if not args.all and not args.codes:
         parser.error("銘柄コードを指定するか --all を付けてください")

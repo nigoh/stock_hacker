@@ -67,7 +67,12 @@ import sys
 from pathlib import Path
 
 from stocklib import currency, report
-from stocklib.data import REPO_ROOT, DataFetchError
+from stocklib.data import (
+    REPO_ROOT,
+    DataFetchError,
+    add_source_argument,
+    set_default_source,
+)
 from stocklib.portfolio import (
     PortfolioReview,
     PortfolioValidationError,
@@ -124,7 +129,9 @@ def main(argv: list[str] | None = None) -> int:
         "ある場合のみ使用。バンド内の乖離は「圏内」、超えると「超過」と判定する）",
     )
     parser.add_argument("--synthetic", action="store_true", help="合成データで実行（ネットワーク不要）")
+    add_source_argument(parser)
     args = parser.parse_args(argv)
+    set_default_source(args.source)
     in_currency: str | None = args.in_currency or ("USD" if args.in_usd else None)
     if args.drift_band <= 0:
         parser.error("--drift-band は正の数（%pt）を指定してください")

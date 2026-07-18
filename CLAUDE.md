@@ -84,6 +84,7 @@ stock_hacker/
 - 銘柄コードは4桁数字で渡す（内部で yfinance の `7203.T` に正規化）。`^N225`・`USDJPY=X` などの指数・為替ティッカーはそのまま渡せる。
 - 価格データは `data/cache/` に CSV でキャッシュされる（gitignore 済み）。
 - 既定のデータソースは yfinance（非公式 API）。日本株では分割・配当調整の不備が起きうるため、レポートで異常な騰落やギャップを見たらまずデータ品質を疑う。制約の詳細は `knowledge/data-sources/data-apis-and-tools.md` の「yfinance：手軽さと引き換えのリスク」「調整後株価とコーポレートアクションの注意点」を参照し、重要なレポートにはデータソースと取得日を明記する。
+- 価格ソースは切替可能: 価格系列を扱う各 CLI の `--source jquants`（または環境変数 `STOCK_HACKER_SOURCE=jquants`）で日足 OHLCV を J-Quants から取得できる（既定 `yfinance`）。優先順位は `--source` > `STOCK_HACKER_SOURCE` > 既定。要 `JQUANTS_REFRESH_TOKEN`・日足のみ・無料プランは12週間遅延（当日ブリーフ用途には不向き）。`^N225` 等の指数・`USDJPY=X` 等の為替は J-Quants 非対応のため自動で yfinance にフォールバックし、`fetch_info`（PER/PBR 等）は常に yfinance を使う（切り替わるのは OHLCV のみ）。実装は `stocklib.data.fetch_prices(source=...)` / `resolve_source` / `set_default_source` / `add_source_argument`。
 - 共通ロジックは `analysis/stocklib/`（`data.py` / `indicators.py` / `metrics.py` / `backtest.py` / `report.py`）にある。新規スクリプトは車輪の再発明をせず stocklib を再利用する。
 - テストは `python3 -m pytest analysis/tests` で実行できる。
 - analyze/compare/backtest はローソク足・相対パフォーマンス・資産曲線のチャート PNG を `reports/img/` に生成しレポートへ埋め込む（`--no-charts` で無効化。matplotlib 未導入時は自動でチャートなしに縮退）。
@@ -96,7 +97,7 @@ stock_hacker/
 
 ### J-Quants 接続（オプション、実データ全銘柄対応）
 
-環境変数 `JQUANTS_REFRESH_TOKEN` にリフレッシュトークン（https://jpx-jquants.com/ の無料プラン登録で発行、**有効期限約1週間**なので認証エラー時はまず再発行を疑う）を設定すると、`stocklib.jquants` 経由で JPX 公式の J-Quants API が使える。`fetch_listed_info()` が全上場銘柄の一覧（コード・社名・33業種等）を返すので、liquid30 を超える**全銘柄スクリーニングのユニバース CSV 構築**に使える（`python3 analysis/build_universe.py` が screen.py 互換の `code,name,sector` CSV を生成。`--market` / `--sector33` で絞り込み可）。`fetch_daily_quotes()` は `fetch_prices` と同じ OHLCV DataFrame 形式で日足を返す（分割・併合調整済み系列を優先。Free プランは12週間遅延データ、2025年時点）。トークンは `.env`（gitignore 済み、雛形は `.env.example`）に置き `set -a && source .env && set +a` で読み込む運用を推奨。トークンをコード・レポート・コミットに含めないこと。トークン未設定・期限切れ時は `JQuantsAuthError` が導入手順つきのメッセージを出す。詳細・注意点（5桁コード、配当調整の非互換等）は `knowledge/data-sources/data-apis-and-tools.md` の J-Quants 節を参照。テストは `analysis/tests/test_jquants.py`（ネットワーク不要のモックで検証）。
+環境変数 `JQUANTS_REFRESH_TOKEN` にリフレッシュトークン（https://jpx-jquants.com/ の無料プラン登録で発行、**有効期限約1週間**なので認証エラー時はまず再発行を疑う）を設定すると、`stocklib.jquants` 経由で JPX 公式の J-Quants API が使える。`fetch_listed_info()` が全上場銘柄の一覧（コード・社名・33業種等）を返すので、liquid30 を超える**全銘柄スクリーニングのユニバース CSV 構築**に使える（`python3 analysis/build_universe.py` が screen.py 互換の `code,name,sector` CSV を生成。`--market` / `--sector33` で絞り込み可）。`fetch_daily_quotes()` は `fetch_prices` と同じ OHLCV DataFrame 形式で日足を返す（分割・併合調整済み系列を優先。Free プランは12週間遅延データ、2025年時点）。**価格取得 CLI で J-Quants を使うには `--source jquants` か `STOCK_HACKER_SOURCE=jquants` を指定する**（`fetch_prices` が env/引数を解決し、指数・為替は yfinance にフォールバック。上記「価格ソースは切替可能」参照）。トークンは `.env`（gitignore 済み、雛形は `.env.example`）に置き `set -a && source .env && set +a` で読み込む運用を推奨。トークンをコード・レポート・コミットに含めないこと。トークン未設定・期限切れ時は `JQuantsAuthError` が導入手順つきのメッセージを出す。詳細・注意点（5桁コード、配当調整の非互換等）は `knowledge/data-sources/data-apis-and-tools.md` の J-Quants 節を参照。テストは `analysis/tests/test_jquants.py`（ネットワーク不要のモックで検証）。
 
 ### スラッシュコマンド・スキル・エージェントの一覧と使い分け
 

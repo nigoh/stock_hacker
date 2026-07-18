@@ -22,7 +22,14 @@ import pandas as pd
 
 from stocklib import backtest  # noqa: F401  （依存確認用）
 from stocklib import charts, currency, indicators, metrics, report, signals
-from stocklib.data import DataFetchError, fetch_info, fetch_prices, normalize_code
+from stocklib.data import (
+    DataFetchError,
+    add_source_argument,
+    fetch_info,
+    fetch_prices,
+    normalize_code,
+    set_default_source,
+)
 
 # --horizon の選択肢と、--period 未指定時の取得期間・レポート表記
 HORIZON_CHOICES: tuple[str, ...] = ("short", "mid", "long")
@@ -542,6 +549,7 @@ def main(argv: list[str] | None = None) -> int:
         "analyze-<code>-<horizon>-<日付>.md になる（省略時は従来どおりの全部入り）",
     )
     parser.add_argument("--synthetic", action="store_true", help="合成データで実行（ネットワーク不要）")
+    add_source_argument(parser)
     parser.add_argument("--no-charts", action="store_true", help="チャート画像の生成・埋め込みを無効化する")
     parser.add_argument(
         "--in-currency",
@@ -557,6 +565,7 @@ def main(argv: list[str] | None = None) -> int:
         help="--in-currency USD のエイリアス（後方互換）",
     )
     args = parser.parse_args(argv)
+    set_default_source(args.source)
     in_currency: str | None = args.in_currency or ("USD" if args.in_usd else None)
     period: str = args.period if args.period is not None else (
         HORIZON_DEFAULT_PERIODS[args.horizon] if args.horizon else DEFAULT_PERIOD

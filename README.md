@@ -474,6 +474,24 @@ cp .env.example .env        # JQUANTS_REFRESH_TOKEN=... を記入
 set -a && source .env && set +a
 ```
 
+### 価格ソースを J-Quants に切り替える
+
+トークンを設定したら、価格取得の CLI で **`--source jquants`** を指定するか、環境変数 **`STOCK_HACKER_SOURCE=jquants`** をエクスポートすれば、日足 OHLCV を yfinance ではなく J-Quants から取得する（既定は `yfinance`）。
+
+```bash
+# ① コマンドごとに指定
+python3 analysis/analyze_stock.py 7203 --source jquants
+
+# ② セッション全体で既定を切り替え（全 CLI に一括で効く）
+export STOCK_HACKER_SOURCE=jquants
+python3 analysis/screen.py --rsi-below 30
+```
+
+- `--source` は価格系列（OHLCV）を扱う各 CLI（`analyze_stock` / `compare` / `screen` / `run_backtest` / `daily_brief` / `portfolio_review` / `income_report` / `tax_report` / `performance_report` / `adr_parity` / `research_journal`）に対応。優先順位は **`--source` 引数 > `STOCK_HACKER_SOURCE` > 既定 `yfinance`**。
+- `^N225` などの**指数・為替（`USDJPY=X` 等）は J-Quants が扱わないため自動的に yfinance にフォールバック**する（ベンチマークや為替換算はそのまま動く）。
+- J-Quants は**日足のみ**対応。PER/PBR などの基本情報（`fetch_info`）は引き続き yfinance を使う（価格系列のみソースが切り替わる）。
+- **無料プランは12週間遅延**のため、`daily_brief`（当日の市況）用途には向かない。直近が要る場合は yfinance か J-Quants 有料プランを使う。
+
 ---
 
 ## ディレクトリ構成

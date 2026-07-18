@@ -32,7 +32,12 @@ import sys
 from pathlib import Path
 
 from stocklib import report
-from stocklib.data import REPO_ROOT, DataFetchError
+from stocklib.data import (
+    REPO_ROOT,
+    DataFetchError,
+    add_source_argument,
+    set_default_source,
+)
 from stocklib.performance import (
     DEFAULT_BENCHMARK,
     PerformanceResult,
@@ -120,7 +125,9 @@ def main(argv: list[str] | None = None) -> int:
         help="価格取得期間（yfinance 形式、例: 3y。省略時は最初の取引日から自動導出）",
     )
     parser.add_argument("--synthetic", action="store_true", help="合成データで実行（ネットワーク不要）")
+    add_source_argument(parser)
     args = parser.parse_args(argv)
+    set_default_source(args.source)
 
     path: Path = args.file if args.file is not None else DEFAULT_TRANSACTIONS_CSV
     if not path.exists():
