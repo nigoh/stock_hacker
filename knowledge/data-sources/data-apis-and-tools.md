@@ -17,35 +17,29 @@
 
 ## J-Quants API：日本株分析の事実上の標準
 
-JPX総研が提供する公式API。個人が正規ルートで東証全銘柄の調整済み株価と財務データを取得できる初の公的サービスであり、2025年時点でプランは概ね以下の構成（詳細は変更されうる）。
+JPX総研が提供する公式API。個人が正規ルートで東証全銘柄の調整済み株価と財務データを取得できる初の公的サービス。2026年時点でプランは概ね以下（月額、詳細は変更されうる）。
 
-- **Free**：12週間遅延データ。バックテストの学習用途には十分。
-- **Light / Standard / Premium**：遅延なしデータ、過去データ収録期間の拡大（Premiumで2008年頃まで）、信用取引残高・空売り比率・オプションデータ等が上位プランで解放。
+- **Free（¥0）**：12週間遅延データ・格納約2年窓。バックテストの学習用途には十分。
+- **Light（¥1,650）/ Standard（¥3,300）/ Premium（¥16,500）**：遅延なし、過去データ収録期間の拡大（Light 5年 / Standard 10年 / Premium 20年）、投資部門別・TOPIX/指数・信用残・空売り・先物/オプション・財務諸表・配当・売買内訳などが上位プランで段階的に解放。分足/Tick・TDnet はアドオン（Light 以上）。
 
-取得例（2025年時点のエンドポイント仕様）:
+> **⚠ V1→V2 移行（2025年12月〜、2026年時点）**: J-Quants は 2025/12/22 に **V2** へ刷新され、認証が「リフレッシュトークン→IDトークンの2段階方式（V1）」から「**APIキー方式（V2）**」に変わった。API キーは**無期限**（V1 の約1週間の期限は撤廃）。旧 V1 は並走期間を経て**廃止**された。エンドポイントのパスも全面改称（例 `/v1/prices/daily_quotes` → `/v2/equities/bars/daily`、`/listed/info` → `/equities/master`）、レスポンスは `data` 配列＋`pagination_key`、四本値カラムは短縮形（`O`/`H`/`L`/`C`/`Vo`、調整済み `AdjO`/`AdjC` 等）。
+
+取得例（2026年時点・V2 APIキー方式。`x-api-key` ヘッダのみで、V1 のトークン交換は不要）:
 
 ```python
 import requests
 
-# リフレッシュトークン→IDトークンの2段階認証
-r = requests.post(
-    "https://api.jquants.com/v1/token/auth_user",
-    json={"mailaddress": "...", "password": "..."})
-refresh = r.json()["refreshToken"]
-r = requests.post(
-    f"https://api.jquants.com/v1/token/auth_refresh?refreshtoken={refresh}")
-id_token = r.json()["idToken"]
-
-headers = {"Authorization": f"Bearer {id_token}"}
+headers = {"x-api-key": "<APIキー>"}  # ダッシュボードで発行（無期限）
 # 日次株価（銘柄コードは5桁形式: トヨタ7203 → "72030"）
 r = requests.get(
-    "https://api.jquants.com/v1/prices/daily_quotes",
+    "https://api.jquants.com/v2/equities/bars/daily",
     headers=headers, params={"code": "72030", "from": "2024-01-01"})
+rows = r.json()["data"]  # 調整済みは AdjO/AdjH/AdjL/AdjC/AdjVo、未調整は O/H/L/C/Vo
 ```
 
-注意点として、J-Quantsの銘柄コードは**5桁**（従来の4桁コード＋予備桁）である。また `AdjustmentClose` 等の調整済み系列と未調整系列の両方が返るため、どちらを使っているか常に意識する必要がある。
+注意点として、J-Quantsの銘柄コードは**5桁**（従来の4桁コード＋予備桁）である。また調整済み系列（`AdjC` 等）と未調整系列（`C` 等）の両方が返るため、どちらを使っているか常に意識する必要がある。レート制限はプラン別（Free 5 / Light 60 / Standard 120 / Premium 500 リクエスト/分、2026年時点）。全 API 横断の比較は `market-data-apis-catalog.md` を参照。
 
-本リポジトリには J-Quants への接続モジュール `analysis/stocklib/jquants.py` が実装済みである。環境変数 `JQUANTS_REFRESH_TOKEN` にリフレッシュトークン（有効期限約1週間、https://jpx-jquants.com/ の無料プラン登録で発行可能）を設定すれば、`stocklib.jquants.fetch_daily_quotes()` が `fetch_prices()` と同じ OHLCV DataFrame 形式で日足四本値を返し、`fetch_listed_info()` で上場銘柄一覧（全銘柄スクリーニングのユニバース構築用）を取得できる。4桁コード → 5桁コードの正規化と、分割・併合調整済み系列（`AdjustmentClose` 等）の優先利用はモジュール側で自動処理される。外部依存は標準ライブラリ + pandas のみで、`requests` は不要。
+本リポジトリには J-Quants V2 への接続モジュール `analysis/stocklib/jquants.py` が実装済みである。環境変数 `JQUANTS_API_KEY` に API キー（無期限、https://jpx-jquants.com/ の無料プラン登録後にダッシュボードで発行）を設定すれば、`stocklib.jquants.fetch_daily_quotes()` が `fetch_prices()` と同じ OHLCV DataFrame 形式で日足四本値を返し、`fetch_listed_info()` で上場銘柄一覧（全銘柄スクリーニングのユニバース構築用。V2 の短縮カラム名は V1 相当の安定名に正規化して返す）を取得できる。4桁コード → 5桁コードの正規化と、分割・併合調整済み系列（`AdjC` 等）の優先利用はモジュール側で自動処理される。外部依存は標準ライブラリ + pandas のみで、`requests` は不要。
 
 ## EDINET APIとTDnet：開示情報の一次ソース
 

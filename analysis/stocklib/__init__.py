@@ -3,10 +3,10 @@
 データ取得（yfinance / 合成データ）、テクニカル指標、リスク・リターン指標、
 ベクトル化バックテスト、Markdown レポート生成を提供する。
 
-サブモジュール ``stocklib.jquants`` に J-Quants API（JPX総研）クライアントがある。
-環境変数 ``JQUANTS_REFRESH_TOKEN`` を設定すると、``fetch_listed_info()`` で
+サブモジュール ``stocklib.jquants`` に J-Quants API（JPX総研、V2・APIキー方式）クライアントがある。
+環境変数 ``JQUANTS_API_KEY`` を設定すると、``fetch_listed_info()`` で
 全上場銘柄のユニバース構築、``fetch_daily_quotes()`` で ``fetch_prices`` 互換の
-日足 OHLCV 取得ができる（Free プランは12週間遅延、2025年時点）。
+日足 OHLCV 取得ができる（Free プランは12週間遅延、2026年時点）。
 本パッケージの必須依存（pandas/numpy/yfinance）を増やさないよう、ここでは
 eager import せず、``stocklib.jquants`` への属性アクセス時に遅延 import する。
 詳細は ``knowledge/data-sources/data-apis-and-tools.md`` の J-Quants 節を参照。

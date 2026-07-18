@@ -67,7 +67,7 @@ python3 analysis/screen.py --rsi-below 30 --price-above-sma 200
 
 #### liquid30 を超えたい場合（J-Quants 全銘柄ユニバースの構築）
 
-環境変数 `JQUANTS_REFRESH_TOKEN`（https://jpx-jquants.com/ の無料プラン登録で発行、有効期限約1週間）が設定されていれば、`analysis/build_universe.py` で全上場銘柄から screen.py 互換のユニバース CSV（列: code,name,sector）を構築し、`--universe` に渡せる:
+環境変数 `JQUANTS_API_KEY`（https://jpx-jquants.com/ の無料プラン登録後にダッシュボードで発行する無期限の API キー。V2・APIキー方式、2026年時点）が設定されていれば、`analysis/build_universe.py` で全上場銘柄から screen.py 互換のユニバース CSV（列: code,name,sector）を構築し、`--universe` に渡せる:
 
 ```bash
 # 全上場銘柄（ETF・REIT 等の普通株以外は既定で除外）→ data/universe/jquants-all.csv

@@ -61,10 +61,10 @@ JPX（東証の親会社）の正規ルートで分割・併合調整済み・�
 
 **セットアップ（無料）:**
 
-1. https://jpx-jquants.com/ で無料プラン登録し、リフレッシュトークンを発行（**有効期限約1週間**）。
+1. https://jpx-jquants.com/ で無料プラン登録し、ダッシュボードで **API キー**を発行（**無期限**。2025年12月の V2 移行でリフレッシュトークン方式は廃止された。2026年時点）。
 2. `.env` に記入して読み込む:
    ```bash
-   cp .env.example .env        # JQUANTS_REFRESH_TOKEN=... を記入
+   cp .env.example .env        # JQUANTS_API_KEY=... を記入
    set -a && source .env && set +a
    ```
 3. 価格ソースを J-Quants に切り替える（どちらか）:
@@ -87,7 +87,7 @@ JPX（東証の親会社）の正規ルートで分割・併合調整済み・�
 
 ### 全銘柄ユニバースの構築
 
-`build_universe.py` は J-Quants の上場銘柄一覧から `screen.py` 互換のユニバース CSV を生成する（要 `JQUANTS_REFRESH_TOKEN`）。
+`build_universe.py` は J-Quants の上場銘柄一覧から `screen.py` 互換のユニバース CSV を生成する（要 `JQUANTS_API_KEY`）。
 
 ```bash
 python3 analysis/build_universe.py --market プライム > analysis/universe/prime.csv

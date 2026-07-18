@@ -6,9 +6,9 @@
         [--market プライム] [--sector33 銀行] [--no-exclude-etf-reit]
         [--date 2025-01-06]
 
-環境変数 ``JQUANTS_REFRESH_TOKEN``（https://jpx-jquants.com/ の無料プラン登録で発行、
-有効期限約1週間）が必要。未設定・期限切れの場合は ``stocklib.jquants`` の
-``JQuantsAuthError`` が導入手順つきのメッセージを表示する。
+環境変数 ``JQUANTS_API_KEY``（https://jpx-jquants.com/ の無料プラン登録後、ダッシュボードで
+発行する無期限の API キー。V2・APIキー方式、2026年時点）が必要。未設定・無効の場合は
+``stocklib.jquants`` の ``JQuantsAuthError`` が導入手順つきのメッセージを表示する。
 
 - ``stocklib.jquants.fetch_listed_info()`` が返す全上場銘柄（5桁コード）を
   screen.py 互換の列（``code,name,sector``）に変換して CSV に書き出し、
@@ -46,7 +46,8 @@ from stocklib.jquants import JQuantsError, fetch_listed_info, normalize_jquants_
 
 DEFAULT_OUT: Path = REPO_ROOT / "data" / "universe" / "jquants-all.csv"
 
-# fetch_listed_info() の応答で使う列名（2025年時点の J-Quants /listed/info 仕様）
+# fetch_listed_info() が返す列名。V2 の /equities/master は短縮カラム名（CoName/S33Nm 等）
+# だが、fetch_listed_info 側で V1 相当の安定名（下記）へ正規化して返す（2026年時点）。
 CODE_COL: str = "Code"
 NAME_COL: str = "CompanyName"
 SECTOR33_COL: str = "Sector33CodeName"
@@ -214,7 +215,7 @@ def write_universe_csv(universe: pd.DataFrame, out_path: Path, *, header_comment
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="J-Quants の上場銘柄一覧から screen.py 互換のユニバース CSV"
-        "（列: code,name,sector）を構築する（要 JQUANTS_REFRESH_TOKEN）"
+        "（列: code,name,sector）を構築する（要 JQUANTS_API_KEY）"
     )
     parser.add_argument(
         "--out", type=Path, default=DEFAULT_OUT,
@@ -281,7 +282,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     path = write_universe_csv(universe, args.out, header_comment=header_comment)
 
-    print(f"上場銘柄一覧: {stats.total} 件（J-Quants /listed/info）")
+    print(f"上場銘柄一覧: {stats.total} 件（J-Quants /equities/master）")
     if args.market is not None:
         print(f"市場区分フィルタ（--market {args.market}）で除外: {stats.market_excluded} 件")
     if args.sector33 is not None:

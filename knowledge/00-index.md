@@ -1,6 +1,6 @@
 # 日本株ナレッジベース 索引
 
-全88文書。市場制度・歴史・数学/クオンツ・ファンダメンタル/テクニカル分析・マクロ・デリバティブ・規制税制・データソース・投資戦略の10カテゴリで日本株の知識を体系化する。
+全89文書。市場制度・歴史・数学/クオンツ・ファンダメンタル/テクニカル分析・マクロ・デリバティブ・規制税制・データソース・投資戦略の10カテゴリで日本株の知識を体系化する。
 文書を追加・更新したら必ずこの索引に反映すること（規約は `../CLAUDE.md` 参照）。
 
 ## 市場制度・取引の仕組み（`market-structure/`）
@@ -97,7 +97,8 @@
 
 - [オルタナティブデータとテキスト分析](data-sources/alternative-data-and-text-analysis.md) — TDnet・有報・決算説明会のテキストマイニング（日本語NLPの課題、極性辞書、LLM活用）から、ニュース・SNSセンチメント、POS・衛星画像・求人・アプリDL等の消費データ、小売・外食の月次売上モニタリングまで、日本株のオルタナティブデータを入手経路と実証研究の留意点を含めて体系化する。
 - [証券会社の発注APIと自動売買システム構築](data-sources/brokerage-apis-and-automated-trading.md) — 個人が日本株の自動売買に使える発注経路（auカブコムkabuステーションAPI、立花証券e支店API、IB証券TWS API等、2025年時点）の機能・制約を比較し、実装アーキテクチャ（プリトレードチェック・約定管理・冷却装置）を解説。見せ玉等の相場操縦リスク回避と、レイテンシ格差を踏まえた個人が戦える土俵の見極めも扱う。
-- [日本株データソースとAPI](data-sources/data-apis-and-tools.md) — J-Quants API・EDINET・TDnet・日銀/e-Stat・yfinance・株探/IRバンク等の日本株データソースを無料/有料の使い分けとともに整理。Pythonでの取得例、5桁銘柄コードや調整後株価（分割調整と配当調整の違い）、生存者バイアスなど実務上の落とし穴を解説する。本リポジトリ実装の接続モジュール（`stocklib/jquants.py`・`stocklib/edinet.py`、EDINETは要APIキー）の使い方も記載。
+- [日本株データソースとAPI](data-sources/data-apis-and-tools.md) — J-Quants API・EDINET・TDnet・日銀/e-Stat・yfinance・株探/IRバンク等の日本株データソースを無料/有料の使い分けとともに整理。Pythonでの取得例、5桁銘柄コードや調整後株価（分割調整と配当調整の違い）、生存者バイアス、無料でリアルタイムに近い株価を得ることの限界（鮮度×機械処理×無料のトリレンマ）など実務上の落とし穴を解説する。J-Quantsの2025年12月のV2移行（APIキー方式）と本リポジトリ実装の接続モジュール（`stocklib/jquants.py`・`stocklib/edinet.py`、EDINETは要APIキー）の使い方も記載。
+- [日本株データ取得APIの徹底カタログ](data-sources/market-data-apis-catalog.md) — 日本株データをプログラム取得するAPIを公式/公的（J-Quants V2・EDINET・e-Stat・日銀・JPX統計）・証券会社（立花e支店・kabuステーション・IB・楽天RSS・moomoo/futu等）・データベンダー（QUICK・LSEG・Bloomberg・FactSet）・海外サードパーティ（Twelve Data・EODHD・Stooq・Polygon等の日本株カバレッジ）・Pythonライブラリまで横断比較。鮮度/コスト/カバレッジ/認証/機械可読性/規約の6軸と用途別の第一候補、本リポジトリの実装状況を整理する。moomoo/futu APIは日本株の相場データ権限が公式に未対応である点も明記。
 
 ## 投資戦略（`strategies/`）
 

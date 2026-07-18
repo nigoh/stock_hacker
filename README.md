@@ -25,7 +25,7 @@
   - [10. 定期自動実行（cron / Routine）](#10-定期自動実行cron--routine)
 - [出力イメージ](#出力イメージ)
 - [データソースと制約（必読）](#データソースと制約必読)
-- [J-Quants トークンの扱い（セキュリティ）](#j-quants-トークンの扱いセキュリティ)
+- [J-Quants API キーの扱い（セキュリティ）](#j-quants-api-キーの扱いセキュリティ)
 - [ディレクトリ構成](#ディレクトリ構成)
 - [免責・ライセンス](#免責ライセンス)
 
@@ -61,7 +61,7 @@ flowchart TD
     U["👤 あなた（対話で指示）"] -->|"/analyze 7203 など"| CC["🤖 Claude Code"]
     CC --> SK["スキル / コマンド<br/>.claude/skills・commands"]
     SK --> CLI["⚙️ 分析CLI + stocklib<br/>analysis/"]
-    KB["📚 ナレッジベース<br/>knowledge/（88文書）"] -.->|"解釈の枠組み"| SK
+    KB["📚 ナレッジベース<br/>knowledge/（89文書）"] -.->|"解釈の枠組み"| SK
     CLI -->|"価格・財務を取得"| DS["🌐 データソース<br/>yfinance / J-Quants / 合成"]
     DS --> CLI
     CLI --> RP["📄 レポート<br/>reports/"]
@@ -75,7 +75,7 @@ flowchart TD
 | 対話 | あなたの意図を受け取る入口 | スラッシュコマンド17種（`/analyze` 等） |
 | 手順 | 分析の「正しいやり方」を定義 | スキル15種（`.claude/skills/*/SKILL.md`） |
 | 計算 | 数値を実際に計算する | 分析CLI 14本 + 共通ライブラリ `stocklib` |
-| 知識 | 数値を解釈するための枠組み | ナレッジベース88文書（`knowledge/`） |
+| 知識 | 数値を解釈するための枠組み | ナレッジベース89文書（`knowledge/`） |
 | 記録 | 仮説と検証を蓄積する | リサーチジャーナル（`journal/`） |
 | 品質 | 免責・索引の抜けを機械的に防ぐ | hooks（SessionStart / PostToolUse） |
 
@@ -142,7 +142,7 @@ flowchart LR
    実データにつながらない環境でも合成データで一通り動く。レポートには「合成データである」旨が自動で明記される。
 
 4. **（任意）実データの全銘柄対応**
-   J-Quants の無料トークンを設定すると全上場銘柄が使える → [J-Quants トークンの扱い](#j-quants-トークンの扱いセキュリティ) を参照。
+   J-Quants の無料 API キーを設定すると全上場銘柄が使える → [J-Quants API キーの扱い](#j-quants-api-キーの扱いセキュリティ) を参照。
 
 > 📄 ゼロから資産形成を立ち上げる通しの順路は [`docs/getting-started.md`](docs/getting-started.md) に、より詳しい手順がある。
 
@@ -377,7 +377,7 @@ python3 analysis/analyze_stock.py 7203 --synthetic
 | `Connection reset` / `Failed to perform` で価格が取れない | データソース（Yahoo Finance 等）へネットワークが到達していない。**手法を試すだけなら `--synthetic`** を付ける。実データが要るなら実行環境のネットワーク許可設定を確認、または J-Quants トークンを設定 |
 | レポート生成が「免責文が無い」で止まる | PostToolUse hook が正しく働いている。`stocklib.report.save_report()` を使えば免責文が自動付与される（CLI 経由なら自動） |
 | `knowledge/` に文書を足したら書き込みがブロックされた | `knowledge/00-index.md` に索引エントリを追加すれば通る（`/learn` スキルは索引反映まで自動でやる） |
-| `JQuantsAuthError` が出る | トークン未設定か期限切れ（**約1週間で失効**）。https://jpx-jquants.com/ で再発行して `.env` を更新 |
+| `JQuantsAuthError` が出る | API キー未設定か無効。https://jpx-jquants.com/ のダッシュボードで発行して `.env`（`JQUANTS_API_KEY=...`）を更新。**2025年12月の V2 移行でリフレッシュトークン方式は廃止**（旧 `JQUANTS_REFRESH_TOKEN` は使えない） |
 | どのコマンドを使うか迷う | [時間軸で使い分ける](#3-時間軸で使い分ける短期中期長期)の表か、[何ができるか早見表](#何ができるかコマンド早見表)を参照。対話なら「7203を長期目線で見たい」のように自然文で頼めば適切なスキルが選ばれる |
 | テストが通るか確認したい | `python3 -m pytest analysis/tests -q`（ネットワーク不要） |
 
@@ -433,7 +433,7 @@ python3 analysis/analyze_stock.py 7203 --synthetic
 | ソース | 位置づけ | 主な制約（2026年時点） |
 |---|---|---|
 | **yfinance（既定・主軸）** | 日足 OHLCV・基本ファンダ指標。**直近の株価で分析する通常用途はこれ** | 非公式 API。日本株では分割・配当調整の不備や欠損が起きることが知られており、`auto_adjust=True` は配当込み調整のため他ソースの系列と一致しない。商用利用は規約上グレー。**重要な意思決定の前は他ソースと突き合わせる** |
-| J-Quants API（任意・バックテスト/全銘柄用） | 全上場銘柄一覧・日足（`--source jquants` で opt-in） | JPX（東証の親会社）公式の正規ルートで精度は高いが、**無料プランは12週間遅延データ**——**直近の相場分析・当日ブリーフには使えない**（学習・バックテスト・全銘柄ユニバース向け）。銘柄コードは5桁、`AdjustmentClose` は配当落ち調整を含まない → [J-Quants トークンの扱い](#j-quants-トークンの扱いセキュリティ) |
+| J-Quants API（任意・バックテスト/全銘柄用） | 全上場銘柄一覧・日足（`--source jquants` で opt-in） | JPX（東証の親会社）公式の正規ルートで精度は高いが、**無料プランは12週間遅延データ**——**直近の相場分析・当日ブリーフには使えない**（学習・バックテスト・全銘柄ユニバース向け）。銘柄コードは5桁、`AdjustmentClose` は配当落ち調整を含まない → [J-Quants API キーの扱い](#j-quants-api-キーの扱いセキュリティ) |
 | `--synthetic` | オフラインでの手法デモ | 実在の株価ではない。レポートにはその旨が自動で明記される |
 
 ### 無料で使える日本株データソース早見表
@@ -464,15 +464,15 @@ CLI に組み込んでいないものも含め、**無料で使える主な入�
 
 ---
 
-## J-Quants トークンの扱い（セキュリティ）
+## J-Quants API キーの扱い（セキュリティ）
 
-J-Quants を使う場合はリフレッシュトークンを環境変数 `JQUANTS_REFRESH_TOKEN` に設定する。
+J-Quants を使う場合は **API キー**を環境変数 `JQUANTS_API_KEY` に設定する（2025年12月の **V2 移行**で、従来のリフレッシュトークン方式は廃止され APIキー方式になった。2026年時点）。
 
-- **トークンの有効期限は約1週間**（2026年時点の無料プラン仕様）。認証エラーが出たら https://jpx-jquants.com/ で再発行する。
-- トークンをコード・レポート・コミットに**絶対に含めない**。`.env` ファイル（gitignore 済み）に置き、シェルで読み込む運用を推奨:
+- **API キーは無期限**（V1 のリフレッシュトークンにあった約1週間の期限は撤廃）。キーは https://jpx-jquants.com/ のダッシュボードで発行・再発行できる。
+- API キーをコード・レポート・コミットに**絶対に含めない**。`.env` ファイル（gitignore 済み）に置き、シェルで読み込む運用を推奨:
 
 ```bash
-cp .env.example .env        # JQUANTS_REFRESH_TOKEN=... を記入
+cp .env.example .env        # JQUANTS_API_KEY=... を記入
 set -a && source .env && set +a
 ```
 
@@ -502,7 +502,7 @@ python3 analysis/screen.py --rsi-below 30
 
 | ディレクトリ | 内容 |
 |---|---|
-| `knowledge/` | 日本株ナレッジベース（88文書）。市場制度・歴史・数学/クオンツ・ファンダ/テクニカル分析・マクロ・デリバティブ・規制税制・データソース・投資戦略。入口は [`knowledge/00-index.md`](knowledge/00-index.md)。索引の整合は hooks が自動チェックし、重複統合・陳腐化検出は knowledge-curator エージェントが担う |
+| `knowledge/` | 日本株ナレッジベース（89文書）。市場制度・歴史・数学/クオンツ・ファンダ/テクニカル分析・マクロ・デリバティブ・規制税制・データソース・投資戦略。入口は [`knowledge/00-index.md`](knowledge/00-index.md)。索引の整合は hooks が自動チェックし、重複統合・陳腐化検出は knowledge-curator エージェントが担う |
 | `analysis/` | 分析コード（Python 3.11+）。共通ライブラリ `stocklib`、14本の CLI、ユニバース定義、pytest テスト |
 | `journal/` | リサーチジャーナル（分析仮説の記録と事後検証。git 管理対象。入口は [`journal/README.md`](journal/README.md)） |
 | `docs/` | 運用ガイド（[`docs/getting-started.md`](docs/getting-started.md): ゼロから始める資産形成の通し順路、[`docs/data-sources.md`](docs/data-sources.md): 無料でデータを見る/取る実践ガイド、[`docs/automation.md`](docs/automation.md): デイリーブリーフの自動実行） |
