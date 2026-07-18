@@ -242,13 +242,13 @@ def test_main_auth_error_message_passthrough(
     """JQuantsAuthError の導入手順メッセージを握りつぶさず stderr に表示する。"""
 
     def fake(date: str | None = None) -> pd.DataFrame:
-        raise JQuantsAuthError("JQUANTS_REFRESH_TOKEN が未設定です（導入手順: https://jpx-jquants.com/）")
+        raise JQuantsAuthError("JQUANTS_API_KEY が未設定です（導入手順: https://jpx-jquants.com/）")
 
     monkeypatch.setattr(bu, "fetch_listed_info", fake)
     out = tmp_path / "never.csv"
     assert bu.main(["--out", str(out)]) == 1
     captured = capsys.readouterr()
-    assert "JQUANTS_REFRESH_TOKEN" in captured.err
+    assert "JQUANTS_API_KEY" in captured.err
     assert "導入手順" in captured.err
     assert not out.exists()
 

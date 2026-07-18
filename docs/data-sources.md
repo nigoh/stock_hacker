@@ -47,24 +47,24 @@ flowchart TD
 
 分析 CLI（`analyze_stock.py` 等）は価格データを自動取得してレポート化する。データソースは2つ。
 
-### 既定: yfinance（すぐ使える）
+### 既定・主軸: yfinance（すぐ使える／直近の株価はこれ）
 
-追加設定なしで動く。非公式 API のため日本株では分割・配当調整の不備が起こりうる点に注意（重要な判断の前は他ソースと突き合わせる）。
+追加設定なしで動く。**直近の株価で分析する通常用途はこれが主軸**（near-real-time）。非公式 API のため日本株では分割・配当調整の不備が起こりうる点に注意（重要な判断の前は他ソースと突き合わせる）。
 
 ```bash
 python3 analysis/analyze_stock.py 7203        # そのまま yfinance で取得
 ```
 
-### 推奨: J-Quants（JPX 公式・全上場銘柄）
+### opt-in: J-Quants（JPX 公式・全上場銘柄・**バックテスト向き**）
 
-JPX（東証の親会社）の正規ルート。**無料プランは12週間遅延**（学習・バックテスト向き）だが、分割・併合調整済みで精度が高く、liquid30 を超える全上場銘柄が使える。
+JPX（東証の親会社）の正規ルートで分割・併合調整済み・精度が高く、liquid30 を超える全上場銘柄が使える。ただし**無料プランは12週間遅延**のため、**直近の相場分析・当日ブリーフには使えない**。切り替えるのは過去データでの学習・バックテストや全銘柄スクリーニングのときに限る（通常は既定の yfinance のままでよい）。
 
 **セットアップ（無料）:**
 
-1. https://jpx-jquants.com/ で無料プラン登録し、リフレッシュトークンを発行（**有効期限約1週間**）。
+1. https://jpx-jquants.com/ で無料プラン登録し、ダッシュボードで **API キー**を発行（**無期限**。2025年12月の V2 移行でリフレッシュトークン方式は廃止された。2026年時点）。
 2. `.env` に記入して読み込む:
    ```bash
-   cp .env.example .env        # JQUANTS_REFRESH_TOKEN=... を記入
+   cp .env.example .env        # JQUANTS_API_KEY=... を記入
    set -a && source .env && set +a
    ```
 3. 価格ソースを J-Quants に切り替える（どちらか）:
@@ -87,7 +87,7 @@ JPX（東証の親会社）の正規ルート。**無料プランは12週間遅�
 
 ### 全銘柄ユニバースの構築
 
-`build_universe.py` は J-Quants の上場銘柄一覧から `screen.py` 互換のユニバース CSV を生成する（要 `JQUANTS_REFRESH_TOKEN`）。
+`build_universe.py` は J-Quants の上場銘柄一覧から `screen.py` 互換のユニバース CSV を生成する（要 `JQUANTS_API_KEY`）。
 
 ```bash
 python3 analysis/build_universe.py --market プライム > analysis/universe/prime.csv

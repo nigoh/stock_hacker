@@ -82,7 +82,7 @@ def add_source_argument(parser: object) -> None:
         "--source",
         choices=list(VALID_SOURCES),
         default=None,
-        help="価格データソース（既定: yfinance。jquants は要 JQUANTS_REFRESH_TOKEN・日足のみ・"
+        help="価格データソース（既定: yfinance。jquants は要 JQUANTS_API_KEY・日足のみ・"
         "無料プランは12週間遅延。指数/為替は yfinance に自動フォールバック）",
     )
 
