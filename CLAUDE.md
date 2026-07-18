@@ -49,7 +49,7 @@ stock_hacker/
 ├── scripts/               # hooks 用スクリプト
 │   ├── session_start.sh   # SessionStart: 依存導入・ディレクトリ作成・環境文脈の注入
 │   └── check_knowledge_index.py  # PostToolUse: knowledge 文書の索引未反映を検出
-├── docs/                  # 運用ガイド（automation.md: デイリーブリーフの自動実行）
+├── docs/                  # 運用ガイド（getting-started.md: 資産形成の通し順路、data-sources.md: 無料でデータを見る/取る実践ガイド、automation.md: デイリーブリーフの自動実行）
 ├── journal/               # リサーチジャーナル（分析仮説の記録と事後検証。git 管理対象。書式は journal/README.md）
 │   └── <YYYY>/            # エントリ（<YYYY-MM-DD>-<slug>.md、YAML frontmatter + 本文）
 ├── reports/               # レポート出力先（gitignore、.gitkeep のみコミット）
