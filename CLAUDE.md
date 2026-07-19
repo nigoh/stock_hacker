@@ -1,7 +1,7 @@
 # stock_hacker — 日本株 総合分析リポジトリ
 
 日本株（東証上場株式）に関する分析を一手に担うためのリポジトリ。
-知識ベース（`knowledge/`、89文書）を土台に、分析ライブラリ（`analysis/stocklib`）・CLI・スキル/エージェント/コマンド/hooks を備えた「日本株解析のプロフェッショナル」環境。
+知識ベース（`knowledge/`、90文書）を土台に、分析ライブラリ（`analysis/stocklib`）・CLI・スキル/エージェント/コマンド/hooks を備えた「日本株解析のプロフェッショナル」環境。
 
 ## リポジトリ構造
 
@@ -12,10 +12,10 @@ stock_hacker/
 ├── requirements.txt       # 依存パッケージ（pandas/numpy/yfinance/pytest）
 ├── .claude/               # Claude Code 設定
 │   ├── settings.json      # 権限・hooks（SessionStart / PostToolUse）
-│   ├── skills/            # スキル15種（analyze-stock 等、下表参照）
+│   ├── skills/            # スキル16種（analyze-stock 等、下表参照）
 │   ├── agents/            # サブエージェント4種（stock-analyst 等）
-│   └── commands/          # スラッシュコマンド17種（/analyze、/portfolio 等）
-├── knowledge/             # 日本株ナレッジベース（Markdown、89文書）
+│   └── commands/          # スラッシュコマンド18種（/analyze、/portfolio 等）
+├── knowledge/             # 日本株ナレッジベース（Markdown、90文書）
 │   ├── 00-index.md        # 全文書の索引（必ず最新に保つ）
 │   ├── market-structure/  # 市場制度・取引所・売買の仕組み
 │   ├── history/           # 日本株市場の歴史
@@ -52,8 +52,8 @@ stock_hacker/
 │   └── check_knowledge_index.py  # PostToolUse: knowledge 文書の索引未反映を検出
 ├── docs/                  # 運用ガイド（getting-started.md: 資産形成の通し順路、data-sources.md: 無料でデータを見る/取る実践ガイド、automation.md: デイリーブリーフの自動実行、overnight-forecast.md: 夜間フォーキャストの自動運用）
 ├── journal/               # リサーチジャーナル（分析仮説の記録と事後検証。git 管理対象。書式は journal/README.md）
-├── forecasts/             # 夜間フォーキャストの実績台帳（ledger.csv。翌営業日予想と答え合わせの蓄積。git 管理対象。書式は forecasts/README.md）
 │   └── <YYYY>/            # エントリ（<YYYY-MM-DD>-<slug>.md、YAML frontmatter + 本文）
+├── forecasts/             # 夜間フォーキャストの実績台帳（ledger.csv。翌営業日予想と答え合わせの蓄積。git 管理対象。書式は forecasts/README.md）
 ├── reports/               # レポート出力先（gitignore、.gitkeep のみコミット）
 └── data/                  # ローカルデータ（gitignore対象。data/cache/ に価格CSVキャッシュ）
 ```
