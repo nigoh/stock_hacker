@@ -1,0 +1,1 @@
+forecast_id,made_on,asof_date,target_date,code,name,data,direction,prob_up,pred_return,asof_close,pred_low,pred_high,confidence,s_trend,s_momentum,s_meanrev,score,status,graded_on,actual_date,actual_close,actual_return,dir_hit,in_range,abs_error,brier
