@@ -1,9 +1,9 @@
-# 🌙 MAPE-K 夜間改善レポート — 2026-07-20T03:21Z (cycle 2)
+# 🌙 MAPE-K 夜間改善レポート — 2026-07-20T09:14Z (cycle 2)
 
 > 自動生成（`mape/plan.sh`, docs/mape-k.md）。夜間に Monitor→Analyze→Plan を回した結果です。
 > **あなたはチェックを入れるだけ**。Execute が「チェック済み・未着手」を1周1件だけ安全に実装します。
 
-健全性: gate=fail(70s) / 索引=ok / TODO=0 / 未テスト module=1 / 最長SKILL=126/200 / ナレッジ=90文書
+健全性: gate=pass(79s) / 索引=ok / TODO=0 / 未テスト module=1 / 最長SKILL=126/200 / ナレッジ=90文書
 
 ## 📊 分析の答え合わせ（track record）
 
@@ -19,8 +19,8 @@
 
 ## ✅ 自動（無害・可逆：チェック不要で PR まで実装。マージはしない）
 
-- [x] (P1, score 20) pytest（analysis/tests）の赤を直す — 根拠: gate=fail（最優先。緑化するまで他を止める）
 - [x] (P2, score 12) テストの無い stocklib モジュール 1 件にテストを追加する（report）— 根拠: 回帰の穴 / カバレッジ強化
+- [x] (P2, score 9) analyze の proposals 重複排除（シグナル由来と BACKLOG 由来の同一テキストを board に二重掲示しない） — 根拠: 計画イシューの重複表示を解消 / 中×小
 - [x] (P2, score 9) テストの無い stocklib モジュール 1 件にテストを追加する（report）— 根拠: 回帰の穴 / カバレッジ強化
 - [x] (P3, score 6) POLICY.md の却下ログを analyze が学習する精度を上げる — 根拠: 好みへの収束を早める / 中×中
 

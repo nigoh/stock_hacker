@@ -11,6 +11,7 @@ MAPE-K の Analyze が追記し、Execute が消化する候補置き場（docs/
 
 ## 候補
 
+- [ ] (P2, auto) analyze の proposals 重複排除（シグナル由来と BACKLOG 由来の同一テキストを board に二重掲示しない） — 根拠: 計画イシューの重複表示を解消 / 中×小
 - [ ] (P2, approve) monitor の churn 分析に stocklib モジュール別のテスト密度指標を追加する — 根拠: カバレッジの穴の精度向上 / 中×中
 - [ ] (P3, auto) POLICY.md の却下ログを analyze が学習する精度を上げる — 根拠: 好みへの収束を早める / 中×中
 

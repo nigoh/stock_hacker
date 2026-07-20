@@ -1,8 +1,8 @@
-# Monitor レポート — 2026-07-20T03:21Z (cycle 2)
+# Monitor レポート — 2026-07-20T09:14Z (cycle 2)
 
 | 指標 | 値 |
 |---|---|
-| gate (pytest) | fail (70 s) |
+| gate (pytest) | pass (79 s) |
 | todo/fixme | 0 |
 | 索引整合 | ok |
 | ナレッジ文書 | 90 |
