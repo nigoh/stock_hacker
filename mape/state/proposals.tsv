@@ -1,0 +1,7 @@
+auto	P1	5	2	20	pytest（analysis/tests）の赤を直す — 根拠: gate=fail（最優先。緑化するまで他を止める）
+auto	P2	4	3	12	テストの無い stocklib モジュール 1 件にテストを追加する（report）— 根拠: 回帰の穴 / カバレッジ強化
+approve	P2	3	3	9	monitor の churn 分析に stocklib モジュール別のテスト密度指標を追加する — 根拠: カバレッジの穴の精度向上 / 中×中
+approve	P3	3	3	9	変更集中箇所 README.md のテスト強化/整理を検討 — 根拠: 直近30コミットの churn 首位 / 回帰リスク
+auto	P2	3	3	9	テストの無い stocklib モジュール 1 件にテストを追加する（report）— 根拠: 回帰の穴 / カバレッジ強化
+approve	P3	2	3	6	変更集中箇所 README.md のテスト強化/整理を検討 — 根拠: 直近30コミットの churn 首位 / 回帰リスク
+auto	P3	2	3	6	POLICY.md の却下ログを analyze が学習する精度を上げる — 根拠: 好みへの収束を早める / 中×中
