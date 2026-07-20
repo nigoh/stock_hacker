@@ -40,11 +40,11 @@ if [ "$record" -eq 1 ] && [ -f "$MAPE_PROGRESS" ]; then
   {
     echo
     echo "## ${MAPE_TS} — monitor (cycle ${MAPE_CYCLE})"
-    echo "- 対象: リポジトリ全体のシグナル観測"
+    echo "- 対象: 株の解析の醸成シグナル観測（予測精度＋分析カバレッジ）"
     echo "- やったこと: M→A→P を実行し計画イシュー本文を生成"
-    echo "- 結果: gate=${MAPE_GATE}(${MAPE_GATE_S}s) / 索引=${MAPE_INDEX} / TODO=${MAPE_TODO} / 未テストmodule=${MAPE_UNTESTED} / 提案 $(wc -l < "$MAPE_STATE_DIR/proposals.tsv" | tr -d ' ') 件"
+    echo "- 結果: 方向的中率=${MAPE_FC_HIT}% / 網羅=${MAPE_COVERAGE}%（未分析${MAPE_UNANALYZED}）/ 陳腐化${MAPE_STALE_DOCS} / 提案 $(wc -l < "$MAPE_STATE_DIR/proposals.tsv" | tr -d ' ') 件（gate=${MAPE_GATE}）"
     echo "- 考察: HEALTH.md に cycle ${MAPE_CYCLE} を記録。推移は同ファイル参照"
-    echo "- 次に必要になった作業: Execute がチェック済み項目を1件消化"
+    echo "- 次に必要になった作業: Execute がチェック済み項目を1件消化 / 答え合わせ（/overnight・/journal-review）で track record を醸成"
   } >> "$MAPE_PROGRESS"
   mape_log "PROGRESS.md に monitor サイクルを追記"
 fi

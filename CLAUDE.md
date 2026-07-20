@@ -51,7 +51,7 @@ stock_hacker/
 │   ├── session_start.sh   # SessionStart: 依存導入・ディレクトリ作成・環境文脈の注入
 │   └── check_knowledge_index.py  # PostToolUse: knowledge 文書の索引未反映を検出
 ├── mape/                  # MAPE-K 夜間セルフ改善の決定論スクリプト（Monitor/Analyze/Plan＋サーキットブレーカー。docs/mape-k.md）
-│   ├── analysis_signals.py # 分析の答え合わせ track record 抽出（ledger/journal を stdlib のみで集計。ネットワーク不使用）
+│   ├── analysis_signals.py # 分析ドメインのシグナル抽出（予測精度=ledger/journal、カバレッジ=universe/knowledge。stdlib のみ・ネットワーク不使用）
 │   ├── knowledge/         # MAPE-K 共有ナレッジ K（BACKLOG/PROGRESS/POLICY/HEALTH。knowledge/ とは別物）
 │   ├── state/             # 中間成果物（証跡）
 │   └── tests/run.sh       # 決定論部分の自己テスト（pytest の test_mape.py から実行）
@@ -134,7 +134,7 @@ stock_hacker/
 | `/mape-night` | mape-night | MAPE-K 夜間周回（M→A→P）。リポジトリ健全性の改善案をリスク3分類のチェックリストで GitHub 計画イシューに掲示（docs/mape-k.md） |
 | `/mape-execute` | mape-execute | MAPE-K の Execute。計画イシューのチェック済み・未着手を1周1件だけ安全に実装（pytest 緑→ドラフト PR／赤→破棄） |
 
-使い分けの原則: 1銘柄の深掘り → analyze-stock、業績の時系列深掘り → earnings-analysis、複数銘柄の横比較 → compare-stocks、条件による絞り込み → screen-market、売買ルールの検証 → backtest-strategy、市場全体 → market-review、保有銘柄のレビュー → portfolio-review、ウォッチ銘柄の定点観測 → daily-brief、知識の追加 → knowledge-doc、仮説の記録 → research-journal、期日が来た仮説の検証 → journal-review、翌営業日の機械予想と答え合わせの継続測定 → overnight-forecast、積立額・目標額・取り崩し・NISA枠の試算 → asset-planning、保有銘柄の配当収入の集計 → dividend-income、含み損益の税務整理 → tax-view、取引履歴からの実績リターン（XIRR）測定 → performance-review、リポジトリ自身の健全化（テスト・索引整合・コード品質の夜間セルフ改善）→ mape-night（改善案の掲示）/ mape-execute（承認済みの実装）。**重要なレポートを外部共有・意思決定に使う前は必ず `/review-report` を通す**（risk-officer による品質ゲート。統計的誤り・ルックアヘッド・投資助言化・合成データ偽装を検出）。
+使い分けの原則: 1銘柄の深掘り → analyze-stock、業績の時系列深掘り → earnings-analysis、複数銘柄の横比較 → compare-stocks、条件による絞り込み → screen-market、売買ルールの検証 → backtest-strategy、市場全体 → market-review、保有銘柄のレビュー → portfolio-review、ウォッチ銘柄の定点観測 → daily-brief、知識の追加 → knowledge-doc、仮説の記録 → research-journal、期日が来た仮説の検証 → journal-review、翌営業日の機械予想と答え合わせの継続測定 → overnight-forecast、積立額・目標額・取り崩し・NISA枠の試算 → asset-planning、保有銘柄の配当収入の集計 → dividend-income、含み損益の税務整理 → tax-view、取引履歴からの実績リターン（XIRR）測定 → performance-review、株の解析の醸成（予測精度＝的中率/Brier の継続測定と手法改善、分析カバレッジ＝ユニバース網羅・ナレッジ鮮度の醸成）→ mape-night（改善案の掲示）/ mape-execute（承認済みの実装）。**重要なレポートを外部共有・意思決定に使う前は必ず `/review-report` を通す**（risk-officer による品質ゲート。統計的誤り・ルックアヘッド・投資助言化・合成データ偽装を検出）。
 
 サブエージェント（`.claude/agents/`。重い作業の委譲先）:
 
@@ -159,7 +159,7 @@ stock_hacker/
 
 夜間フォーキャスト（`overnight_forecast.py` / `/overnight`）も同じ機械可読契約（`RESULT` 行 + exit code 2 で実データ全滅）を持ち、`run`（前回予想の答え合わせ→翌営業日予想）を平日夜に定期実行して `forecasts/ledger.csv` を醸成する運用を想定する。予想モデル・スケジュール・通知の振り分け・台帳の扱いは `docs/overnight-forecast.md`、評価指標（方向的中率・Brier・較正）の理論は `knowledge/math/forecast-evaluation-and-calibration.md` を参照。ここでも合成データで予想・答え合わせを偽装しない原則は同じ。
 
-MAPE-K 夜間セルフ改善（`mape/` / `/mape-night` / `/mape-execute`）は夜間に2系統を回す仕組み: **(1) リポジトリ健全性**（pytest ゲート・knowledge 索引整合・テストの無い stocklib モジュール・TODO・最長 SKILL 行数）と、**(2) 分析の答え合わせ（track record）**——夜間フォーキャスト（`forecasts/ledger.csv`）の方向的中率・Brier と リサーチジャーナル（`journal/`）の hit 率・検証期日超過を継続測定し、**「分析→記録→答え合わせ→測定→手法改善」の閉ループ**を駆動する（`mape/analysis_signals.py` が台帳/ジャーナルを stdlib のみ・ネットワーク不使用で集計）。答え合わせの実行（採点・検証）自体は `/overnight`・`/journal-review` が担い、MAPE-K は測定と改善提案を担当する（的中率<50%等で `stocklib.forecast` の重み見直しを提案。少数標本では過剰反応しない）。「安く読んで考える」Monitor→Analyze→Plan（決定論 Bash・読み取り専用）と「壊しうる」Execute（Claude スキル・1周1件・pytest 緑→ドラフト PR）を分離し、承認ゲートを GitHub 計画イシューの「📊 分析の答え合わせ」ダッシュボード＋リスク3分類チェックリスト（自動/承認/相談）として掲示する。共有ナレッジ K は `mape/knowledge/`（日本株ナレッジベース `knowledge/` とは別物）。決定論部分は `mape/tests/run.sh` を `analysis/tests/test_mape.py` 経由で pytest（＝品質ゲート）に配線して回帰を守る。設計・分類・ガードレール・スケジュールは `docs/mape-k.md` を参照。投資助言化・実データ/実発注・秘密/課金は consult、合成データで実データを偽装する提案は却下、という stock_hacker の不変条件を分類に織り込んである。
+MAPE-K 夜間セルフ改善（`mape/` / `/mape-night` / `/mape-execute`）は**「株の解析の醸成」を主題**に、夜間に分析ドメインの2軸を回す仕組み: **(1) 予測精度**——夜間フォーキャスト（`forecasts/ledger.csv`）の方向的中率・Brier・レンジ的中と リサーチジャーナル（`journal/`）の hit 率・検証期日超過を継続測定し、弱ければ `stocklib.forecast` の重み・較正・仮説の観点を改善へ回す。**(2) 分析カバレッジ**——ユニバース（liquid30）の分析網羅・未分析銘柄・ナレッジの陳腐化（「〜年時点」の古さ）を測り、ユニバース全体の答え合わせ・陳腐化ナレッジの更新で分析資産を広げ・新鮮に保つ。これで**「分析→記録→答え合わせ→測定→手法改善」の閉ループ**を駆動する（`mape/analysis_signals.py` が台帳/ジャーナル/ユニバース/ナレッジを stdlib のみ・ネットワーク不使用で集計）。答え合わせの実行（採点・検証）は `/overnight`・`/journal-review` が担い、MAPE-K は測定と改善提案を担当（少数標本では過剰反応しない）。**システム/リポジトリの健全性（pytest 等）は主題ではなく、pytest を分析コードが動くことの最小ガードレールとして測るのみ**（索引・TODO・SKILL 行数などは監視しない）。「安く読んで考える」Monitor→Analyze→Plan（決定論 Bash・読み取り専用）と「壊しうる」Execute（Claude スキル・1周1件・pytest 緑→ドラフト PR）を分離し、承認ゲートを GitHub 計画イシューの「🎯予測精度」「🗺️分析カバレッジ」ダッシュボード＋リスク3分類チェックリスト（自動/承認/相談）として掲示する。共有ナレッジ K は `mape/knowledge/`（日本株ナレッジベース `knowledge/` とは別物）。決定論部分は `mape/tests/run.sh` を `analysis/tests/test_mape.py` 経由で pytest（＝品質ゲート）に配線して回帰を守る。設計・分類・ガードレール・スケジュールは `docs/mape-k.md` を参照。投資助言化・実データ/実発注・秘密/課金は consult、合成データで実データを偽装する提案は却下、という stock_hacker の不変条件を分類に織り込んである。
 
 ### 免責（必須）
 

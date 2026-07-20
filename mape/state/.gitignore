@@ -2,7 +2,11 @@
 gate.log
 index.log
 untested-modules.txt
+unanalyzed-codes.txt
+stale-docs.txt
 analysis-signals.env
+batch10.log
+batch10.log
 *.raw
 *.skipped
 *.bak

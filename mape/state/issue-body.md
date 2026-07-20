@@ -1,36 +1,38 @@
-# 🌙 MAPE-K 夜間改善レポート — 2026-07-20T03:21Z (cycle 2)
+# 🌙 MAPE-K 夜間改善レポート — 2026-07-20T13:24Z (cycle 1)
 
 > 自動生成（`mape/plan.sh`, docs/mape-k.md）。夜間に Monitor→Analyze→Plan を回した結果です。
 > **あなたはチェックを入れるだけ**。Execute が「チェック済み・未着手」を1周1件だけ安全に実装します。
 
-健全性: gate=fail(70s) / 索引=ok / TODO=0 / 未テスト module=1 / 最長SKILL=126/200 / ナレッジ=90文書
+> **主題は株の解析の醸成**（予測精度＋分析カバレッジ）。システム健全性は主題ではなく、pytest=pass を最小ガードレールとして測るのみ。推移は `mape/knowledge/HEALTH.md`。
 
-## 📊 分析の答え合わせ（track record）
-
-分析が当たっていたかの継続測定。**手法改善の起点**（弱ければ下のチェックリストに手法見直しが並ぶ）。推移は `mape/knowledge/HEALTH.md`。
+## 🎯 予測精度（分析が当たっていたか）
 
 | 対象 | 実績 |
 |---|---|
-| 夜間フォーキャスト | 採点済み 0 件 / 方向的中率 **na%** / 平均Brier na / 未採点 0 件 |
+| 夜間フォーキャスト | 採点済み 0 件 / 方向的中率 **na%** / Brier na / レンジ的中 na% / 未採点 0 件 |
 | リサーチジャーナル | 検証済み 0/0 / 的中 0 件 / 検証期日超過 0 件 |
 
-> 答え合わせを回す（このループの醸成）: `python3 analysis/overnight_forecast.py run`（採点→翌営業日予想）・`/journal-review`（検証期日の来た仮説を hit/miss 判定）。
+## 🗺️ 分析カバレッジ（分析資産をどれだけ広げ・新鮮に保てているか）
+
+| 対象 | 実績 |
+|---|---|
+| ユニバース網羅 | **0%**（0/30）/ 未分析 30 件 |
+| ナレッジ資産 | 90 文書 / 陳腐化 14 件 |
+
+> 醸成を回す: `python3 analysis/overnight_forecast.py run`（採点→翌営業日予想、ユニバース網羅も上がる）・`/journal-review`（検証期日の仮説を判定）・`/learn`（陳腐化ナレッジの更新）。
 > **予想・仮説は将来の断定でも売買助言でもない**。的中率は少数標本では統計的に不安定（判断は標本が貯まってから）。
 
 ## ✅ 自動（無害・可逆：チェック不要で PR まで実装。マージはしない）
 
-- [x] (P1, score 20) pytest（analysis/tests）の赤を直す — 根拠: gate=fail（最優先。緑化するまで他を止める）
-- [x] (P2, score 12) テストの無い stocklib モジュール 1 件にテストを追加する（report）— 根拠: 回帰の穴 / カバレッジ強化
-- [x] (P2, score 9) テストの無い stocklib モジュール 1 件にテストを追加する（report）— 根拠: 回帰の穴 / カバレッジ強化
-- [x] (P3, score 6) POLICY.md の却下ログを analyze が学習する精度を上げる — 根拠: 好みへの収束を早める / 中×中
+- [x] (P2, score 16) 未分析銘柄 30 件をユニバースへ醸成する（例: 7203,6758,9984,8306,6861）— 根拠: 網羅率 0%（0/30）/ `python3 analysis/overnight_forecast.py run` をユニバース全体で回すと台帳に記録され網羅が上がる
 
 > 自動項目は既定でチェック済み（`[x]`）です。実装してほしくないものは外してください。
 
 ## 🟡 承認（挙動が変わる：**チェックした項目だけ**実装）
 
-- [ ] (P2, score 9) monitor の churn 分析に stocklib モジュール別のテスト密度指標を追加する — 根拠: カバレッジの穴の精度向上 / 中×中
-- [ ] (P3, score 9) 変更集中箇所 README.md のテスト強化/整理を検討 — 根拠: 直近30コミットの churn 首位 / 回帰リスク
-- [ ] (P3, score 6) 変更集中箇所 README.md のテスト強化/整理を検討 — 根拠: 直近30コミットの churn 首位 / 回帰リスク
+- [ ] (P3, score 9) 陳腐化ナレッジ 14 件を更新する（例: fundamental/earnings-quality-and-accounting-fraud.md,fundamental/qualitative-analysis-and-moats.md,history/lost-decades.md）— 根拠: 「〜年時点」の最新が2年以上前 / `/learn` で数値・制度を最新化し分析の土台を新鮮に保つ
+- [ ] (P3, score 6) forecast の方向スコア合成重み（trend/momentum/meanrev）を採点実績で見直せる形にする — 根拠: 的中率の継続改善の土台 / 中×中
+- [ ] (P3, score 6) 予想レンジ（pred_low/high）の ATR 係数を採点実績（in_range）で最適化する — 根拠: レンジ的中率の底上げ / 中×中
 
 ## 🔴 相談（投資助言化/実データ・実発注/APIキー・秘密/課金/デプロイ：チェックしても、まず質問します）
 
@@ -56,4 +58,4 @@
 - サーキットブレーカー: 同じ失敗や revert が続いたら Execute を止めて通知します。
 - 未チェックのまま時間が過ぎた項目は自動アーカイブされます（計画を腐らせない）。
 
-<!-- mape:cycle=2 generated-by=mape/plan.sh -->
+<!-- mape:cycle=1 generated-by=mape/plan.sh -->
