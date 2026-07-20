@@ -1,0 +1,7 @@
+# 真に一時的な生成物は追跡しない（証跡として残すのは monitor.env/analysis.md/proposals.tsv/issue-body.md/ledger.jsonl）
+gate.log
+index.log
+untested-modules.txt
+*.raw
+*.skipped
+*.bak

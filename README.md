@@ -389,6 +389,8 @@ python3 analysis/analyze_stock.py 7203 --synthetic
 
 > ⚠️ 自動実行では**実データが取れないときに `--synthetic` で「今日の市況」を偽装しない**設計（データ取得不可を明示して静かに終了）。
 
+夜間フォーキャスト（`/overnight`）も同じ機械可読契約で平日夜に台帳を醸成できる（[`docs/overnight-forecast.md`](docs/overnight-forecast.md)）。さらに **MAPE-K 夜間セルフ改善**（`/mape-night` / `/mape-execute`）は、銘柄分析ではなく**リポジトリ自身の健全性**（pytest・knowledge 索引整合・テストの穴・TODO 等）を夜間に観測→改善案を GitHub 計画イシューにリスク3分類チェックリストで掲示→承認済みを1周1件だけ安全に実装（pytest 緑→ドラフト PR）する仕組み。設計・運用は [`docs/mape-k.md`](docs/mape-k.md)。
+
 ---
 
 ## 出力イメージ
@@ -505,8 +507,9 @@ python3 analysis/screen.py --rsi-below 30
 | `knowledge/` | 日本株ナレッジベース（90文書）。市場制度・歴史・数学/クオンツ・ファンダ/テクニカル分析・マクロ・デリバティブ・規制税制・データソース・投資戦略。入口は [`knowledge/00-index.md`](knowledge/00-index.md)。索引の整合は hooks が自動チェックし、重複統合・陳腐化検出は knowledge-curator エージェントが担う |
 | `analysis/` | 分析コード（Python 3.11+）。共通ライブラリ `stocklib`、14本の CLI、ユニバース定義、pytest テスト |
 | `journal/` | リサーチジャーナル（分析仮説の記録と事後検証。git 管理対象。入口は [`journal/README.md`](journal/README.md)） |
-| `docs/` | 運用ガイド（[`docs/getting-started.md`](docs/getting-started.md): ゼロから始める資産形成の通し順路、[`docs/data-sources.md`](docs/data-sources.md): 無料でデータを見る/取る実践ガイド、[`docs/automation.md`](docs/automation.md): デイリーブリーフの自動実行） |
-| `.claude/` | Claude Code 設定。スキル15種・サブエージェント4種・コマンド17種・hooks |
+| `docs/` | 運用ガイド（[`docs/getting-started.md`](docs/getting-started.md): ゼロから始める資産形成の通し順路、[`docs/data-sources.md`](docs/data-sources.md): 無料でデータを見る/取る実践ガイド、[`docs/automation.md`](docs/automation.md): デイリーブリーフの自動実行、[`docs/mape-k.md`](docs/mape-k.md): MAPE-K 夜間セルフ改善の設計と運用） |
+| `mape/` | MAPE-K 夜間セルフ改善の決定論スクリプト（Monitor/Analyze/Plan＋サーキットブレーカー）と共有ナレッジ K（`mape/knowledge/`、日本株ナレッジベース `knowledge/` とは別物）。入口は [`mape/README.md`](mape/README.md) |
+| `.claude/` | Claude Code 設定。スキル18種・サブエージェント4種・コマンド20種・hooks |
 | `scripts/` | hooks 用スクリプト（環境セットアップ、ナレッジ索引の整合チェック） |
 | `reports/` | 生成レポートの出力先（git 管理外） |
 | `data/` | 保有・ウォッチ・取引データと価格キャッシュ（git 管理外＝**個人情報はコミットされない**） |
