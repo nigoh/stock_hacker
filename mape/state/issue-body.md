@@ -1,9 +1,9 @@
-# 🌙 MAPE-K 夜間改善レポート — 2026-07-20T09:14Z (cycle 2)
+# 🌙 MAPE-K 夜間改善レポート — 2026-07-20T10:11Z (cycle 12)
 
 > 自動生成（`mape/plan.sh`, docs/mape-k.md）。夜間に Monitor→Analyze→Plan を回した結果です。
 > **あなたはチェックを入れるだけ**。Execute が「チェック済み・未着手」を1周1件だけ安全に実装します。
 
-健全性: gate=pass(79s) / 索引=ok / TODO=0 / 未テスト module=1 / 最長SKILL=126/200 / ナレッジ=90文書
+健全性: gate=pass(93s) / 索引=ok / TODO=0 / 未テスト module=1 / 最長SKILL=126/200 / ナレッジ=90文書
 
 ## 📊 分析の答え合わせ（track record）
 
@@ -56,4 +56,4 @@
 - サーキットブレーカー: 同じ失敗や revert が続いたら Execute を止めて通知します。
 - 未チェックのまま時間が過ぎた項目は自動アーカイブされます（計画を腐らせない）。
 
-<!-- mape:cycle=2 generated-by=mape/plan.sh -->
+<!-- mape:cycle=12 generated-by=mape/plan.sh -->
