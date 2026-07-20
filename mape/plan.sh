@@ -57,18 +57,23 @@ done_n=$(printf '%s' "$done_log" | grep -c . 2>/dev/null || true); done_n=${done
   echo "> 自動生成（\`mape/plan.sh\`, docs/mape-k.md）。夜間に Monitor→Analyze→Plan を回した結果です。"
   echo "> **あなたはチェックを入れるだけ**。Execute が「チェック済み・未着手」を1周1件だけ安全に実装します。"
   echo
-  echo "健全性: gate=${MAPE_GATE:-skip}(${MAPE_GATE_S:-?}s) / 索引=${MAPE_INDEX:-skip} / TODO=${MAPE_TODO:-?} / 未テスト module=${MAPE_UNTESTED:-?} / 最長SKILL=${MAPE_MAX_SKILL:-?}/200 / ナレッジ=${MAPE_KNOW_DOCS:-?}文書"
+  echo "> **主題は株の解析の醸成**（予測精度＋分析カバレッジ）。システム健全性は主題ではなく、pytest=${MAPE_GATE:-skip} を最小ガードレールとして測るのみ。推移は \`mape/knowledge/HEALTH.md\`。"
   echo
-  echo "## 📊 分析の答え合わせ（track record）"
-  echo
-  echo "分析が当たっていたかの継続測定。**手法改善の起点**（弱ければ下のチェックリストに手法見直しが並ぶ）。推移は \`mape/knowledge/HEALTH.md\`。"
+  echo "## 🎯 予測精度（分析が当たっていたか）"
   echo
   echo "| 対象 | 実績 |"
   echo "|---|---|"
-  echo "| 夜間フォーキャスト | 採点済み ${MAPE_FC_GRADED:-?} 件 / 方向的中率 **${MAPE_FC_HIT:-?}%** / 平均Brier ${MAPE_FC_BRIER:-?} / 未採点 ${MAPE_FC_PENDING:-?} 件 |"
+  echo "| 夜間フォーキャスト | 採点済み ${MAPE_FC_GRADED:-?} 件 / 方向的中率 **${MAPE_FC_HIT:-?}%** / Brier ${MAPE_FC_BRIER:-?} / レンジ的中 ${MAPE_FC_INRANGE:-?}% / 未採点 ${MAPE_FC_PENDING:-?} 件 |"
   echo "| リサーチジャーナル | 検証済み ${MAPE_JR_VERIFIED:-?}/${MAPE_JR_TOTAL:-?} / 的中 ${MAPE_JR_HIT:-?} 件 / 検証期日超過 ${MAPE_JR_DUE:-?} 件 |"
   echo
-  echo "> 答え合わせを回す（このループの醸成）: \`python3 analysis/overnight_forecast.py run\`（採点→翌営業日予想）・\`/journal-review\`（検証期日の来た仮説を hit/miss 判定）。"
+  echo "## 🗺️ 分析カバレッジ（分析資産をどれだけ広げ・新鮮に保てているか）"
+  echo
+  echo "| 対象 | 実績 |"
+  echo "|---|---|"
+  echo "| ユニバース網羅 | **${MAPE_COVERAGE:-?}%**（${MAPE_COVERED:-?}/${MAPE_UNIVERSE:-?}）/ 未分析 ${MAPE_UNANALYZED:-?} 件 |"
+  echo "| ナレッジ資産 | ${MAPE_KNOW_DOCS:-?} 文書 / 陳腐化 ${MAPE_STALE_DOCS:-?} 件 |"
+  echo
+  echo "> 醸成を回す: \`python3 analysis/overnight_forecast.py run\`（採点→翌営業日予想、ユニバース網羅も上がる）・\`/journal-review\`（検証期日の仮説を判定）・\`/learn\`（陳腐化ナレッジの更新）。"
   echo "> **予想・仮説は将来の断定でも売買助言でもない**。的中率は少数標本では統計的に不安定（判断は標本が貯まってから）。"
   echo
   echo "## ✅ 自動（無害・可逆：チェック不要で PR まで実装。マージはしない）"

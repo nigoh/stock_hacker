@@ -1,18 +1,21 @@
 # MAPE-K 夜間セルフ改善ガイド（設計と運用）
 
-stock_hacker 自身のリポジトリ健全性を、夜間に自動で観測・分析・計画し、承認済みの改善だけを安全に
-実装していく仕組みのガイド。自律計算の古典アーキテクチャ **MAPE-K**（Monitor / Analyze / Plan / Execute
-＋共有 Knowledge）に沿う。deb（開発土台リポジトリ）の MAPE-K を stock_hacker の実態（Python + pytest +
-日本株ナレッジベース）に合わせて移植したもの。
+**MAPE-K の主題は「日本株分析そのものの醸成」**である。分析が当たっていたか（予測精度）を測り、
+分析をどれだけ広げ・新鮮に保てているか（分析カバレッジ）を測り、弱いところを手法改善へ回して、
+**分析の質と資産を夜ごとに育てていく**。自律計算の古典アーキテクチャ **MAPE-K**（Monitor / Analyze /
+Plan / Execute ＋共有 Knowledge）に沿う。
+
+> ⚠️ **リポジトリ/システムの健全性（pytest 等）は主題ではない**。pytest は「分析コードが動くこと」の
+> **最小ガードレール**として測るだけで、MAPE-K が育てる対象は株の解析（予測精度＋分析カバレッジ）である。
 
 大原則は1つ: **「安く読んで考える」M/A/P と「高コストで壊しうる」Execute を分離し、人間の承認ゲートを
 GitHub イシューのチェックボックスとして挟む**。読み取りは全自動、破壊的操作はゲート付き自動、マージだけ人間。
 
 ## なぜこの設計か（背景と決定）
 
-stock_hacker を使い続けると、小さな改善（テスト追加・整形・索引整合・免責の徹底・軽微なリファクタ）が
-溜まる。状態観測と改善案の立案は**読み取り中心で安全・低コスト**であり夜間に自動で回せる。危険なのは
-「実際に変更を加える実装」だけ。そこで:
+日本株分析は「やって終わり」になりがちだが、**当たったか・網羅できているか・知識が古びていないか**を
+継続測定しないと手法は育たない。この観測と改善案の立案は**読み取り中心で安全・低コスト**であり夜間に
+自動で回せる。危険なのは「実際に変更を加える実装」だけ。そこで:
 
 1. **K（共有ナレッジ）** を `mape/knowledge/`（人が読める Markdown）に置く: `BACKLOG.md` / `PROGRESS.md` /
    `POLICY.md` / `HEALTH.md`。全フェーズがここを読み書きし、周回ごとに判断が良くなる「記憶」とする。
@@ -58,37 +61,42 @@ mape/
 
 ## 監視シグナル（Monitor）
 
-stock_hacker の実態に即した健全性指標を `mape/knowledge/HEALTH.md` の推移表に**毎周回1行**記録する
-（列順は固定＝監視スクリプトが依存）。
+分析ドメインの指標を2系統、`mape/knowledge/HEALTH.md` の推移表に**毎周回1行**記録する（列順は固定＝
+監視スクリプトが依存）。`mape/analysis_signals.py` が `forecasts/ledger.csv`・`journal/`・
+`analysis/universe/liquid30.csv`・`knowledge/` を **stdlib のみ・ネットワーク不使用**で集計する
+（価格データ・pandas に依存しない）。合成データ（`data=synthetic`）は track record・カバレッジに数えない。
+
+### 🎯 予測精度（分析が当たっていたか）
 
 | 指標 | 意味 | 良い方向 |
 |---|---|---|
-| gate | `python3 -m pytest analysis/tests` の合否 | pass |
-| gate_s | pytest 所要秒 | 小 |
-| todo | TODO/FIXME コメント数（analysis/scripts/.claude/.github） | 小 |
-| index | `check_knowledge_index.py --all` の合否（未索引/リンク切れ/文書数ずれ） | ok |
-| know_docs | 日本株ナレッジベース文書数 | 参考値 |
-| cli | トップレベル分析 CLI 数 | 参考値 |
-| modules | stocklib モジュール数 | 参考値 |
-| tests | テストファイル数 | 大 |
-| untested | テストの無い stocklib モジュール数 | 小（0 が理想） |
-| max_skill | 最長 SKILL.md 行数（予算 200） | 200 未満 |
-| fc_graded / fc_hit / fc_brier | 夜間フォーキャストの採点済み件数・方向的中率%・平均Brier（`forecasts/ledger.csv`, data=real） | hit 大 / Brier 小 |
-| jr_verified / jr_hit / jr_due | リサーチジャーナルの検証済み数・的中数・**検証期日超過（未検証）数**（`journal/`, data=real） | due 小（0） |
+| fc_graded / fc_hit / fc_brier | 夜間フォーキャストの採点済み件数・方向的中率%・平均Brier | hit 大 / Brier 小 |
+| fc_pending | 未採点（答え合わせ待ち）の予想件数 | 小（0） |
+| jr_verified / jr_hit / jr_due | リサーチジャーナルの検証済み・的中・**検証期日超過（未検証）**件数 | due 小（0） |
 
-track record（fc_*, jr_*）は `mape/analysis_signals.py` が `forecasts/ledger.csv` と `journal/` を
-**stdlib のみ・ネットワーク不使用**で集計する（価格データ・pandas に依存しない）。合成データ（`data=synthetic`）の
-予想・サンプル仮説は track record に数えない（実市況の偽装防止）。
+### 🗺️ 分析カバレッジ（分析資産をどれだけ広げ・新鮮に保てているか）
+
+| 指標 | 意味 | 良い方向 |
+|---|---|---|
+| coverage / unanalyzed | ユニバース（liquid30）のうち分析記録がある割合 % / 記録ゼロの銘柄数 | coverage 大 |
+| know_docs / stale_docs | ナレッジ文書数 / 「20XX年時点」の最新が (今年-2) 以下の陳腐化候補数 | stale 小（0） |
+
+### 🛡️ ガードレール（主題外）
+
+| 指標 | 意味 | 良い方向 |
+|---|---|---|
+| gate | `python3 -m pytest analysis/tests` の合否（分析コードが動くことの担保のみ） | pass |
 
 Analyze はこれらを「症状」に変換し、インパクト×労力スコア（`impact * (6 - effort)`、範囲 1–25）の降順で
-提案化する。`gate=fail` と `index=ng` は P1（最優先）。`POLICY.md` の却下ログにマッチする類の提案は除外される。
+提案化する（同一テキストは重複排除）。`gate=fail` は最優先ガードレール（緑化まで分析が回らない）。
+`POLICY.md` の却下ログにマッチする類の提案は除外される。
 
-## 分析の答え合わせループ（この移植の主眼）
+## 分析の醸成ループ（MAPE-K の主眼）
 
-stock_hacker の MAPE-K は**リポジトリ健全化だけでなく、日本株分析そのものの精度向上**を回す。既存の2つの
-track record ストア——**リサーチジャーナル**（`journal/`: 仮説を終値スナップショット付きで記録→期日に
-hit/miss/mixed 判定）と**夜間フォーキャスト**（`forecasts/ledger.csv`: 翌営業日予想→翌日採点→的中率/Brier/較正）
-——を MAPE-K に接続し、次の閉ループを回す:
+MAPE-K は**日本株分析そのものを育てる**。既存の2つの track record ストア——**リサーチジャーナル**
+（`journal/`: 仮説を終値スナップショット付きで記録→期日に hit/miss/mixed 判定）と**夜間フォーキャスト**
+（`forecasts/ledger.csv`: 翌営業日予想→翌日採点→的中率/Brier/較正）——に、**分析カバレッジ**（ユニバース
+網羅・ナレッジ鮮度）を加えて監視し、次の閉ループを回す:
 
 ```
    ①分析・予想        ②記録               ③答え合わせ            ④測定(Monitor)        ⑤改善(Analyze→Plan→Execute)
@@ -99,14 +107,17 @@ hit/miss/mixed 判定）と**夜間フォーキャスト**（`forecasts/ledger.c
 
 - **③答え合わせの実行**（採点・検証。ネットワーク必須）は `/overnight`・`/journal-review` の担当。MAPE-K は
   **④測定と⑤改善**を担う。Monitor が pending（未採点）や検証期日超過を見つけると、Analyze が
-  「答え合わせを回す」運用項目として surface し、Plan の「📊 分析の答え合わせ」ダッシュボードに実績を掲示する。
-- **手法が統計的に弱いときだけ改善を提案**する（少数標本での過剰反応を避ける。既定閾値: 予想は採点済み
-  20 件以上、ジャーナルは検証済み 5 件以上。`MAPE_FC_MIN_SAMPLE` / `MAPE_JR_MIN_SAMPLE` で調整可）:
+  「答え合わせを回す」運用項目として surface し、Plan の「🎯 予測精度」ダッシュボードに実績を掲示する。
+- **予測精度の改善**は手法が統計的に弱いときだけ提案する（少数標本での過剰反応を避ける。既定閾値: 予想は
+  採点済み 20 件以上、ジャーナルは検証済み 5 件以上。`MAPE_FC_MIN_SAMPLE` / `MAPE_JR_MIN_SAMPLE` で調整可）:
   - 方向的中率 < 50%（標本十分）→ `stocklib.forecast` の固定重み合成の見直し＋回帰テスト（approve）。
-  - 平均 Brier > 0.25 → `prob_up` の算出・較正の見直し（approve）。
+  - 平均 Brier > 0.25 → `prob_up` の算出・較正の見直し（approve）。レンジ的中 < 60% → ATR レンジ幅の見直し。
   - ジャーナル hit 率が低い（検証済み標本十分）→ 分析観点・反証条件を `knowledge/strategies/behavioral-finance-japan.md` の枠組みで見直す（approve）。
-- 効き目は `HEALTH.md` の推移（例: 方向的中率 48→53%）で周回ごとに定量追跡する。**予想・仮説は将来の断定でも
-  売買助言でもない**ため、掲示・提案には必ずその旨と少数標本の不安定さを明記する（既存 CLI と同じ不変条件）。
+- **分析カバレッジの醸成**（もう一つの軸）: Monitor がユニバース網羅と陳腐化を測り、Analyze が —
+  - 未分析銘柄あり → `/overnight run` をユニバース全体で回して台帳に記録し網羅を上げる（auto 運用）。
+  - 陳腐化ナレッジあり → `/learn` で「〜年時点」の数値・制度を最新化し分析の土台を新鮮に保つ（approve）。
+- 効き目は `HEALTH.md` の推移（例: 網羅 0→40%、方向的中率 48→53%、陳腐化 14→8）で周回ごとに定量追跡する。
+  **予想・仮説は将来の断定でも売買助言でもない**ため、掲示・提案には必ずその旨と少数標本の不安定さを明記する。
 
 ## リスク3分類（POLICY.md で定義）
 

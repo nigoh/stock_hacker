@@ -12,15 +12,20 @@ argument-hint: "（引数なし。M→A→P を1周まわして計画イシュ�
 
 ## 位置づけ（何を回すか）
 
-夜間に2系統を観測して改善案を出す:
+**主題は「株の解析の醸成」**。夜間に分析ドメインの2系統を観測して改善案を出す:
 
-1. **リポジトリ健全性**: pytest ゲート・knowledge 索引整合・テストの無い stocklib モジュール・TODO・最長 SKILL 行数。
-2. **分析の答え合わせ（track record）**: 夜間フォーキャスト（`forecasts/ledger.csv`）の方向的中率・Brier と、
-   リサーチジャーナル（`journal/`）の hit 率・検証期日超過を継続測定する。**分析が当たっていたかを測り、
-   弱ければ手法改善（予想モデルの重み・仮説の観点）を提案へ回す**——これが「分析→記録→答え合わせ→改善」の閉ループ。
+1. **予測精度**: 夜間フォーキャスト（`forecasts/ledger.csv`）の方向的中率・Brier・レンジ的中と、
+   リサーチジャーナル（`journal/`）の hit 率・検証期日超過を継続測定。**分析が当たっていたかを測り、
+   弱ければ手法改善（予想モデルの重み・較正・仮説の観点）を提案へ回す**。
+2. **分析カバレッジ**: ユニバース（liquid30）の分析網羅・未分析銘柄・ナレッジの陳腐化を測り、
+   **分析資産を広げ・新鮮に保つ**改善（ユニバース全体の答え合わせ・陳腐化ナレッジの更新）を提案へ回す。
 
-答え合わせの**実行**（採点・検証）自体は `/overnight`（`overnight_forecast.py run`）と `/journal-review` が担う
-（ネットワーク必須）。本スキルはその実績を**読み取り専用で測定・掲示し、手法改善を提案**する（銘柄の新規分析はしない）。
+これが「分析→記録→答え合わせ→測定→手法改善」の閉ループ。答え合わせの**実行**（採点・検証）自体は
+`/overnight`（`overnight_forecast.py run`）と `/journal-review` が担う（ネットワーク必須）。本スキルはその実績を
+**読み取り専用で測定・掲示し、改善を提案**する（銘柄の新規分析そのものはしない）。
+
+> **システム/リポジトリの健全性（pytest 等）は主題ではない**。pytest は「分析コードが動くこと」の
+> 最小ガードレールとして測るだけ。索引整合・TODO・SKILL 行数などは監視しない。
 
 ## 前提
 
@@ -37,10 +42,10 @@ bash mape/run.sh --record
 ```
 
 これで以下が更新される（`mape/state/` に証跡、`mape/knowledge/` に記録）:
-- `mape/state/monitor.env` / `monitor.md` … 観測シグナル（pytest ゲート・索引整合・未テストモジュール・**分析の track record**）
-- `mape/state/analysis-signals.env` … 分析の答え合わせシグナル（`mape/analysis_signals.py` が生成）
-- `mape/state/analysis.md` / `proposals.tsv` … 症状と根拠つき提案（スコア順）
-- `mape/state/issue-body.md` … 掲示用チェックリスト（先頭に「📊 分析の答え合わせ」ダッシュボード＋リスク3分類）
+- `mape/state/monitor.env` / `monitor.md` … 分析シグナル（🎯予測精度＋🗺️カバレッジ。pytest はガードレールのみ）
+- `mape/state/analysis-signals.env` … 分析シグナル（`mape/analysis_signals.py` が生成）
+- `mape/state/analysis.md` / `proposals.tsv` … 症状と根拠つき提案（スコア順・重複排除）
+- `mape/state/issue-body.md` … 掲示用（先頭に「🎯予測精度」「🗺️分析カバレッジ」ダッシュボード＋リスク3分類）
 - `mape/knowledge/HEALTH.md`（推移1行）/ `BACKLOG.md`（新候補）/ `PROGRESS.md`（monitor サイクル）
 
 > `--record` は監視で pytest（`python3 -m pytest analysis/tests`）を1回まわすため1分ほどかかる。
@@ -66,9 +71,9 @@ bash mape/run.sh --record
 ### 4. 報告
 
 - 何件の提案を出し、どのリスク分類に何件入ったかを1〜2行で要約する。
-- `HEALTH.md` の前回→今回の変化（例: 未テストmodule 2→1、gate pass 継続、**方向的中率 48→53%**）があれば添える。
-- 分析の track record（採点済み件数・方向的中率・Brier・検証期日超過）と、未採点/期日超過があれば
-  「答え合わせを回す」よう一言添える（`/overnight`・`/journal-review`）。少数標本の断定は避ける。
+- `HEALTH.md` の前回→今回の変化（例: **網羅 0→40%**、**方向的中率 48→53%**、陳腐化 14→8）があれば添える。
+- 予測精度（採点済み・方向的中率・Brier）とカバレッジ（網羅%・未分析件数・陳腐化件数）を報告し、
+  未採点/検証期日超過があれば「答え合わせを回す」よう一言添える（`/overnight`・`/journal-review`）。少数標本の断定は避ける。
 
 ## やらないこと（境界）
 

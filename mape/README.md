@@ -1,20 +1,23 @@
 # mape/ — MAPE-K 夜間セルフ改善（決定論スクリプト）
 
-「安く読んで考える」M/A/P を決定論の Bash として実装したもの（docs/mape-k.md）。
-「壊しうる」Execute は Claude 起動スキル `/mape-execute`、夜間周回は `/mape-night`。
+**主題は「株の解析の醸成」**（予測精度＋分析カバレッジ）。分析が当たっていたかを測り、分析を広げ・
+新鮮に保ち、弱いところを手法改善へ回す。「安く読んで考える」M/A/P を決定論の Bash として実装したもの
+（docs/mape-k.md）。「壊しうる」Execute は Claude 起動スキル `/mape-execute`、夜間周回は `/mape-night`。
 共有ナレッジ（K）は `./knowledge/`（リポジトリルートの日本株ナレッジベース `knowledge/` とは別物）。
+
+> システム/リポジトリの健全性（pytest 等）は主題ではなく、pytest を**最小ガードレール**として測るのみ。
 
 ## スクリプト
 
 | ファイル | フェーズ | 役割 |
 |---|---|---|
+| `analysis_signals.py` | M（中核） | 分析ドメインのシグナル抽出（予測精度＝ledger/journal、カバレッジ＝universe/knowledge）を stdlib のみ・ネットワーク不使用で集計 |
 | `monitor.sh` | M | シグナル収集 → `state/monitor.env`・`monitor.md`（`--record` で HEALTH.md 追記） |
-| `analyze.sh` | A | 症状化＋根拠つき提案（スコア順）→ `state/proposals.tsv`・`analysis.md`（`--update-knowledge` で BACKLOG 追記） |
-| `plan.sh` | P | リスク3分類チェックリスト → `state/issue-body.md` |
+| `analyze.sh` | A | 症状化＋根拠つき提案（スコア順・重複排除）→ `state/proposals.tsv`・`analysis.md`（`--update-knowledge` で BACKLOG 追記） |
+| `plan.sh` | P | 🎯予測精度＋🗺️カバレッジのダッシュボード＋リスク3分類チェックリスト → `state/issue-body.md` |
 | `run.sh` | M→A→P | 上記を1周まわす統合ランナー（`--record` で knowledge も更新） |
 | `circuit-breaker.sh` | ガードレール | 実行台帳（`state/ledger.jsonl`）と連鎖失敗の停止判定・冪等性クエリ |
 | `lib.sh` | 共通 | ルート解決・分類・却下判定・スコア（source 用） |
-| `analysis_signals.py` | M（補助） | 分析の答え合わせ track record 抽出（`forecasts/ledger.csv`・`journal/` を stdlib のみで集計。ネットワーク不使用） |
 | `tests/run.sh` | 検証 | 決定論部分の自己テスト（`analysis/tests/test_mape.py` 経由で pytest から実行） |
 
 ## 使い方
