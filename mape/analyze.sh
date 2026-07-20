@@ -64,6 +64,34 @@ if [ -n "${MAPE_CHURN_TOP:-}" ] && [ "${MAPE_CHURN_TOP}" != "-" ]; then
   emit approve P3 3 3 "変更集中箇所 ${MAPE_CHURN_TOP} のテスト強化/整理を検討 — 根拠: 直近30コミットの churn 首位 / 回帰リスク"
 fi
 
+# --- 1'. 分析の答え合わせ（track record）由来の提案 ---
+# (a) 運用: 未採点・検証期日超過を「答え合わせを回す」auto 項目として surface する（ループの駆動）。
+if [ "${MAPE_FC_PENDING:-0}" -gt 0 ] 2>/dev/null; then
+  emit auto P2 3 1 "夜間フォーキャストの答え合わせ（grade）が未処理 ${MAPE_FC_PENDING} 件 — 根拠: 台帳に pending / \`python3 analysis/overnight_forecast.py run\` で採点し track record を醸成（実データが無ければskip）"
+fi
+if [ "${MAPE_JR_DUE:-0}" -gt 0 ] 2>/dev/null; then
+  emit auto P2 3 1 "検証期日が来たリサーチジャーナル仮説 ${MAPE_JR_DUE} 件の答え合わせ — 根拠: review_date 超過 / \`/journal-review\` で hit/miss を機械判定（実データが無ければskip）"
+fi
+# (b) 手法改善: 標本が十分たまり、かつ track record が弱いときだけ手法見直しを提案する
+#     （少数標本での過剰反応を避ける＝knowledge/math/forecast-evaluation-and-calibration.md の統計的懐疑）。
+FC_MIN="${MAPE_FC_MIN_SAMPLE:-20}"; JR_MIN="${MAPE_JR_MIN_SAMPLE:-5}"
+if [ "${MAPE_FC_GRADED:-0}" -ge "$FC_MIN" ] 2>/dev/null && [ "${MAPE_FC_HIT:-na}" != "na" ]; then
+  if [ "${MAPE_FC_HIT}" -lt 50 ] 2>/dev/null; then
+    emit approve P2 4 3 "予想モデルの方向的中率が ${MAPE_FC_HIT}%（標本 ${MAPE_FC_GRADED}, <50%）— 根拠: stocklib.forecast の固定重み合成が効いていない / 重み見直し＋回帰テスト追加"
+  fi
+fi
+if [ "${MAPE_FC_GRADED:-0}" -ge "$FC_MIN" ] 2>/dev/null && [ "${MAPE_FC_BRIER:-na}" != "na" ]; then
+  if awk "BEGIN{exit !(${MAPE_FC_BRIER} > 0.25)}" 2>/dev/null; then
+    emit approve P3 3 3 "予想が較正不良（平均Brier=${MAPE_FC_BRIER}, >0.25, 標本 ${MAPE_FC_GRADED}）— 根拠: prob_up が過信/鈍感 / 上昇確率の算出・較正を見直す"
+  fi
+fi
+if [ "${MAPE_JR_VERIFIED:-0}" -ge "$JR_MIN" ] 2>/dev/null; then
+  jr_pct=$(awk "BEGIN{printf \"%d\", 100*${MAPE_JR_HIT:-0}/${MAPE_JR_VERIFIED}}" 2>/dev/null)
+  if [ -n "$jr_pct" ] && [ "$jr_pct" -lt 40 ] 2>/dev/null; then
+    emit approve P3 3 3 "ジャーナル仮説の的中が低い（${MAPE_JR_HIT}/${MAPE_JR_VERIFIED} = ${jr_pct}%）— 根拠: 分析観点・反証条件の甘さ / behavioral-finance-japan.md の枠組みで観点を見直す"
+  fi
+fi
+
 # --- 2. BACKLOG.md「## 候補」の未チェック項目を取り込む ---
 if [ -f "$MAPE_BACKLOG" ]; then
   while IFS= read -r line; do
@@ -95,6 +123,8 @@ nskip=$(grep -c . "$skipped" 2>/dev/null || true); nskip=${nskip:-0}
   echo "- テストの無い stocklib モジュール: ${MAPE_UNTESTED:-?} 件"
   echo "- 最長 SKILL.md: ${MAPE_MAX_SKILL:-?}/200 行"
   echo "- churn 首位: ${MAPE_CHURN_TOP:-?}"
+  echo "- 【分析の答え合わせ】予想: 採点済み ${MAPE_FC_GRADED:-?} 件 / 方向的中率 ${MAPE_FC_HIT:-?}% / Brier ${MAPE_FC_BRIER:-?} / 未採点 ${MAPE_FC_PENDING:-?} 件"
+  echo "- 【分析の答え合わせ】ジャーナル: 検証済み ${MAPE_JR_VERIFIED:-?}/${MAPE_JR_TOTAL:-?} / 的中 ${MAPE_JR_HIT:-?} / 検証期日超過 ${MAPE_JR_DUE:-?} 件"
   echo
   echo "## 改善案（スコア = インパクト×(6-労力)、降順）"
   echo

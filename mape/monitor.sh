@@ -77,6 +77,19 @@ churn_top=$(git log -n 30 --name-only --pretty=format: 2>/dev/null \
             | grep -v '^$' | sort | uniq -c | sort -rn | head -1 | sed -E 's/^[[:space:]]*[0-9]+[[:space:]]+//')
 [ -z "$churn_top" ] && churn_top="-"
 
+# --- 分析の答え合わせ（track record）シグナル ---
+# 夜間フォーキャストの実績台帳（forecasts/ledger.csv）とリサーチジャーナル（journal/）を
+# 読み取り専用・ネットワーク不使用で集計する（分析が当たっていたかの継続測定）。
+sig="$MAPE_STATE_DIR/analysis-signals.env"
+if [ -f mape/analysis_signals.py ] && python3 mape/analysis_signals.py "$MAPE_ROOT" >"$sig" 2>/dev/null; then
+  # shellcheck source=/dev/null
+  . "$sig"
+else
+  : > "$sig"
+fi
+: "${MAPE_FC_GRADED:=0}"; : "${MAPE_FC_PENDING:=0}"; : "${MAPE_FC_HIT:=na}"; : "${MAPE_FC_BRIER:=na}"
+: "${MAPE_JR_TOTAL:=0}"; : "${MAPE_JR_VERIFIED:=0}"; : "${MAPE_JR_HIT:=0}"; : "${MAPE_JR_DUE:=0}"
+
 # 品質ゲート（任意）= pytest。
 # 再帰ガード: pytest 経由（= MAPE_NO_GATE=1）では --with-gate を無視する。
 gate="skip"; gate_s="-"
@@ -111,6 +124,14 @@ fi
   echo "MAPE_UNTESTED=$untested"
   echo "MAPE_MAX_SKILL=$max_skill"
   echo "MAPE_CHURN_TOP=$churn_top"
+  echo "MAPE_FC_GRADED=$MAPE_FC_GRADED"
+  echo "MAPE_FC_PENDING=$MAPE_FC_PENDING"
+  echo "MAPE_FC_HIT=$MAPE_FC_HIT"
+  echo "MAPE_FC_BRIER=$MAPE_FC_BRIER"
+  echo "MAPE_JR_TOTAL=$MAPE_JR_TOTAL"
+  echo "MAPE_JR_VERIFIED=$MAPE_JR_VERIFIED"
+  echo "MAPE_JR_HIT=$MAPE_JR_HIT"
+  echo "MAPE_JR_DUE=$MAPE_JR_DUE"
 } > "$MAPE_STATE_DIR/monitor.env"
 
 # --- 出力: monitor.md（人が読む要約） ---
@@ -129,10 +150,22 @@ fi
   echo "| テスト無しモジュール | $untested |"
   echo "| 最長 SKILL 行 | $max_skill / 200 |"
   echo "| churn 首位 | $churn_top |"
+  echo
+  echo "## 分析の答え合わせ（track record）"
+  echo
+  echo "| 指標 | 値 |"
+  echo "|---|---|"
+  echo "| 予想 採点済み | $MAPE_FC_GRADED 件 |"
+  echo "| 予想 方向的中率 | ${MAPE_FC_HIT}% |"
+  echo "| 予想 平均Brier | $MAPE_FC_BRIER |"
+  echo "| 予想 未採点 | $MAPE_FC_PENDING 件 |"
+  echo "| ジャーナル 検証済み/総数 | $MAPE_JR_VERIFIED / $MAPE_JR_TOTAL |"
+  echo "| ジャーナル 的中 | $MAPE_JR_HIT 件 |"
+  echo "| ジャーナル 検証期日超過 | $MAPE_JR_DUE 件 |"
 } > "$MAPE_STATE_DIR/monitor.md"
 
 # --- HEALTH.md へ追記（--record のときだけ） ---
-row="| $ts | $cycle | $gate | $gate_s | $todo | $index | $know_docs | $cli | $modules | $tests | $untested | $max_skill | monitor |"
+row="| $ts | $cycle | $gate | $gate_s | $todo | $index | $know_docs | $cli | $modules | $tests | $untested | $max_skill | $MAPE_FC_GRADED | $MAPE_FC_HIT | $MAPE_FC_BRIER | $MAPE_JR_VERIFIED | $MAPE_JR_HIT | $MAPE_JR_DUE | monitor |"
 if [ "$record" -eq 1 ] && [ -f "$MAPE_HEALTH" ]; then
   printf '%s\n' "$row" >> "$MAPE_HEALTH"
   mape_log "HEALTH.md に cycle $cycle を追記"

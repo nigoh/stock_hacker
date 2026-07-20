@@ -51,6 +51,7 @@ stock_hacker/
 │   ├── session_start.sh   # SessionStart: 依存導入・ディレクトリ作成・環境文脈の注入
 │   └── check_knowledge_index.py  # PostToolUse: knowledge 文書の索引未反映を検出
 ├── mape/                  # MAPE-K 夜間セルフ改善の決定論スクリプト（Monitor/Analyze/Plan＋サーキットブレーカー。docs/mape-k.md）
+│   ├── analysis_signals.py # 分析の答え合わせ track record 抽出（ledger/journal を stdlib のみで集計。ネットワーク不使用）
 │   ├── knowledge/         # MAPE-K 共有ナレッジ K（BACKLOG/PROGRESS/POLICY/HEALTH。knowledge/ とは別物）
 │   ├── state/             # 中間成果物（証跡）
 │   └── tests/run.sh       # 決定論部分の自己テスト（pytest の test_mape.py から実行）
@@ -158,7 +159,7 @@ stock_hacker/
 
 夜間フォーキャスト（`overnight_forecast.py` / `/overnight`）も同じ機械可読契約（`RESULT` 行 + exit code 2 で実データ全滅）を持ち、`run`（前回予想の答え合わせ→翌営業日予想）を平日夜に定期実行して `forecasts/ledger.csv` を醸成する運用を想定する。予想モデル・スケジュール・通知の振り分け・台帳の扱いは `docs/overnight-forecast.md`、評価指標（方向的中率・Brier・較正）の理論は `knowledge/math/forecast-evaluation-and-calibration.md` を参照。ここでも合成データで予想・答え合わせを偽装しない原則は同じ。
 
-MAPE-K 夜間セルフ改善（`mape/` / `/mape-night` / `/mape-execute`）は**リポジトリ自身の健全性**を夜間に改善する仕組み（分析ではない）。「安く読んで考える」Monitor→Analyze→Plan（決定論 Bash・読み取り専用）と「壊しうる」Execute（Claude スキル・1周1件・pytest 緑→ドラフト PR）を分離し、承認ゲートを GitHub 計画イシューのリスク3分類チェックリスト（自動/承認/相談）として挟む。監視シグナルは pytest ゲート・knowledge 索引整合・テストの無い stocklib モジュール・TODO・最長 SKILL 行数など。共有ナレッジ K は `mape/knowledge/`（日本株ナレッジベース `knowledge/` とは別物）。決定論部分は `mape/tests/run.sh` を `analysis/tests/test_mape.py` 経由で pytest（＝品質ゲート）に配線して回帰を守る。設計・分類・ガードレール・スケジュールは `docs/mape-k.md` を参照。投資助言化・実データ/実発注・秘密/課金は consult、合成データで実データを偽装する提案は却下、という stock_hacker の不変条件を分類に織り込んである。
+MAPE-K 夜間セルフ改善（`mape/` / `/mape-night` / `/mape-execute`）は夜間に2系統を回す仕組み: **(1) リポジトリ健全性**（pytest ゲート・knowledge 索引整合・テストの無い stocklib モジュール・TODO・最長 SKILL 行数）と、**(2) 分析の答え合わせ（track record）**——夜間フォーキャスト（`forecasts/ledger.csv`）の方向的中率・Brier と リサーチジャーナル（`journal/`）の hit 率・検証期日超過を継続測定し、**「分析→記録→答え合わせ→測定→手法改善」の閉ループ**を駆動する（`mape/analysis_signals.py` が台帳/ジャーナルを stdlib のみ・ネットワーク不使用で集計）。答え合わせの実行（採点・検証）自体は `/overnight`・`/journal-review` が担い、MAPE-K は測定と改善提案を担当する（的中率<50%等で `stocklib.forecast` の重み見直しを提案。少数標本では過剰反応しない）。「安く読んで考える」Monitor→Analyze→Plan（決定論 Bash・読み取り専用）と「壊しうる」Execute（Claude スキル・1周1件・pytest 緑→ドラフト PR）を分離し、承認ゲートを GitHub 計画イシューの「📊 分析の答え合わせ」ダッシュボード＋リスク3分類チェックリスト（自動/承認/相談）として掲示する。共有ナレッジ K は `mape/knowledge/`（日本株ナレッジベース `knowledge/` とは別物）。決定論部分は `mape/tests/run.sh` を `analysis/tests/test_mape.py` 経由で pytest（＝品質ゲート）に配線して回帰を守る。設計・分類・ガードレール・スケジュールは `docs/mape-k.md` を参照。投資助言化・実データ/実発注・秘密/課金は consult、合成データで実データを偽装する提案は却下、という stock_hacker の不変条件を分類に織り込んである。
 
 ### 免責（必須）
 

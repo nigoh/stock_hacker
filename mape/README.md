@@ -14,6 +14,7 @@
 | `run.sh` | M→A→P | 上記を1周まわす統合ランナー（`--record` で knowledge も更新） |
 | `circuit-breaker.sh` | ガードレール | 実行台帳（`state/ledger.jsonl`）と連鎖失敗の停止判定・冪等性クエリ |
 | `lib.sh` | 共通 | ルート解決・分類・却下判定・スコア（source 用） |
+| `analysis_signals.py` | M（補助） | 分析の答え合わせ track record 抽出（`forecasts/ledger.csv`・`journal/` を stdlib のみで集計。ネットワーク不使用） |
 | `tests/run.sh` | 検証 | 決定論部分の自己テスト（`analysis/tests/test_mape.py` 経由で pytest から実行） |
 
 ## 使い方

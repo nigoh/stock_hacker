@@ -73,9 +73,40 @@ stock_hacker の実態に即した健全性指標を `mape/knowledge/HEALTH.md` 
 | tests | テストファイル数 | 大 |
 | untested | テストの無い stocklib モジュール数 | 小（0 が理想） |
 | max_skill | 最長 SKILL.md 行数（予算 200） | 200 未満 |
+| fc_graded / fc_hit / fc_brier | 夜間フォーキャストの採点済み件数・方向的中率%・平均Brier（`forecasts/ledger.csv`, data=real） | hit 大 / Brier 小 |
+| jr_verified / jr_hit / jr_due | リサーチジャーナルの検証済み数・的中数・**検証期日超過（未検証）数**（`journal/`, data=real） | due 小（0） |
+
+track record（fc_*, jr_*）は `mape/analysis_signals.py` が `forecasts/ledger.csv` と `journal/` を
+**stdlib のみ・ネットワーク不使用**で集計する（価格データ・pandas に依存しない）。合成データ（`data=synthetic`）の
+予想・サンプル仮説は track record に数えない（実市況の偽装防止）。
 
 Analyze はこれらを「症状」に変換し、インパクト×労力スコア（`impact * (6 - effort)`、範囲 1–25）の降順で
 提案化する。`gate=fail` と `index=ng` は P1（最優先）。`POLICY.md` の却下ログにマッチする類の提案は除外される。
+
+## 分析の答え合わせループ（この移植の主眼）
+
+stock_hacker の MAPE-K は**リポジトリ健全化だけでなく、日本株分析そのものの精度向上**を回す。既存の2つの
+track record ストア——**リサーチジャーナル**（`journal/`: 仮説を終値スナップショット付きで記録→期日に
+hit/miss/mixed 判定）と**夜間フォーキャスト**（`forecasts/ledger.csv`: 翌営業日予想→翌日採点→的中率/Brier/較正）
+——を MAPE-K に接続し、次の閉ループを回す:
+
+```
+   ①分析・予想        ②記録               ③答え合わせ            ④測定(Monitor)        ⑤改善(Analyze→Plan→Execute)
+  analyze/overnight → journal / ledger → overnight run /      → mape/analysis_       → 弱ければ手法見直しを提案し
+  /journal 等         にコミットで蓄積     journal-review で採点   signals.py で集計       Execute が実装（重み・観点＋テスト）
+                                                                (的中率/Brier/hit率)     → 次周④で効き目を測る
+```
+
+- **③答え合わせの実行**（採点・検証。ネットワーク必須）は `/overnight`・`/journal-review` の担当。MAPE-K は
+  **④測定と⑤改善**を担う。Monitor が pending（未採点）や検証期日超過を見つけると、Analyze が
+  「答え合わせを回す」運用項目として surface し、Plan の「📊 分析の答え合わせ」ダッシュボードに実績を掲示する。
+- **手法が統計的に弱いときだけ改善を提案**する（少数標本での過剰反応を避ける。既定閾値: 予想は採点済み
+  20 件以上、ジャーナルは検証済み 5 件以上。`MAPE_FC_MIN_SAMPLE` / `MAPE_JR_MIN_SAMPLE` で調整可）:
+  - 方向的中率 < 50%（標本十分）→ `stocklib.forecast` の固定重み合成の見直し＋回帰テスト（approve）。
+  - 平均 Brier > 0.25 → `prob_up` の算出・較正の見直し（approve）。
+  - ジャーナル hit 率が低い（検証済み標本十分）→ 分析観点・反証条件を `knowledge/strategies/behavioral-finance-japan.md` の枠組みで見直す（approve）。
+- 効き目は `HEALTH.md` の推移（例: 方向的中率 48→53%）で周回ごとに定量追跡する。**予想・仮説は将来の断定でも
+  売買助言でもない**ため、掲示・提案には必ずその旨と少数標本の不安定さを明記する（既存 CLI と同じ不変条件）。
 
 ## リスク3分類（POLICY.md で定義）
 

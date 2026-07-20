@@ -2,6 +2,7 @@
 gate.log
 index.log
 untested-modules.txt
+analysis-signals.env
 *.raw
 *.skipped
 *.bak
