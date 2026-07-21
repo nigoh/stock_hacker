@@ -1,4 +1,4 @@
-# 🌙 MAPE-K 夜間改善レポート — 2026-07-20T13:24Z (cycle 1)
+# 🌙 MAPE-K 夜間改善レポート — 2026-07-21T07:31Z (cycle 11)
 
 > 自動生成（`mape/plan.sh`, docs/mape-k.md）。夜間に Monitor→Analyze→Plan を回した結果です。
 > **あなたはチェックを入れるだけ**。Execute が「チェック済み・未着手」を1周1件だけ安全に実装します。
@@ -58,4 +58,4 @@
 - サーキットブレーカー: 同じ失敗や revert が続いたら Execute を止めて通知します。
 - 未チェックのまま時間が過ぎた項目は自動アーカイブされます（計画を腐らせない）。
 
-<!-- mape:cycle=1 generated-by=mape/plan.sh -->
+<!-- mape:cycle=11 generated-by=mape/plan.sh -->

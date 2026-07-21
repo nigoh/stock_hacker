@@ -46,3 +46,13 @@ MAPE-K の主題は**日本株分析そのものの醸成**なので、指標も
 | ts(UTC) | cycle | gate | fc_graded | fc_hit | fc_brier | fc_pending | jr_verified | jr_hit | jr_due | coverage | unanalyzed | know_docs | stale_docs | note |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 2026-07-20T13:24Z | 1 | pass | 0 | na | na | 0 | 0 | 0 | 0 | 0 | 30 | 90 | 14 | monitor |
+| 2026-07-21T07:21Z | 2 | pass | 0 | na | na | 0 | 0 | 0 | 0 | 0 | 30 | 90 | 14 | monitor |
+| 2026-07-21T07:22Z | 3 | pass | 0 | na | na | 0 | 0 | 0 | 0 | 0 | 30 | 90 | 14 | monitor |
+| 2026-07-21T07:23Z | 4 | pass | 0 | na | na | 0 | 0 | 0 | 0 | 0 | 30 | 90 | 14 | monitor |
+| 2026-07-21T07:24Z | 5 | pass | 0 | na | na | 0 | 0 | 0 | 0 | 0 | 30 | 90 | 14 | monitor |
+| 2026-07-21T07:25Z | 6 | pass | 0 | na | na | 0 | 0 | 0 | 0 | 0 | 30 | 90 | 14 | monitor |
+| 2026-07-21T07:26Z | 7 | pass | 0 | na | na | 0 | 0 | 0 | 0 | 0 | 30 | 90 | 14 | monitor |
+| 2026-07-21T07:27Z | 8 | pass | 0 | na | na | 0 | 0 | 0 | 0 | 0 | 30 | 90 | 14 | monitor |
+| 2026-07-21T07:28Z | 9 | pass | 0 | na | na | 0 | 0 | 0 | 0 | 0 | 30 | 90 | 14 | monitor |
+| 2026-07-21T07:29Z | 10 | pass | 0 | na | na | 0 | 0 | 0 | 0 | 0 | 30 | 90 | 14 | monitor |
+| 2026-07-21T07:31Z | 11 | pass | 0 | na | na | 0 | 0 | 0 | 0 | 0 | 30 | 90 | 14 | monitor |
