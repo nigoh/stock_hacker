@@ -140,7 +140,7 @@ def build_report(code: str, years: int, synthetic: bool) -> str:
     lines: list[str] = []
     lines.append(report.report_header(f"決算・業績分析レポート: {code}（{normalize_code(code)}）"))
     lines.append(f"- 対象期間: {history.index[0].strftime('%Y-%m')} 〜 {history.index[-1].strftime('%Y-%m')}（{len(history)} 期、年次）")
-    lines.append("- 数値ソース: " + ("**合成データ（--synthetic、実在企業の業績ではありません。手法デモ用）**" if synthetic else "yfinance（非公式ソース。会計基準・組替により開示原文と差異がありうる）"))
+    lines.append("- 数値ソース: " + ("**合成データ（--synthetic、実在企業の業績ではありません。手法デモ用）**" if synthetic else "Yahoo Finance（非公式ソース。会計基準・組替により開示原文と差異がありうる）"))
     lines.append("")
     lines.extend(_history_section(history))
     lines.extend(_growth_section(history))

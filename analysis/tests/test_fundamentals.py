@@ -154,3 +154,46 @@ def test_fundamentals_report_cli_rejects_bad_years() -> None:
     )
     assert proc.returncode == 1
     assert "エラー" in proc.stderr
+
+
+# ---------------------------------------------------------------------------
+# fundamentals-timeseries パーサ（requests 経路の中核。ネットワーク不使用）
+# ---------------------------------------------------------------------------
+
+def _ts_item(type_name, points):
+    """timeseries result の1要素（{meta:{type},<type>:[{asOfDate,reportedValue}]}）を作る。"""
+    return {"meta": {"type": [type_name]},
+            type_name: [{"asOfDate": d, "reportedValue": {"raw": v}} for d, v in points]}
+
+
+def test_parse_timeseries_maps_and_sorts() -> None:
+    import stocklib.fundamentals as fund
+
+    payload = {"timeseries": {"result": [
+        _ts_item("annualTotalRevenue", [("2025-03-31", 480.0), ("2024-03-31", 450.0)]),
+        _ts_item("annualOperatingIncome", [("2024-03-31", 53.0), ("2025-03-31", 48.0)]),
+        _ts_item("annualNetIncome", [("2024-03-31", 49.0), ("2025-03-31", 47.0)]),
+        _ts_item("annualStockholdersEquity", [("2024-03-31", 342.0), ("2025-03-31", 359.0)]),
+        _ts_item("annualOperatingCashFlow", [("2024-03-31", 42.0), ("2025-03-31", 37.0)]),
+    ]}}
+    df = fund._parse_timeseries(payload)
+    assert list(df.columns) == list(fund.HISTORY_COLUMNS)
+    assert df.index.is_monotonic_increasing  # 期末日で昇順
+    assert df["売上高"].iloc[0] == 450.0 and df["売上高"].iloc[-1] == 480.0
+
+
+def test_parse_timeseries_without_revenue_returns_none() -> None:
+    import stocklib.fundamentals as fund
+
+    payload = {"timeseries": {"result": [_ts_item("annualNetIncome", [("2025-03-31", 47.0)])]}}
+    assert fund._parse_timeseries(payload) is None
+
+
+def test_yfinance_history_falls_back_to_lib(monkeypatch: pytest.MonkeyPatch) -> None:
+    import stocklib.fundamentals as fund
+
+    monkeypatch.setattr(fund, "_fetch_history_http", lambda *a, **k: None)
+    sentinel = fund.fetch_financial_history("7203", years=3, synthetic=True)
+    monkeypatch.setattr(fund, "_yfinance_history_lib", lambda *a, **k: sentinel)
+    out = fund._yfinance_history("7203", 3)
+    assert out is sentinel

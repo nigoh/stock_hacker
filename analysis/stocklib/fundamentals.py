@@ -1,7 +1,10 @@
 """業績（決算数値）の時系列取得と成長分析。データソース非依存の分析層。
 
-数値系列の取得は yfinance（``Ticker.income_stmt`` / ``balance_sheet`` / ``cashflow``）を
-第一ソース（正）とし、ネットワーク不要の合成業績（``synthetic=True``）も提供する。
+数値系列は Yahoo Finance を正とする。取得は **標準 ``requests`` による
+fundamentals-timeseries API 直叩き**（:func:`_fetch_history_http`）を第一手段とし、
+失敗時のみ yfinance ライブラリ（``Ticker.income_stmt`` 等）にフォールバックする
+（curl_cffi がプロキシで reset される問題を回避。詳細は :mod:`stocklib.data` の
+docstring 参照）。ネットワーク不要の合成業績（``synthetic=True``）も提供する。
 
 **設計判断（EDINET との役割分担）**: :mod:`stocklib.edinet` は「有価証券報告書等の
 原文（XBRL/CSV）の取得・確認用」と位置づけ、業績の数値系列は yfinance を正とする。
@@ -92,6 +95,89 @@ def _synthetic_history(code: str, years: int) -> pd.DataFrame:
     )
 
 
+# Yahoo fundamentals-timeseries の型名 → 業績列名の対応。
+_TS_TYPE_MAP: dict[str, str] = {
+    "売上高": "annualTotalRevenue",
+    "営業利益": "annualOperatingIncome",
+    "純利益": "annualNetIncome",
+    "自己資本": "annualStockholdersEquity",
+    "営業CF": "annualOperatingCashFlow",
+}
+
+
+def _parse_timeseries(payload: dict) -> pd.DataFrame | None:
+    """fundamentals-timeseries の JSON を業績 DataFrame に変換する。
+
+    各 type は ``[{asOfDate, reportedValue:{raw}}, ...]`` の配列。売上高が取れなければ
+    ``None`` を返す（呼び出し側がフォールバックする）。
+    """
+    results = (payload.get("timeseries") or {}).get("result") or []
+    inverse = {v: k for k, v in _TS_TYPE_MAP.items()}
+    columns: dict[str, dict[str, float]] = {}
+    for item in results:
+        types = (item.get("meta") or {}).get("type") or []
+        if not types:
+            continue
+        type_name = types[0]
+        col = inverse.get(type_name)
+        if col is None:
+            continue
+        series: dict[str, float] = {}
+        for point in item.get(type_name) or []:
+            if not point:
+                continue
+            as_of = point.get("asOfDate")
+            raw = (point.get("reportedValue") or {}).get("raw")
+            if as_of and raw is not None:
+                series[as_of] = float(raw)
+        if series:
+            columns[col] = series
+    if "売上高" not in columns or not columns["売上高"]:
+        return None
+    df = pd.DataFrame(columns)
+    df.index = pd.to_datetime(df.index)
+    df = df.reindex(columns=list(HISTORY_COLUMNS)).sort_index()
+    return df[df["売上高"].notna()]
+
+
+def _fetch_history_http(code: str, years: int) -> pd.DataFrame | None:
+    """Yahoo fundamentals-timeseries を requests（crumb 付き）で取得する。
+
+    yfinance ライブラリ（curl_cffi）に依存しないため、TLS 再終端プロキシ環境でも
+    到達できる。取得失敗・空データ時は ``None`` を返す（呼び出し側がライブラリに
+    フォールバックする）。yfinance の ~4期より長い期間が取れることが多い。
+    """
+    from stocklib import data as data_mod
+
+    ticker = normalize_code(code)
+    try:
+        session, crumb = data_mod._yahoo_session_and_crumb()
+    except DataFetchError:
+        return None
+    types = ",".join(_TS_TYPE_MAP.values())
+    now = int(dt.datetime.now(dt.timezone.utc).timestamp())
+    period1 = now - (years + 3) * 366 * 86400  # 余裕を持って遡る
+    params = {
+        "symbol": ticker, "type": types,
+        "period1": period1, "period2": now, "merge": "false", "crumb": crumb,
+    }
+    for host in data_mod._YAHOO_HOSTS:
+        url = f"https://{host}/ws/fundamentals-timeseries/v1/finance/timeseries/{ticker}"
+        try:
+            resp = session.get(url, params=params, timeout=25)  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001
+            continue
+        if resp.status_code != 200:
+            continue
+        try:
+            df = _parse_timeseries(resp.json())
+        except ValueError:
+            continue
+        if df is not None and not df.empty:
+            return df.tail(years)
+    return None
+
+
 def _pick_row(df: pd.DataFrame, candidates: Sequence[str]) -> pd.Series | None:
     """yfinance の財務諸表 DataFrame から最初に見つかった行ラベルの系列を返す。"""
     if df is None or df.empty:
@@ -103,6 +189,19 @@ def _pick_row(df: pd.DataFrame, candidates: Sequence[str]) -> pd.Series | None:
 
 
 def _yfinance_history(code: str, years: int) -> pd.DataFrame:
+    """Yahoo から年次業績を取得する（requests 直叩きを優先、失敗時にライブラリ）。
+
+    第一手段は :func:`_fetch_history_http`（fundamentals-timeseries を requests で取得。
+    プロキシ環境でも到達しやすく、期間も長い）。空・失敗時のみ yfinance ライブラリの
+    財務諸表にフォールバックする。
+    """
+    http_df = _fetch_history_http(code, years)
+    if http_df is not None and not http_df.empty:
+        return http_df
+    return _yfinance_history_lib(code, years)
+
+
+def _yfinance_history_lib(code: str, years: int) -> pd.DataFrame:
     ticker = normalize_code(code)
     try:
         import yfinance as yf
