@@ -15,6 +15,8 @@ from stocklib.data import (
     VALID_SOURCES,
     DataFetchError,
     _cache_path,
+    _fetch_one_yfinance,
+    _parse_yahoo_chart,
     add_source_argument,
     fetch_info,
     fetch_prices,
@@ -224,3 +226,134 @@ def test_fetch_prices_synthetic_ignores_source(monkeypatch: pytest.MonkeyPatch) 
 
 def test_valid_sources_constant() -> None:
     assert VALID_SOURCES == ("yfinance", "jquants")
+
+
+# ---------------------------------------------------------------------------
+# Yahoo chart API パーサ（requests 直叩きの中核。ネットワーク不使用）
+# ---------------------------------------------------------------------------
+
+def _chart_payload(timestamps, opens, highs, lows, closes, volumes, adjcloses=None, gmtoffset=32400):
+    """Yahoo chart API のレスポンス形状を模した辞書を組み立てる。"""
+    indicators = {"quote": [{"open": opens, "high": highs, "low": lows,
+                             "close": closes, "volume": volumes}]}
+    if adjcloses is not None:
+        indicators["adjclose"] = [{"adjclose": adjcloses}]
+    return {"chart": {"result": [{"timestamp": timestamps, "meta": {"gmtoffset": gmtoffset},
+                                  "indicators": indicators}], "error": None}}
+
+
+def test_parse_yahoo_chart_basic() -> None:
+    # 2営業日ぶん。adjclose 無し → OHLC はそのまま。
+    ts = [1704067200, 1704153600]  # 2024-01-01, 2024-01-02 (UTC)
+    df = _parse_yahoo_chart(_chart_payload(
+        ts, [100.0, 102.0], [105.0, 106.0], [99.0, 101.0], [104.0, 103.0], [1000, 1200],
+    ))
+    assert list(df.columns) == ["Open", "High", "Low", "Close", "Volume"]
+    assert len(df) == 2
+    assert df["Close"].iloc[0] == 104.0
+    assert df["Volume"].iloc[1] == 1200.0
+    assert df.index.is_monotonic_increasing
+
+
+def test_parse_yahoo_chart_drops_inprogress_bar() -> None:
+    # 末尾バーの close が None（場中の進行中バー）→ 除外される。
+    ts = [1704067200, 1704153600, 1704240000]
+    df = _parse_yahoo_chart(_chart_payload(
+        ts, [100.0, 102.0, 103.0], [105.0, 106.0, 107.0], [99.0, 101.0, 102.0],
+        [104.0, 103.0, None], [1000, 1200, 900],
+    ))
+    assert len(df) == 2  # 3本目は落ちる
+
+
+def test_parse_yahoo_chart_applies_adjustment() -> None:
+    # adjclose/close 倍で OHLC を調整し、Close は adjclose になる。
+    ts = [1704067200]
+    df = _parse_yahoo_chart(_chart_payload(
+        ts, [100.0], [110.0], [90.0], [100.0], [1000], adjcloses=[50.0],
+    ))
+    # factor = 50/100 = 0.5
+    assert df["Open"].iloc[0] == pytest.approx(50.0)
+    assert df["High"].iloc[0] == pytest.approx(55.0)
+    assert df["Low"].iloc[0] == pytest.approx(45.0)
+    assert df["Close"].iloc[0] == pytest.approx(50.0)
+
+
+def test_parse_yahoo_chart_empty_returns_none() -> None:
+    assert _parse_yahoo_chart({"chart": {"result": []}}) is None
+    assert _parse_yahoo_chart({"chart": {"result": [{"timestamp": None,
+                                                     "indicators": {}}]}}) is None
+
+
+def test_fetch_one_yfinance_falls_back_to_lib(monkeypatch: pytest.MonkeyPatch) -> None:
+    # http 直叩きが失敗したらライブラリ経路にフォールバックする。
+    monkeypatch.setattr(
+        data_mod, "_fetch_one_yahoo_http",
+        lambda *a, **k: (_ for _ in ()).throw(DataFetchError("http down")),
+    )
+    sentinel = pd.DataFrame({"Close": [1.0]})
+    monkeypatch.setattr(data_mod, "_fetch_one_yahoo_lib", lambda *a, **k: sentinel)
+    out = _fetch_one_yfinance("7203.T", "1mo", "1d")
+    assert out is sentinel
+
+
+def test_fetch_one_yfinance_http_error_wins_when_both_fail(monkeypatch: pytest.MonkeyPatch) -> None:
+    # 両経路失敗時は一次情報（http）側のエラーメッセージを優先する。
+    monkeypatch.setattr(
+        data_mod, "_fetch_one_yahoo_http",
+        lambda *a, **k: (_ for _ in ()).throw(DataFetchError("http-specific")),
+    )
+    monkeypatch.setattr(
+        data_mod, "_fetch_one_yahoo_lib",
+        lambda *a, **k: (_ for _ in ()).throw(DataFetchError("lib-specific")),
+    )
+    with pytest.raises(DataFetchError, match="http-specific"):
+        _fetch_one_yfinance("7203.T", "1mo", "1d")
+
+
+# ---------------------------------------------------------------------------
+# quoteSummary（ファンダ指標）抽出（ネットワーク不使用）
+# ---------------------------------------------------------------------------
+
+def test_extract_quote_summary_maps_fields() -> None:
+    result = {
+        "price": {"longName": "Toyota Motor Corporation",
+                  "marketCap": {"raw": 34800853319680}},
+        "summaryDetail": {"trailingPE": {"raw": 9.95}, "forwardPE": {"raw": 9.06},
+                          "dividendYield": {"raw": 0.034}, "beta": {"raw": 0.32},
+                          "fiftyTwoWeekHigh": {"raw": 4000.0}, "fiftyTwoWeekLow": {"raw": 2636.0}},
+        "defaultKeyStatistics": {"priceToBook": {"raw": 0.9596}},
+        "financialData": {"returnOnEquity": {"raw": 0.1023}},
+        "assetProfile": {"sector": "Consumer Cyclical", "industry": "Auto Manufacturers"},
+    }
+    raw = data_mod._extract_quote_summary(result)
+    assert raw["longName"] == "Toyota Motor Corporation"
+    assert raw["marketCap"] == 34800853319680
+    assert raw["trailingPE"] == pytest.approx(9.95)
+    assert raw["priceToBook"] == pytest.approx(0.9596)  # defaultKeyStatistics から補完
+    assert raw["returnOnEquity"] == pytest.approx(0.1023)
+    assert raw["sector"] == "Consumer Cyclical"
+
+
+def test_extract_quote_summary_omits_missing() -> None:
+    # 欠損モジュールは黙って除外（キー自体を含めない）。
+    raw = data_mod._extract_quote_summary({"price": {"shortName": "X"}})
+    assert raw["longName"] == "X"
+    assert "trailingPE" not in raw
+    assert "returnOnEquity" not in raw
+
+
+def test_fetch_info_falls_back_to_lib(monkeypatch: pytest.MonkeyPatch) -> None:
+    # quoteSummary（http）が失敗したら yfinance ライブラリの .info にフォールバックする。
+    monkeypatch.setattr(
+        data_mod, "_fetch_info_http",
+        lambda *a, **k: (_ for _ in ()).throw(DataFetchError("qs down")),
+    )
+
+    class _FakeTicker:
+        info = {"trailingPE": 12.3, "marketCap": 1_000, "longName": "Fallback Co"}
+
+    fake_yf = type("yf", (), {"Ticker": staticmethod(lambda t: _FakeTicker())})
+    monkeypatch.setitem(__import__("sys").modules, "yfinance", fake_yf)
+    info = fetch_info("7203")
+    assert info["PER（実績）"] == 12.3
+    assert info["名称"] == "Fallback Co"

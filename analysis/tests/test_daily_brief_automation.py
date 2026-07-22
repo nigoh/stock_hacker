@@ -137,9 +137,9 @@ def test_all_fetch_failed_exits_2_with_data_unavailable(
 
     assert rc == 2
     assert captured.out.strip().splitlines()[-1] == "RESULT signals=0 watch=0/1 data=unavailable"
-    # 環境差 (a)/(b) と対処（ネットワークポリシー・ローカル実行）への言及
-    assert "ローカル環境" in captured.err
-    assert "リモート環境" in captured.err
+    # 取得失敗時は対処（Yahoo への到達性・ネットワークポリシー）に言及する
+    assert "取得できませんでした" in captured.err
+    assert "Yahoo" in captured.err
     assert "ネットワークポリシー" in captured.err
 
 

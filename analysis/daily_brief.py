@@ -322,11 +322,10 @@ def build_report(
 
     if n_market + n_watch == 0:
         raise BriefUnavailableError(
-            "市況・ウォッチリストとも実データを1件も取得できませんでした。環境別の対処:\n"
-            "  (a) ローカル環境: ネットワーク接続と Yahoo Finance（yfinance）への到達性を"
-            "確認してください。\n"
-            "  (b) Claude Code リモート環境: プロキシが Yahoo Finance を遮断している可能性が"
-            "あります。環境のネットワークポリシーで許可するか、ローカル環境で実行してください"
+            "市況・ウォッチリストとも実データを1件も取得できませんでした。対処:\n"
+            "  価格・基本情報は標準 requests による Yahoo API 直叩き（stocklib.data）で取得します。"
+            "取れない場合は Yahoo（query1/2.finance.yahoo.com）への到達がネットワークポリシーで"
+            "許可されているか、ローカルなら接続を確認してください"
             "（J-Quants Free は12週間遅延のため当日シグナル検出の代替にはなりません）。\n"
             "  手法デモが目的の場合のみ --synthetic で動作しますが、その出力は実際の市況・"
             "株価ではありません。",

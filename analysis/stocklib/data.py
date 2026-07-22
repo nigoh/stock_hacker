@@ -1,8 +1,14 @@
 """データ取得モジュール。
 
-yfinance による株価取得（4桁コード・2024年以降の英字入りコード → ``.T`` 正規化、
-data/cache/ への CSV キャッシュ）と、
-ネットワーク不要の合成 OHLCV データ生成（GBM + ボラティリティクラスタ）を提供する。
+Yahoo Finance からの株価・基本情報取得（4桁コード・2024年以降の英字入りコード →
+``.T`` 正規化、data/cache/ への CSV キャッシュ）と、ネットワーク不要の合成 OHLCV
+データ生成（GBM + ボラティリティクラスタ）を提供する。
+
+Yahoo への取得は **標準 ``requests`` による API 直叩きを第一手段**とし（価格は
+chart API、基本情報は crumb 付き quoteSummary API）、失敗時のみ yfinance
+ライブラリにフォールバックする。yfinance 新版が使う curl_cffi のブラウザ偽装 TLS は、
+TLS を再終端するエージェントプロキシ環境で接続 reset されることがあるため、
+ライブラリに依存しない経路を優先することでリモート環境でも実データを取得できる。
 """
 
 from __future__ import annotations
@@ -241,7 +247,126 @@ def _save_cache(path: Path, df: pd.DataFrame) -> None:
     df.to_csv(path)
 
 
-def _fetch_one_yfinance(ticker: str, period: str, interval: str) -> pd.DataFrame:
+# Yahoo Finance chart API（requests 直叩き）で使う定数。
+# yfinance の新版は curl_cffi のブラウザ偽装 TLS を使うため、TLS を再終端する
+# エージェントプロキシ環境では接続が reset されることがある（curl error 35）。
+# 素の requests + ブラウザ UA なら chart API に到達できるため、こちらを第一手段にする。
+_YAHOO_HOSTS: tuple[str, ...] = ("query1.finance.yahoo.com", "query2.finance.yahoo.com")
+_YAHOO_UA: str = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
+# chart API の range= がそのまま受け付ける期間トークン。これ以外は period1/period2 に落とす。
+_YAHOO_RANGES: frozenset[str] = frozenset(
+    {"1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"}
+)
+
+
+def _fetch_one_yahoo_http(ticker: str, period: str, interval: str) -> pd.DataFrame:
+    """Yahoo Finance chart API を requests で取得し OHLCV DataFrame にする。
+
+    yfinance ライブラリ（curl_cffi）に依存せず、標準の ``requests`` で
+    ``/v8/finance/chart/<ticker>`` を叩く。``auto_adjust=True`` 相当（分割・配当調整）を
+    ``adjclose`` から再現し、値が確定していない当日の進行中バー（close が null）は落とす。
+
+    Raises:
+        DataFetchError: ネットワーク失敗・非200・空データ・requests 未導入の場合。
+    """
+    try:
+        import requests
+    except ImportError as exc:  # pragma: no cover
+        raise DataFetchError("requests がインストールされていません。") from exc
+
+    params: dict[str, object] = {"interval": interval, "events": "div,splits"}
+    if period in _YAHOO_RANGES:
+        params["range"] = period
+    else:
+        # 未知の期間トークンは日数に換算して period1/period2（エポック秒）で指定する。
+        span_days = period_to_days(period)
+        now = int(dt.datetime.now(dt.timezone.utc).timestamp())
+        params["period1"] = now - (span_days + 5) * 86400
+        params["period2"] = now
+
+    last_err: str = "unknown"
+    for host in _YAHOO_HOSTS:
+        url = f"https://{host}/v8/finance/chart/{ticker}"
+        try:
+            resp = requests.get(url, params=params, headers={"User-Agent": _YAHOO_UA}, timeout=20)
+        except Exception as exc:  # noqa: BLE001 - ネットワーク例外は次ホストで再試行
+            last_err = f"{type(exc).__name__}: {exc}"
+            continue
+        if resp.status_code != 200:
+            last_err = f"HTTP {resp.status_code}"
+            continue
+        try:
+            payload = resp.json()
+        except ValueError as exc:
+            last_err = f"JSON decode error: {exc}"
+            continue
+        df = _parse_yahoo_chart(payload)
+        if df is not None and not df.empty:
+            return df
+        last_err = "空データ（result/timestamp なし）"
+    raise DataFetchError(
+        f"{ticker} を Yahoo chart API から取得できませんでした（{last_err}）。"
+        "銘柄コード・期間指定・ネットワークを確認してください（オフライン検証は --synthetic）。"
+    )
+
+
+def _parse_yahoo_chart(payload: dict) -> pd.DataFrame | None:
+    """chart API の JSON を OHLCV DataFrame に変換する（auto_adjust 相当）。
+
+    値が揃わない進行中バー（close が None）は除外する。``adjclose`` があれば
+    OHLC を ``adjclose/close`` 倍して分割・配当調整済み系列に揃え、Close に adjclose を使う。
+    """
+    result = (payload.get("chart") or {}).get("result") or []
+    if not result:
+        return None
+    res = result[0]
+    timestamps = res.get("timestamp")
+    quote_list = (res.get("indicators") or {}).get("quote") or []
+    if not timestamps or not quote_list:
+        return None
+    quote = quote_list[0]
+    opens, highs = quote.get("open", []), quote.get("high", [])
+    lows, closes, vols = quote.get("low", []), quote.get("close", []), quote.get("volume", [])
+    adj_list = (res.get("indicators") or {}).get("adjclose") or [{}]
+    adjcloses = adj_list[0].get("adjclose", []) if adj_list else []
+    gmtoffset = int((res.get("meta") or {}).get("gmtoffset", 0) or 0)
+
+    rows: list[tuple[pd.Timestamp, float, float, float, float, float]] = []
+    for i, ts in enumerate(timestamps):
+        close = _at(closes, i)
+        if close is None:  # 進行中の当日バー等は確定値がないので落とす
+            continue
+        o, h, l = _at(opens, i), _at(highs, i), _at(lows, i)
+        if None in (o, h, l):
+            continue
+        adj = _at(adjcloses, i)
+        factor = (adj / close) if (adj is not None and close) else 1.0
+        vol = _at(vols, i)
+        date = pd.Timestamp(dt.datetime.utcfromtimestamp(int(ts) + gmtoffset).date())
+        rows.append((
+            date, o * factor, h * factor, l * factor,
+            adj if adj is not None else close, float(vol) if vol is not None else 0.0,
+        ))
+    if not rows:
+        return None
+    df = pd.DataFrame(rows, columns=["_date", *OHLCV_COLUMNS]).set_index("_date")
+    df.index.name = None
+    return df[~df.index.duplicated(keep="last")].sort_index()
+
+
+def _at(seq: list, i: int) -> float | None:
+    """リストの i 番目を float で返す（範囲外・None は None）。"""
+    if seq is None or i >= len(seq):
+        return None
+    v = seq[i]
+    return None if v is None else float(v)
+
+
+def _fetch_one_yahoo_lib(ticker: str, period: str, interval: str) -> pd.DataFrame:
+    """yfinance ライブラリ経由の取得（requests 直叩きが失敗したときのフォールバック）。"""
     try:
         import yfinance as yf
     except ImportError as exc:  # pragma: no cover
@@ -264,6 +389,22 @@ def _fetch_one_yfinance(ticker: str, period: str, interval: str) -> pd.DataFrame
     if isinstance(df.index, pd.DatetimeIndex) and df.index.tz is not None:
         df.index = df.index.tz_localize(None)
     return df
+
+
+def _fetch_one_yfinance(ticker: str, period: str, interval: str) -> pd.DataFrame:
+    """Yahoo Finance から OHLCV を取得する（requests 直叩きを優先、失敗時にライブラリ）。
+
+    第一手段は :func:`_fetch_one_yahoo_http`（標準 ``requests`` による chart API 直叩き。
+    TLS 再終端プロキシ環境でも到達しやすい）。それが失敗した場合のみ
+    :func:`_fetch_one_yahoo_lib`（yfinance ライブラリ）にフォールバックする。
+    """
+    try:
+        return _fetch_one_yahoo_http(ticker, period, interval)
+    except DataFetchError as http_err:
+        try:
+            return _fetch_one_yahoo_lib(ticker, period, interval)
+        except DataFetchError:
+            raise http_err
 
 
 def _fetch_one_jquants(code: str, ticker: str, period: str, interval: str) -> pd.DataFrame:
@@ -374,16 +515,122 @@ def fetch_info(code: str, *, synthetic: bool = False) -> dict[str, object]:
             "配当利回り": round(float(rng.uniform(0.0, 0.04)), 4),
         }
     try:
-        import yfinance as yf
+        raw = _fetch_info_http(ticker)
+    except DataFetchError:
+        try:
+            import yfinance as yf
 
-        raw = yf.Ticker(ticker).info or {}
-    except Exception as exc:
-        raise DataFetchError(
-            f"{ticker} の基本情報取得に失敗しました（--synthetic でダミー値を利用できます）: {exc}"
-        ) from exc
+            raw = yf.Ticker(ticker).info or {}
+        except Exception as exc:
+            raise DataFetchError(
+                f"{ticker} の基本情報取得に失敗しました（--synthetic でダミー値を利用できます）: {exc}"
+            ) from exc
     info: dict[str, object] = {}
     for key, label in _INFO_KEYS.items():
         value = raw.get(key)
         if value is not None:
             info[label] = value
     return info
+
+
+# Yahoo quoteSummary（ファンダ指標）を requests で取得するための crumb 付きセッション。
+# crumb はプロセス内で使い回す（多銘柄取得時の往復を減らす）。
+_YAHOO_SESSION: object | None = None
+_YAHOO_CRUMB: str | None = None
+# quoteSummary で要求するモジュール。
+_QS_MODULES: str = "price,summaryDetail,defaultKeyStatistics,financialData,assetProfile"
+
+
+def _yahoo_session_and_crumb() -> tuple[object, str]:
+    """crumb 付きの requests セッションを（キャッシュしつつ）返す。
+
+    Yahoo の quoteSummary v10 は cookie + crumb を要求する。``fc.yahoo.com`` で
+    cookie を得てから ``/v1/test/getcrumb`` で crumb を取得する。
+
+    Raises:
+        DataFetchError: requests 未導入、または crumb を取得できなかった場合。
+    """
+    global _YAHOO_SESSION, _YAHOO_CRUMB
+    if _YAHOO_SESSION is not None and _YAHOO_CRUMB:
+        return _YAHOO_SESSION, _YAHOO_CRUMB
+    try:
+        import requests
+    except ImportError as exc:  # pragma: no cover
+        raise DataFetchError("requests がインストールされていません。") from exc
+    session = requests.Session()
+    session.headers.update({"User-Agent": _YAHOO_UA})
+    try:
+        session.get("https://fc.yahoo.com", timeout=15)  # cookie 取得（404 でも Set-Cookie は返る）
+    except Exception:  # noqa: BLE001 - cookie 取得失敗でも crumb 取得を試みる
+        pass
+    for host in _YAHOO_HOSTS:
+        try:
+            resp = session.get(f"https://{host}/v1/test/getcrumb", timeout=15)
+        except Exception:  # noqa: BLE001
+            continue
+        crumb = resp.text.strip()
+        if resp.status_code == 200 and crumb and "<" not in crumb:
+            _YAHOO_SESSION, _YAHOO_CRUMB = session, crumb
+            return session, crumb
+    raise DataFetchError("Yahoo crumb を取得できませんでした。")
+
+
+def _fetch_info_http(ticker: str) -> dict[str, object]:
+    """Yahoo quoteSummary を requests で取得し、yfinance ``.info`` 互換の辞書に整形する。
+
+    Raises:
+        DataFetchError: 取得失敗・空データの場合。
+    """
+    session, crumb = _yahoo_session_and_crumb()
+    params = {"modules": _QS_MODULES, "crumb": crumb}
+    for host in _YAHOO_HOSTS:
+        try:
+            resp = session.get(  # type: ignore[attr-defined]
+                f"https://{host}/v10/finance/quoteSummary/{ticker}", params=params, timeout=20
+            )
+        except Exception:  # noqa: BLE001
+            continue
+        if resp.status_code != 200:
+            continue
+        try:
+            results = (resp.json().get("quoteSummary") or {}).get("result") or []
+        except ValueError:
+            continue
+        if results:
+            return _extract_quote_summary(results[0])
+    raise DataFetchError(f"{ticker} の quoteSummary を取得できませんでした。")
+
+
+def _qs_raw(module: dict, key: str) -> object | None:
+    """quoteSummary モジュールの ``{raw, fmt}`` 形式の値から raw を取り出す。"""
+    val = module.get(key)
+    if isinstance(val, dict):
+        return val.get("raw")
+    return val
+
+
+def _extract_quote_summary(result: dict) -> dict[str, object]:
+    """quoteSummary の1銘柄結果を yfinance ``.info`` 互換のフラット辞書に変換する。"""
+    price = result.get("price") or {}
+    detail = result.get("summaryDetail") or {}
+    key_stats = result.get("defaultKeyStatistics") or {}
+    financial = result.get("financialData") or {}
+    profile = result.get("assetProfile") or {}
+
+    raw: dict[str, object] = {}
+    raw["longName"] = price.get("longName") or price.get("shortName")
+    raw["sector"] = profile.get("sector")
+    raw["industry"] = profile.get("industry")
+    raw["marketCap"] = _qs_raw(price, "marketCap")
+    for key in ("trailingPE", "forwardPE", "dividendYield", "beta",
+                "fiftyTwoWeekHigh", "fiftyTwoWeekLow", "priceToBook"):
+        raw[key] = _qs_raw(detail, key)
+    # summaryDetail に無い指標は他モジュールで補完する。
+    if raw.get("priceToBook") is None:
+        raw["priceToBook"] = _qs_raw(key_stats, "priceToBook")
+    if raw.get("forwardPE") is None:
+        raw["forwardPE"] = _qs_raw(key_stats, "forwardPE")
+    if raw.get("beta") is None:
+        raw["beta"] = _qs_raw(key_stats, "beta")
+    raw["returnOnEquity"] = _qs_raw(financial, "returnOnEquity")
+    return {k: v for k, v in raw.items() if v is not None}
