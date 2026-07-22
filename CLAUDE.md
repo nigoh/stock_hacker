@@ -28,7 +28,7 @@ stock_hacker/
 │   ├── data-sources/      # データソース・API・ツール
 │   └── strategies/        # 投資戦略・ファクター・イベントドリブン
 ├── analysis/              # 分析コード（Python 3.11+）
-│   ├── stocklib/          # 共通ライブラリ（data/indicators/metrics/backtest/report/portfolio/signals/charts/edinet/fundamentals/jquants/journal/adr/currency/planning/income/performance/forecast/breadth/relative/pairs）
+│   ├── stocklib/          # 共通ライブラリ（data/indicators/metrics/backtest/report/portfolio/signals/charts/edinet/fundamentals/jquants/journal/adr/currency/planning/income/performance/forecast/breadth/relative/pairs/events）
 │   ├── analyze_stock.py   # CLI: 個別銘柄の総合分析
 │   ├── screen.py          # CLI: 銘柄スクリーニング
 │   ├── compare.py         # CLI: 複数銘柄の相対比較・相関
@@ -38,6 +38,7 @@ stock_hacker/
 │   ├── market_breadth.py  # CLI: 市場ブレッシュ（ユニバースの%>SMA・騰落数・騰落レシオ25・新高値安値）
 │   ├── relative_strength.py # CLI: 相対強度(RS)ランキング＆セクター相対バリュエーション（ユニバース横断）
 │   ├── pairs_screen.py    # CLI: ペアトレード共和分スクリーナ（対数価格の連動・スプレッド平均回帰の検定）
+│   ├── catalyst_radar.py  # CLI: カタリスト・レーダー（直近の決算発表・配当落ち予定を接近順に）
 │   ├── fundamentals_report.py # CLI: 業績推移・決算分析
 │   ├── research_journal.py # CLI: リサーチジャーナル（仮説の記録・期日確認・検証）
 │   ├── overnight_forecast.py # CLI: 夜間フォーキャスト（翌営業日の機械予想→翌日答え合わせ→forecasts/台帳に蓄積→的中率・Brier・較正の集計）
@@ -47,7 +48,7 @@ stock_hacker/
 │   ├── tax_report.py      # CLI: 課税口座の含み損益 税価値ビュー（損出し・損益通算の判断材料の機械的整理）
 │   ├── performance_report.py # CLI: 実運用パフォーマンス（取引履歴CSV → 金額加重リターン XIRR・損益内訳・ベンチマーク比較）
 │   ├── build_universe.py  # CLI: J-Quants の全上場銘柄から screen.py 互換のユニバース CSV を構築（要 JQUANTS_API_KEY）
-│   ├── universe/          # ユニバース定義（liquid30.csv: code,name,sector、2025年時点。adr_map.csv: ADR対応表）
+│   ├── universe/          # ユニバース定義（liquid30.csv: 主要30銘柄、large70.csv: 主要大型株69銘柄（Yahoo実在検証済）、いずれも code,name,sector。adr_map.csv: ADR対応表）
 │   ├── templates/         # portfolio/watchlist/transactions の CSV テンプレート
 │   └── tests/             # pytest（python3 -m pytest analysis/tests）
 ├── scripts/               # hooks 用スクリプト
@@ -81,6 +82,7 @@ stock_hacker/
 | 市場ブレッシュ | `python3 analysis/market_breadth.py`（既定 liquid30。`--universe CSV` で任意ユニバース） | ユニバース全体の内部状態（移動平均超の銘柄割合 SMA25/75/200・前日比の騰落数・騰落レシオ25日・52週新高値/新安値）を集計したレポート（`reports/breadth-...`。指数の水準だけでは見えない上昇の裾野の広狭を測る。RESULT 行・exit code の自動実行契約あり。機械的な内部状態の記述で将来予測ではない旨の注記付き） |
 | 相対強度・相対バリュエーション | `python3 analysis/relative_strength.py`（既定 liquid30。`--top N` / `--no-valuation` / `--universe CSV`） | ユニバース横断で、RS ランク（3/6/9/12ヶ月モメンタムの加重合成→パーセンタイル1〜99）の上位/下位と、各銘柄の PER/PBR の同セクター中央値に対する乖離（相対割安/割高）を集計したレポート（`reports/relative-...`。クロスセクションの機械的比較で将来予測でも助言でもない旨の注記付き。RESULT 行・exit code の自動実行契約あり） |
 | ペアトレード候補スクリーニング | `python3 analysis/pairs_screen.py`（既定 liquid30。`--same-sector` / `--top N` / `--universe CSV`） | ユニバースの全ペアについて、対数価格のヘッジ比β・スプレッドの Dickey-Fuller 統計量（平均回帰の強さ）・OU 半減期・現在の z スコアを算出し、平均回帰の強い順に候補を並べたレポート（`reports/pairs-...`。numpy のみで実装。インサンプル統計・多重比較の偽陽性・空売りコストの注意付き。将来予測でも助言でもない。RESULT 行・exit code の自動実行契約あり） |
+| カタリスト・レーダー | `python3 analysis/catalyst_radar.py`（既定 watchlist→liquid30。`--within N` / `--universe CSV`） | 各銘柄の次の決算発表日・配当落ち日（Yahoo カレンダー）を取得し、指定日数以内に到来するイベントを接近順に並べたレポート（`reports/catalyst-...`。決算後ドリフト PEAD・権利落ちの起点把握用。予定は取得日時点のもので変更されうる・確定でない・助言でない旨の注記付き。RESULT 行・exit code の自動実行契約あり） |
 | 業績・決算分析 | `python3 analysis/fundamentals_report.py 7203 --years 5` | 売上/利益推移・CAGR・マージンのレポート（`reports/fundamentals-...`） |
 | ADRパリティ・モニタ | `python3 analysis/adr_parity.py 7203`（単銘柄）/ `--all`（`analysis/universe/adr_map.csv` の全銘柄） | 東証終値×ADR終値×ドル円の理論価格・乖離%・円換算ADR価格のレポート（`reports/adr-...`。終値の暦日ずれの注意付き） |
 | リサーチジャーナル | `python3 analysis/research_journal.py new --codes 7203 --title "..." --direction up --review-days 60`（他に `due` / `verify <path>` / `list`） | `journal/<YYYY>/` に仮説エントリを生成（記録時点の終値を自動スナップショット）。`verify` が hit/miss/mixed を判定し検証結果を追記 |
