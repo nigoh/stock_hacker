@@ -7,6 +7,7 @@ reports/*
 
 # Claude Code ランタイム生成物
 .claude/scheduled_tasks.lock
+.claude/worktrees/
 
 # 秘密情報（J-Quants トークン等。雛形は .env.example）
 .env
