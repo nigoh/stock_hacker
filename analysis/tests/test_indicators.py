@@ -91,3 +91,27 @@ def test_atr_constant_range() -> None:
     df = pd.DataFrame({"High": close + 1, "Low": close - 1, "Close": close})
     out = indicators.atr(df, window=14)
     assert out.iloc[-1] == pytest.approx(2.0)
+
+
+def test_adx_columns_and_trend() -> None:
+    import numpy as np
+    from stocklib import indicators
+
+    n = 120
+    close = np.array([100.0 + 2.0 * i for i in range(n)])  # 明確な上昇トレンド
+    df = pd.DataFrame({"High": close + 1.0, "Low": close - 1.0, "Close": close})
+    out = indicators.adx(df, 14)
+    assert list(out.columns) == ["plus_di", "minus_di", "adx"]
+    last = out.iloc[-1]
+    assert last["adx"] > 25.0           # 強いトレンド
+    assert last["plus_di"] > last["minus_di"]  # 上昇方向
+
+
+def test_adx_flat_series_no_trend() -> None:
+    from stocklib import indicators
+
+    df = pd.DataFrame({"High": [100.0] * 60, "Low": [100.0] * 60, "Close": [100.0] * 60})
+    out = indicators.adx(df, 14)
+    # 無変動では ADX は算出不能（NaN）か 0 近傍で、トレンド閾値を超えない
+    val = out["adx"].iloc[-1]
+    assert pd.isna(val) or val < 25.0

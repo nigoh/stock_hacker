@@ -265,3 +265,49 @@ def test_signals_constants_match_documented_thresholds() -> None:
     assert signals.VOLUME_SURGE_RATIO == 2.0
     assert signals.WEEK52_PROXIMITY == 0.03
     assert signals.PRICE_MOVE_THRESHOLD == 0.03
+
+
+# ---------------------------------------------------------------------------
+# 追加シグナル: MACD / ボリンジャー / ADX
+# ---------------------------------------------------------------------------
+
+def test_macd_golden_cross_detected() -> None:
+    # 下降からの反転上昇で MACD がシグナル線を上抜ける（クロスが直近5営業日以内に入る長さ）。
+    down = [100.0 - i for i in range(60)]
+    up = [40.0 + 2.0 * i for i in range(6)]
+    sigs = _of_kind(detect_signals(_df(down + up)), "macd")
+    assert len(sigs) == 1 and sigs[0].direction == "bullish"
+
+
+def test_bollinger_upper_break_is_bearish() -> None:
+    base = [100.0 + (0.5 if i % 2 else -0.5) for i in range(24)]  # 小さなノイズ（std>0）
+    sigs = _of_kind(detect_signals(_df(base + [130.0])), "bollinger")
+    assert len(sigs) == 1 and sigs[0].direction == "bearish"  # 上限逸脱＝買われすぎ
+
+
+def test_bollinger_lower_break_is_bullish() -> None:
+    base = [100.0 + (0.5 if i % 2 else -0.5) for i in range(24)]
+    sigs = _of_kind(detect_signals(_df(base + [70.0])), "bollinger")
+    assert len(sigs) == 1 and sigs[0].direction == "bullish"  # 下限逸脱＝売られすぎ
+
+
+def test_bollinger_flat_series_no_signal() -> None:
+    assert _of_kind(detect_signals(_df([100.0] * 60)), "bollinger") == []
+
+
+def test_adx_signal_needs_high_low() -> None:
+    # Close のみの DataFrame では ADX シグナルは出ない（High/Low 必須）。
+    close = [100.0 + 2.0 * i for i in range(120)]
+    assert _of_kind(detect_signals(_df(close)), "adx") == []
+
+
+def test_adx_signal_on_strong_uptrend() -> None:
+    n = 120
+    close = pd.Series([100.0 + 2.0 * i for i in range(n)])
+    idx = pd.date_range(end=dt.date.today(), periods=n, freq="B")
+    df = pd.DataFrame(
+        {"High": (close + 1).to_numpy(), "Low": (close - 1).to_numpy(), "Close": close.to_numpy()},
+        index=idx,
+    )
+    sigs = _of_kind(detect_signals(df), "adx")
+    assert len(sigs) == 1 and sigs[0].direction == "bullish"
