@@ -82,6 +82,14 @@ python3 analysis/screen.py --universe analysis/universe/liquid30.csv
 
 - 出力（各銘柄のリターン・RSI・SMA位置）を CSV の sector 列で頭の中でグルーピングし、「どのセクターが強い/弱いか」を1〜3行で要約する。個別銘柄の深掘りはしない（必要なら analyze-stock スキルを案内する）。
 
+- **市場ブレッシュ（内部の強弱）** も併せて見ると、指数の水準だけでは分からない「上昇の裾野の広さ」を把握できる:
+
+```bash
+python3 analysis/market_breadth.py --period 2y
+```
+
+  移動平均超の銘柄割合（SMA25/75/200）・前日比の騰落数・騰落レシオ（25日）・52週新高値/新安値を集計する。指数が高値でもブレッシュが伴わない（新高値が細い・SMA超割合が低下）ときは上昇の裾野が狭い可能性を示す。解釈は `knowledge/technical/volume-and-market-internals.md`。
+
 ### 6. 市況メモの作成
 
 `reports/market-<日付>.md` に以下の章立てで書く。簡潔さを最優先し、全体で長くても100行程度に収める:
