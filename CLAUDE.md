@@ -28,7 +28,7 @@ stock_hacker/
 │   ├── data-sources/      # データソース・API・ツール
 │   └── strategies/        # 投資戦略・ファクター・イベントドリブン
 ├── analysis/              # 分析コード（Python 3.11+）
-│   ├── stocklib/          # 共通ライブラリ（data/indicators/metrics/backtest/report/portfolio/signals/charts/edinet/fundamentals/jquants/journal/adr/currency/planning/income/performance/forecast/breadth）
+│   ├── stocklib/          # 共通ライブラリ（data/indicators/metrics/backtest/report/portfolio/signals/charts/edinet/fundamentals/jquants/journal/adr/currency/planning/income/performance/forecast/breadth/relative）
 │   ├── analyze_stock.py   # CLI: 個別銘柄の総合分析
 │   ├── screen.py          # CLI: 銘柄スクリーニング
 │   ├── compare.py         # CLI: 複数銘柄の相対比較・相関
@@ -36,6 +36,7 @@ stock_hacker/
 │   ├── portfolio_review.py # CLI: 保有ポートフォリオの評価・リスクレビュー
 │   ├── daily_brief.py     # CLI: 市況+ウォッチリストのデイリーブリーフ
 │   ├── market_breadth.py  # CLI: 市場ブレッシュ（ユニバースの%>SMA・騰落数・騰落レシオ25・新高値安値）
+│   ├── relative_strength.py # CLI: 相対強度(RS)ランキング＆セクター相対バリュエーション（ユニバース横断）
 │   ├── fundamentals_report.py # CLI: 業績推移・決算分析
 │   ├── research_journal.py # CLI: リサーチジャーナル（仮説の記録・期日確認・検証）
 │   ├── overnight_forecast.py # CLI: 夜間フォーキャスト（翌営業日の機械予想→翌日答え合わせ→forecasts/台帳に蓄積→的中率・Brier・較正の集計）
@@ -77,6 +78,7 @@ stock_hacker/
 | ポートフォリオ評価 | `python3 analysis/portfolio_review.py --file data/portfolio.csv --period 1y` | 損益・セクター配分・加重β・VaR・HHI のレポート（`reports/portfolio-...`） |
 | デイリーブリーフ | `python3 analysis/daily_brief.py --watchlist data/watchlist.csv` | 市況サマリー+ウォッチ銘柄シグナル（`reports/brief-...`） |
 | 市場ブレッシュ | `python3 analysis/market_breadth.py`（既定 liquid30。`--universe CSV` で任意ユニバース） | ユニバース全体の内部状態（移動平均超の銘柄割合 SMA25/75/200・前日比の騰落数・騰落レシオ25日・52週新高値/新安値）を集計したレポート（`reports/breadth-...`。指数の水準だけでは見えない上昇の裾野の広狭を測る。RESULT 行・exit code の自動実行契約あり。機械的な内部状態の記述で将来予測ではない旨の注記付き） |
+| 相対強度・相対バリュエーション | `python3 analysis/relative_strength.py`（既定 liquid30。`--top N` / `--no-valuation` / `--universe CSV`） | ユニバース横断で、RS ランク（3/6/9/12ヶ月モメンタムの加重合成→パーセンタイル1〜99）の上位/下位と、各銘柄の PER/PBR の同セクター中央値に対する乖離（相対割安/割高）を集計したレポート（`reports/relative-...`。クロスセクションの機械的比較で将来予測でも助言でもない旨の注記付き。RESULT 行・exit code の自動実行契約あり） |
 | 業績・決算分析 | `python3 analysis/fundamentals_report.py 7203 --years 5` | 売上/利益推移・CAGR・マージンのレポート（`reports/fundamentals-...`） |
 | ADRパリティ・モニタ | `python3 analysis/adr_parity.py 7203`（単銘柄）/ `--all`（`analysis/universe/adr_map.csv` の全銘柄） | 東証終値×ADR終値×ドル円の理論価格・乖離%・円換算ADR価格のレポート（`reports/adr-...`。終値の暦日ずれの注意付き） |
 | リサーチジャーナル | `python3 analysis/research_journal.py new --codes 7203 --title "..." --direction up --review-days 60`（他に `due` / `verify <path>` / `list`） | `journal/<YYYY>/` に仮説エントリを生成（記録時点の終値を自動スナップショット）。`verify` が hit/miss/mixed を判定し検証結果を追記 |
