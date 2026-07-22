@@ -80,9 +80,18 @@ def test_drawdown_stats_recovered() -> None:
     prices = pd.Series([100.0, 120.0, 60.0, 90.0, 130.0])
     s = risk.drawdown_stats(prices)
     assert s.max_drawdown == pytest.approx(-0.5)      # 120 → 60
-    # ピーク(idx1=120)から回復(idx4=130)まで 3 営業日。
-    assert s.max_duration == 3
+    # ピーク(idx1=120)割れのアンダーウォーター本数は idx2,idx3 の 2 本。
+    assert s.max_duration == 2
     assert s.recovered is True
+
+
+def test_drawdown_stats_longer_ongoing_dd_not_hidden_by_recovered() -> None:
+    # 回復済み3本DD の後に、より長い継続中4本DD。旧バグでは回復側が +1 のゲタで
+    # 同点(4=4)勝ちし recovered=True と誤報していた。継続中が正しく勝ち recovered=False。
+    prices = pd.Series([10.0, 9.0, 8.0, 9.0, 10.0, 9.0, 9.0, 9.0, 9.0])
+    s = risk.drawdown_stats(prices)
+    assert s.max_duration == 4
+    assert s.recovered is False
 
 
 def test_drawdown_stats_ongoing_not_recovered() -> None:

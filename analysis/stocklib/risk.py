@@ -109,9 +109,10 @@ def drawdown_stats(prices: pd.Series) -> DrawdownStats:
 
     $$ \\mathrm{MaxDD} = \\min_t \\left( \\frac{P_t}{\\max_{s \\le t} P_s} - 1 \\right) $$
 
-    継続日数（drawdown duration）は「ピークから回復（同値以上への復帰）まで」の最長の
-    営業日数。連続する 2 つの新高値のバー間隔の最大を採り、末尾がアンダーウォーターで
-    終わる場合はピークから系列末尾までのバー数（``recovered=False`` の継続中区間）も候補にする。
+    継続日数（drawdown duration）は最長の「アンダーウォーター本数」（ピーク割れの状態で
+    経過した営業日数）。回復済み区間は新高値バー間隔 − 1（回復バー自身は含めない）、
+    末尾がアンダーウォーターで終わる区間はピーク翌日から系列末尾までのバー数として、
+    両者を同一基準で数える（``recovered=False`` の継続中区間も候補）。
     最大ドローダウンの深さと最長の継続区間は必ずしも同一区間ではない点に注意。
     """
     prices = prices.dropna()
@@ -126,11 +127,13 @@ def drawdown_stats(prices: pd.Series) -> DrawdownStats:
     at_peak = np.flatnonzero(values >= peak)
     max_duration = 0
     recovered = True
-    # 連続する新高値バー間の間隔。span=1 は連続で新高値を更新（＝下落なし）を意味するため、
-    # 実際にアンダーウォーターへ沈んだ区間（span>1）のみをドローダウン継続として数える。
+    # 回復済み区間の「アンダーウォーター本数」= 新高値バー間隔 − 1（回復バー自身は除く）。
+    # 末尾の継続中区間 trailing（= 最終バーまでの本数、最終バーもアンダーウォーター）と
+    # 同じ基準（アンダーウォーター実本数）で数えないと、同じ深さの継続中DDが+1のゲタで
+    # 隠れて recovered を誤る。
     for prev, nxt in zip(at_peak[:-1], at_peak[1:]):
-        span = int(nxt - prev)
-        if span > 1 and span > max_duration:
+        span = int(nxt - prev) - 1  # アンダーウォーター本数
+        if span >= 1 and span > max_duration:
             max_duration = span
             recovered = True
     # 末尾が最後の新高値以降もアンダーウォーターのままなら継続中区間として計上する。
