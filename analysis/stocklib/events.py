@@ -56,7 +56,7 @@ def _to_date(value: object) -> dt.date | None:
             try:
                 return dt.date.fromisoformat(fmt[:10])
             except ValueError:
-                return None
+                pass  # fmt が不正でも raw へフォールバックする
         raw = value.get("raw")
         if isinstance(raw, (int, float)):
             return dt.datetime.utcfromtimestamp(int(raw)).date()

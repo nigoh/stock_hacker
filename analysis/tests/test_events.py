@@ -87,3 +87,9 @@ def test_cli_synthetic_smoke() -> None:
     assert res.returncode == 0, res.stderr
     last = res.stdout.strip().splitlines()[-1]
     assert last.startswith("RESULT events=") and "data=synthetic" in last
+
+
+def test_to_date_fmt_invalid_falls_back_to_raw() -> None:
+    # fmt が不正でも raw エポックへフォールバックする（旧バグ: None を返していた）。
+    d = events._to_date({"fmt": "N/A", "raw": 1785974400})
+    assert d is not None and isinstance(d, dt.date)

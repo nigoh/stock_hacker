@@ -357,3 +357,40 @@ def test_fetch_info_falls_back_to_lib(monkeypatch: pytest.MonkeyPatch) -> None:
     info = fetch_info("7203")
     assert info["PER（実績）"] == 12.3
     assert info["名称"] == "Fallback Co"
+
+
+# ---------------------------------------------------------------------------
+# バグ修正の回帰: period1 の暦日換算 / 配当利回りの単位正規化
+# ---------------------------------------------------------------------------
+
+def test_yahoo_http_period1_uses_calendar_days(monkeypatch: pytest.MonkeyPatch) -> None:
+    """range= 非対応期間（3y 等）で period1/period2 が営業日でなく暦日窓になる。"""
+    import requests
+
+    captured: dict = {}
+
+    class _FakeResp:
+        status_code = 200
+
+        def json(self):  # type: ignore[no-untyped-def]
+            return {"chart": {"result": []}}  # 空 → 両ホストで失敗し DataFetchError
+
+    def _fake_get(url, params=None, headers=None, timeout=None):  # type: ignore[no-untyped-def]
+        captured["params"] = params
+        return _FakeResp()
+
+    monkeypatch.setattr(requests, "get", _fake_get)
+    with pytest.raises(DataFetchError):
+        data_mod._fetch_one_yahoo_http("7203.T", "3y", "1d")
+    span_days = (captured["params"]["period2"] - captured["params"]["period1"]) / 86400
+    # 3y=756営業日 → 暦日換算 ≈ 756*7/5 ≈ 1058日。旧バグ（営業日を暦日に誤用）だと ≈761日。
+    assert span_days > 900, f"取得窓が営業日換算で過少（{span_days:.0f}日）"
+
+
+def test_fetch_info_normalizes_dividend_yield(monkeypatch: pytest.MonkeyPatch) -> None:
+    # ライブラリ経路が百分率（2.5）を返しても比率（0.025）に正規化する。
+    monkeypatch.setattr(data_mod, "_fetch_info_http", lambda t: {"dividendYield": 2.5})
+    assert fetch_info("7203")["配当利回り"] == pytest.approx(0.025)
+    # HTTP 経路の比率（0.025）はそのまま。
+    monkeypatch.setattr(data_mod, "_fetch_info_http", lambda t: {"dividendYield": 0.025})
+    assert fetch_info("7203")["配当利回り"] == pytest.approx(0.025)
