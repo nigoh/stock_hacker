@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from stocklib import metrics
-from stocklib.indicators import rsi, sma
+from stocklib.indicators import bollinger, macd, rsi, sma
 
 
 @dataclass
@@ -478,6 +478,62 @@ def rsi_reversal_signal(
     signal = raw.ffill().fillna(0.0)
     signal.name = f"rsi_reversal_{window}_{lower:g}_{upper:g}"
     return signal
+
+
+def macd_signal(
+    prices: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9
+) -> pd.Series:
+    """MACD トレンドフォロー戦略のポジション系列（0/1）を生成する。
+
+    MACD ライン（$\\mathrm{EMA}_{fast} - \\mathrm{EMA}_{slow}$）がシグナル線
+    （MACD の $\\mathrm{EMA}_{signal}$）を上回っている間はロング（1）、それ以外は 0:
+
+    $$ w_t = \\mathbb{1}\\{\\mathrm{MACD}_t > \\mathrm{Signal}_t\\} $$
+
+    執行タイミングのシフトは :func:`run_backtest` 側で行うため、当日判定の値を返す。
+    """
+    if not (0 < fast < slow):
+        raise ValueError(f"0 < fast ({fast}) < slow ({slow}) を満たしてください")
+    if signal < 1:
+        raise ValueError(f"signal ({signal}) は 1 以上にしてください")
+    lines = macd(prices, fast, slow, signal)
+    pos = (lines["macd"] > lines["signal"]).astype(float)
+    pos.name = f"macd_{fast}_{slow}_{signal}"
+    return pos
+
+
+def bollinger_reversal_signal(
+    prices: pd.Series, window: int = 20, num_std: float = 2.0
+) -> pd.Series:
+    """ボリンジャーバンド逆張り（平均回帰）戦略のポジション系列（0/1）を生成する。
+
+    終値が下限バンド（$-k\\sigma$）を割り込んだら「売られすぎ」としてロング（1）、
+    中心線（SMA）へ回帰したら手仕舞い（0）。それ以外は直前状態を維持する:
+
+    $$ w_t = \\begin{cases}
+        1 & (C_t < \\text{lower}_t) \\\\
+        0 & (C_t > \\text{middle}_t) \\\\
+        w_{t-1} & (\\text{それ以外})
+    \\end{cases} $$
+
+    執行タイミングのシフトは :func:`run_backtest` 側で行うため、当日判定の値を返す。
+
+    Args:
+        prices: 終値系列。
+        window: 移動平均・標準偏差の期間。
+        num_std: バンド幅の標準偏差倍率（$k$）。
+    """
+    if window < 2:
+        raise ValueError(f"window ({window}) は 2 以上にしてください")
+    if num_std <= 0:
+        raise ValueError(f"num_std ({num_std}) は正の値にしてください")
+    band = bollinger(prices, window, num_std)
+    raw = pd.Series(np.nan, index=prices.index, dtype=float)
+    raw[prices < band["lower"]] = 1.0
+    raw[prices > band["middle"]] = 0.0
+    pos = raw.ffill().fillna(0.0)
+    pos.name = f"bollinger_reversal_{window}_{num_std:g}"
+    return pos
 
 
 def split_series(prices: pd.Series, ratio: float = 0.7) -> tuple[pd.Series, pd.Series]:

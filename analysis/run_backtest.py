@@ -44,8 +44,10 @@ from stocklib import charts, currency, metrics, report
 from stocklib.backtest import (
     BacktestResult,
     DCAComparison,
+    bollinger_reversal_signal,
     compare_dca_lump_sum,
     ma_cross_signal,
+    macd_signal,
     parameter_sweep,
     rsi_reversal_signal,
     run_backtest,
@@ -58,7 +60,7 @@ from stocklib.data import (
     set_default_source,
 )
 
-STRATEGIES: tuple[str, ...] = ("ma_cross", "rsi_reversal", "dca")
+STRATEGIES: tuple[str, ...] = ("ma_cross", "rsi_reversal", "macd", "bollinger_reversal", "dca")
 
 METRIC_LABELS: tuple[str, ...] = (
     "トータルリターン",
@@ -112,6 +114,20 @@ def build_strategy(
             f"> {args.rsi_upper:g} で手仕舞い）"
         )
         return rsi_reversal_signal, params, label
+    if args.strategy == "macd":
+        params = {"fast": args.macd_fast, "slow": args.macd_slow, "signal": args.macd_signal}
+        label = (
+            f"MACDトレンドフォロー（MACD({args.macd_fast},{args.macd_slow},{args.macd_signal}) が"
+            "シグナル線超でロング）"
+        )
+        return macd_signal, params, label
+    if args.strategy == "bollinger_reversal":
+        params = {"window": args.bb_window, "num_std": args.bb_std}
+        label = (
+            f"ボリンジャー逆張り（{args.bb_window}日 ±{args.bb_std:g}σ、下限割れで買い・"
+            "中心線回帰で手仕舞い）"
+        )
+        return bollinger_reversal_signal, params, label
     raise ValueError(f"未対応の戦略です: {args.strategy}（対応: {', '.join(STRATEGIES)}）")
 
 
@@ -133,6 +149,19 @@ def build_grid(strategy: str, params: dict[str, float | int]) -> list[dict[str, 
             for up in uppers
             if 0.0 < lo < up < 100.0
         ]
+    if strategy == "macd":
+        fast, slow, signal = int(params["fast"]), int(params["slow"]), int(params["signal"])
+        fasts = sorted({max(2, fast + d) for d in (-4, 0, 4)})
+        slows = sorted({max(3, slow + d) for d in (-8, 0, 8)})
+        return [
+            {"fast": f, "slow": s, "signal": signal}
+            for f in fasts for s in slows if f < s
+        ]
+    if strategy == "bollinger_reversal":
+        window = int(params["window"])
+        windows = sorted({max(2, window + d) for d in (-5, 0, 5)})
+        stds = sorted({round(float(params["num_std"]) + d, 1) for d in (-0.5, 0.0, 0.5)})
+        return [{"window": w, "num_std": s} for w in windows for s in stds if s > 0]
     raise ValueError(f"未対応の戦略です: {strategy}")
 
 
@@ -140,6 +169,10 @@ def format_params(strategy: str, params: dict[str, float | int]) -> str:
     """パラメータ辞書をテーブル表示用の短い文字列に整形する。"""
     if strategy == "ma_cross":
         return f"fast={params['fast']}, slow={params['slow']}"
+    if strategy == "macd":
+        return f"fast={params['fast']}, slow={params['slow']}, signal={params['signal']}"
+    if strategy == "bollinger_reversal":
+        return f"window={params['window']}, num_std={params['num_std']:g}"
     return f"window={params['window']}, lower={params['lower']:g}, upper={params['upper']:g}"
 
 
@@ -615,6 +648,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--rsi-upper", type=float, default=50.0,
         help="[rsi_reversal] イグジット閾値（RSI がこの値超で手仕舞い。既定: 50）",
+    )
+    parser.add_argument(
+        "--macd-fast", type=int, default=12, help="[macd] 短期 EMA 期間（既定: 12）"
+    )
+    parser.add_argument(
+        "--macd-slow", type=int, default=26, help="[macd] 長期 EMA 期間（既定: 26）"
+    )
+    parser.add_argument(
+        "--macd-signal", type=int, default=9, help="[macd] シグナル線 EMA 期間（既定: 9）"
+    )
+    parser.add_argument(
+        "--bb-window", type=int, default=20, help="[bollinger_reversal] 移動平均・σの期間（既定: 20）"
+    )
+    parser.add_argument(
+        "--bb-std", type=float, default=2.0,
+        help="[bollinger_reversal] バンド幅の標準偏差倍率（既定: 2.0）",
     )
     parser.add_argument(
         "--monthly", type=float, default=30000.0,

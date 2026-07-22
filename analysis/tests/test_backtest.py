@@ -8,7 +8,9 @@ import pytest
 
 from stocklib.backtest import (
     BacktestResult,
+    bollinger_reversal_signal,
     ma_cross_signal,
+    macd_signal,
     parameter_sweep,
     rsi_reversal_signal,
     run_backtest,
@@ -198,3 +200,63 @@ def test_t_stat_positive_for_upward_drift() -> None:
     result = run_backtest(prices, positions, cost_bps=0.0)
     assert result.t_stat > 2.0
     assert "有意" in result.t_stat_interpretation
+
+
+# ---------------------------------------------------------------------------
+# 追加戦略: MACD トレンドフォロー / ボリンジャー逆張り
+# ---------------------------------------------------------------------------
+
+def test_macd_signal_long_in_uptrend() -> None:
+    # 明確な上昇トレンドでは MACD がシグナル線を上回り、末尾はロング（1）。
+    up = _series([100.0 + i for i in range(120)])
+    sig = macd_signal(up, fast=12, slow=26, signal=9)
+    assert set(sig.unique()) <= {0.0, 1.0}
+    assert sig.iloc[-1] == 1.0
+    assert sig.name == "macd_12_26_9"
+
+
+def test_macd_signal_flat_series_no_position() -> None:
+    flat = _series([100.0] * 80)
+    sig = macd_signal(flat)
+    assert (sig == 0.0).all()  # 無変動ではロングしない
+
+
+def test_macd_signal_invalid_params() -> None:
+    close = _series([100.0] * 60)
+    with pytest.raises(ValueError):
+        macd_signal(close, fast=26, slow=12)  # fast >= slow
+    with pytest.raises(ValueError):
+        macd_signal(close, signal=0)
+
+
+def test_bollinger_reversal_state_machine() -> None:
+    # 下限割れで買い、中心線回帰で手仕舞い。0/1 の状態機械。
+    base = [100.0 + (0.5 if i % 2 else -0.5) for i in range(30)]
+    close = _series(base + [80.0, 90.0, 101.0])  # 急落→戻り
+    sig = bollinger_reversal_signal(close, window=20, num_std=2.0)
+    assert set(sig.unique()) <= {0.0, 1.0}
+    assert sig.name == "bollinger_reversal_20_2"
+    # 急落直後（下限割れ）でロング化している
+    assert sig.iloc[-3] == 1.0
+
+
+def test_bollinger_reversal_flat_series_no_position() -> None:
+    flat = _series([100.0] * 40)
+    sig = bollinger_reversal_signal(flat)
+    assert (sig == 0.0).all()
+
+
+def test_bollinger_reversal_invalid_params() -> None:
+    close = _series([100.0] * 40)
+    with pytest.raises(ValueError):
+        bollinger_reversal_signal(close, window=1)
+    with pytest.raises(ValueError):
+        bollinger_reversal_signal(close, num_std=0.0)
+
+
+def test_new_strategies_run_backtest_end_to_end() -> None:
+    prices = synthetic_prices("7203", days=300)["Close"]
+    for sig in (macd_signal(prices), bollinger_reversal_signal(prices)):
+        result = run_backtest(prices, sig, cost_bps=10.0)
+        assert isinstance(result, BacktestResult)
+        assert result.n_days > 0
