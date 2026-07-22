@@ -74,7 +74,7 @@ stock_hacker/
 | 個別銘柄の総合分析 | `python3 analysis/analyze_stock.py 7203 --period 2y --benchmark ^N225` | `reports/analyze-7203-<日付>.md`（パスを stdout に出力） |
 | 銘柄スクリーニング | `python3 analysis/screen.py --universe analysis/universe/liquid30.csv --rsi-below 30 --price-above-sma 200` | 結果テーブルを stdout、`reports/screen-<日付>.md` |
 | 複数銘柄の比較 | `python3 analysis/compare.py 7203 6758 9984 --period 1y` | 相対パフォーマンス・相関のレポート（`reports/compare-...`） |
-| 戦略バックテスト | `python3 analysis/run_backtest.py --strategy ma_cross --code 7203 --fast 25 --slow 75 --cost-bps 10` | バックテスト統計レポート（`reports/backtest-...`） |
+| 戦略バックテスト | `python3 analysis/run_backtest.py --strategy ma_cross --code 7203 --fast 25 --slow 75 --cost-bps 10`（他の戦略: `rsi_reversal` / `macd` / `bollinger_reversal` / `dca`） | バックテスト統計レポート（`reports/backtest-...`） |
 | ポートフォリオ評価 | `python3 analysis/portfolio_review.py --file data/portfolio.csv --period 1y` | 損益・セクター配分・加重β・VaR・HHI のレポート（`reports/portfolio-...`） |
 | デイリーブリーフ | `python3 analysis/daily_brief.py --watchlist data/watchlist.csv` | 市況サマリー+ウォッチ銘柄シグナル（`reports/brief-...`） |
 | 市場ブレッシュ | `python3 analysis/market_breadth.py`（既定 liquid30。`--universe CSV` で任意ユニバース） | ユニバース全体の内部状態（移動平均超の銘柄割合 SMA25/75/200・前日比の騰落数・騰落レシオ25日・52週新高値/新安値）を集計したレポート（`reports/breadth-...`。指数の水準だけでは見えない上昇の裾野の広狭を測る。RESULT 行・exit code の自動実行契約あり。機械的な内部状態の記述で将来予測ではない旨の注記付き） |

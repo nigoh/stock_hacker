@@ -39,12 +39,17 @@ argument-hint: "[戦略名 銘柄コード]"
 
 ### 3. バックテストの実行
 
-組み込み戦略（`ma_cross`: 移動平均クロス、`rsi_reversal`: RSI閾値による逆張り、`dca`: 毎月定額積立。dca は後述）はリポジトリルートから実行する:
+組み込み戦略（`ma_cross`: 移動平均クロス、`rsi_reversal`: RSI閾値による逆張り、`macd`: MACDトレンドフォロー、`bollinger_reversal`: ボリンジャー逆張り（平均回帰）、`dca`: 毎月定額積立。dca は後述）はリポジトリルートから実行する:
 
 ```bash
 python3 analysis/run_backtest.py --strategy ma_cross --code 7203 --fast 25 --slow 75 --cost-bps 10
 python3 analysis/run_backtest.py --strategy rsi_reversal --code 7203 --rsi-window 14 --rsi-lower 30 --rsi-upper 50 --cost-bps 10
+python3 analysis/run_backtest.py --strategy macd --code 7203 --macd-fast 12 --macd-slow 26 --macd-signal 9 --cost-bps 10
+python3 analysis/run_backtest.py --strategy bollinger_reversal --code 7203 --bb-window 20 --bb-std 2.0 --cost-bps 10
 ```
+
+- `macd`: MACD ライン（EMA差）がシグナル線を上回る間ロング（トレンドフォロー）。`--macd-fast/--macd-slow/--macd-signal`。
+- `bollinger_reversal`: 終値が下限バンド（-kσ）を割れたら買い、中心線（SMA）回帰で手仕舞い（平均回帰）。`--bb-window/--bb-std`。トレンド相場では機能しにくい点に留意する。
 
 さらに検証用フラグを併用する（手順4・5のチェックを CLI だけで実行できる）:
 

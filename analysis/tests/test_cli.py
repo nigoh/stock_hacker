@@ -98,6 +98,38 @@ def test_run_backtest_cli_split_and_sweep() -> None:
     assert "免責事項" in content
 
 
+def test_run_backtest_cli_macd() -> None:
+    proc = _run(
+        "analysis/run_backtest.py",
+        "--strategy", "macd",
+        "--code", "7203",
+        "--macd-fast", "12", "--macd-slow", "26", "--macd-signal", "9",
+        "--sweep",
+        "--period", "2y",
+        "--synthetic",
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "MACD" in proc.stdout
+    assert "試行回数 N=" in proc.stdout  # build_grid が機能している
+    assert (REPO_ROOT / "reports" / f"backtest-macd-7203-{TODAY}.md").exists()
+
+
+def test_run_backtest_cli_bollinger_reversal() -> None:
+    proc = _run(
+        "analysis/run_backtest.py",
+        "--strategy", "bollinger_reversal",
+        "--code", "7203",
+        "--bb-window", "20", "--bb-std", "2.0",
+        "--sweep",
+        "--period", "2y",
+        "--synthetic",
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "ボリンジャー" in proc.stdout
+    assert "試行回数 N=" in proc.stdout
+    assert (REPO_ROOT / "reports" / f"backtest-bollinger_reversal-7203-{TODAY}.md").exists()
+
+
 def test_run_backtest_cli_rejects_bad_split() -> None:
     proc = _run(
         "analysis/run_backtest.py",
