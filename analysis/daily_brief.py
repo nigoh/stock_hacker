@@ -74,10 +74,15 @@ _ALERT_PRIORITY: dict[str, int] = {
     "price_move": 0,
     "volume": 1,
     "ma_cross": 2,
-    "week52": 3,
-    "rsi": 4,
+    "macd": 3,
+    "week52": 4,
+    "bollinger": 5,
+    "rsi": 6,
+    "adx": 7,
 }
-_ALERT_PRIORITY_LABEL: str = "急変動 > 出来高急増 > 移動平均クロス > 52週高安 > RSI"
+_ALERT_PRIORITY_LABEL: str = (
+    "急変動 > 出来高急増 > 移動平均クロス > MACDクロス > 52週高安 > ボリンジャー > RSI > ADX"
+)
 
 
 class BriefUnavailableError(DataFetchError):
@@ -250,7 +255,9 @@ def build_watchlist_section(
         lines.append("")
     lines.append(
         "シグナル定義: RSI(14) 30以下/70以上、25日/75日線クロス（5営業日以内）、"
-        "出来高が20日平均の2倍超、52週高値/安値から3%以内、前日比±3%超。"
+        "出来高が20日平均の2倍超、52週高値/安値から3%以内、前日比±3%超、"
+        "MACD(12,26,9)のシグナル線クロス（5営業日以内）、ボリンジャー±2σ(20日)逸脱、"
+        "ADX(14)≥25のトレンド方向。"
         "数式・閾値の詳細は `analysis/stocklib/signals.py` を参照。"
         "方向ラベルは教科書的な解釈であり、将来の騰落の予測ではない。"
     )

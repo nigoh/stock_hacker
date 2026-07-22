@@ -27,6 +27,13 @@ VOLUME_SURGE_RATIO: float = 2.0
 WEEK52_WINDOW: int = 252
 WEEK52_PROXIMITY: float = 0.03
 PRICE_MOVE_THRESHOLD: float = 0.03
+MACD_FAST: int = 12
+MACD_SLOW: int = 26
+MACD_SIGNAL: int = 9
+BOLLINGER_WINDOW: int = 20
+BOLLINGER_STD: float = 2.0
+ADX_WINDOW: int = 14
+ADX_TREND_THRESHOLD: float = 25.0
 
 
 @dataclass(frozen=True)
@@ -153,6 +160,76 @@ def _price_move_signal(close: pd.Series) -> Signal | None:
     return None
 
 
+def _macd_signal(close: pd.Series) -> Signal | None:
+    """MACD とシグナル線のクロス（直近5営業日以内）。"""
+    if len(close) <= MACD_SLOW + MACD_SIGNAL:
+        return None
+    macd = indicators.macd(close, MACD_FAST, MACD_SLOW, MACD_SIGNAL)
+    diff = macd["macd"] - macd["signal"]
+    prev = diff.shift(1)
+    golden = (prev <= 0) & (diff > 0)  # MACD がシグナル線を上抜け
+    dead = (prev >= 0) & (diff < 0)
+    for mask, direction, label in (
+        (golden, "bullish", "MACD がシグナル線を上抜け"),
+        (dead, "bearish", "MACD がシグナル線を下抜け"),
+    ):
+        recent = mask.iloc[-CROSS_LOOKBACK:]
+        if bool(recent.any()):
+            days_ago = len(recent) - 1 - int(recent.to_numpy().nonzero()[0][-1])
+            when = "当日" if days_ago == 0 else f"{days_ago}営業日前"
+            return Signal(kind="macd", direction=direction, detail=f"{label}、{when}に発生")
+    return None
+
+
+def _bollinger_signal(close: pd.Series) -> Signal | None:
+    """ボリンジャーバンド逸脱。終値が ±2σ バンドを超える（バンド幅ゼロは判定しない）。
+
+    RSI と同じ解釈で、下限割れ（売られすぎ）を bullish、上限超え（買われすぎ）を bearish とする。
+    """
+    if len(close) < BOLLINGER_WINDOW:
+        return None
+    band = indicators.bollinger(close, BOLLINGER_WINDOW, BOLLINGER_STD)
+    upper = float(band["upper"].iloc[-1])
+    lower = float(band["lower"].iloc[-1])
+    middle = float(band["middle"].iloc[-1])
+    last = float(close.iloc[-1])
+    if not all(math.isfinite(v) for v in (upper, lower, middle)) or upper <= lower:
+        return None  # バンド幅ゼロ（無変動）は判定しない
+    if last < lower:
+        return Signal(kind="bollinger", direction="bullish",
+                      detail=f"終値 {last:,.1f} が下限バンド {lower:,.1f}（-{BOLLINGER_STD:g}σ）を下抜け（売られすぎ）")
+    if last > upper:
+        return Signal(kind="bollinger", direction="bearish",
+                      detail=f"終値 {last:,.1f} が上限バンド {upper:,.1f}（+{BOLLINGER_STD:g}σ）を上抜け（買われすぎ）")
+    return None
+
+
+def _adx_signal(df: pd.DataFrame) -> Signal | None:
+    """ADX によるトレンド強度。ADX ≥ 25 かつ +DI/−DI の優劣で方向を付す。"""
+    if not {"High", "Low", "Close"}.issubset(df.columns):
+        return None
+    if len(df) <= 2 * ADX_WINDOW:
+        return None
+    adx_df = indicators.adx(df, ADX_WINDOW)
+    adx_val = float(adx_df["adx"].iloc[-1])
+    plus_di = float(adx_df["plus_di"].iloc[-1])
+    minus_di = float(adx_df["minus_di"].iloc[-1])
+    if not all(math.isfinite(v) for v in (adx_val, plus_di, minus_di)):
+        return None
+    if adx_val < ADX_TREND_THRESHOLD:
+        return None
+    if plus_di > minus_di:
+        direction, arrow = "bullish", "+DI > −DI（上昇トレンド）"
+    elif minus_di > plus_di:
+        direction, arrow = "bearish", "−DI > +DI（下降トレンド）"
+    else:
+        return None
+    return Signal(
+        kind="adx", direction=direction,
+        detail=f"ADX({ADX_WINDOW}) = {adx_val:.1f} ≥ {ADX_TREND_THRESHOLD:g}（明確なトレンド）、{arrow}",
+    )
+
+
 def detect_signals(df: pd.DataFrame) -> list[Signal]:
     """OHLCV DataFrame から直近営業日時点のテクニカルシグナルを検出する。
 
@@ -178,6 +255,13 @@ def detect_signals(df: pd.DataFrame) -> list[Signal]:
        場合は利用可能な範囲で計算し、detail にその旨を付記する。
     5. **急変動**（kind ``"price_move"``）: 前日比
        $|C_t / C_{t-1} - 1| > 0.03$（±3%超。厳密な不等号。+側 bullish / −側 bearish）。
+    6. **MACD クロス**（kind ``"macd"``）: 直近5営業日以内に MACD(12,26) がシグナル線(9)を
+       上抜け（bullish）/ 下抜け（bearish）。:func:`stocklib.indicators.macd` を使う。
+    7. **ボリンジャーバンド逸脱**（kind ``"bollinger"``）: 終値が ±2σ バンド（20日）を
+       下抜け（売られすぎ、bullish）/ 上抜け（買われすぎ、bearish）。バンド幅ゼロは判定しない。
+    8. **ADX トレンド強度**（kind ``"adx"``）: $\\mathrm{ADX}_{14} \\ge 25$（明確なトレンド）で、
+       $+\\mathrm{DI} > -\\mathrm{DI}$ なら bullish、$-\\mathrm{DI} > +\\mathrm{DI}$ なら bearish。
+       ``High`` / ``Low`` 列が無い場合はスキップ。
 
     Args:
         df: ``Close`` 列必須、``Volume`` 列は任意の DataFrame
@@ -202,7 +286,8 @@ def detect_signals(df: pd.DataFrame) -> list[Signal]:
         if sig is not None:
             out.append(sig)
     out.extend(_week52_signals(close))
-    sig = _price_move_signal(close)
-    if sig is not None:
-        out.append(sig)
+    for sig in (_price_move_signal(close), _macd_signal(close),
+                _bollinger_signal(close), _adx_signal(df)):
+        if sig is not None:
+            out.append(sig)
     return out

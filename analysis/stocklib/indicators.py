@@ -126,6 +126,46 @@ def ichimoku(
     )
 
 
+def adx(df: pd.DataFrame, window: int = 14) -> pd.DataFrame:
+    """ADX（Average Directional Index、Wilder）と方向性指数 +DI / −DI。
+
+    上昇・下降の変動幅（Directional Movement）から方向性指数を作る:
+
+    $$ +\\mathrm{DM}_t = \\begin{cases} H_t - H_{t-1} & (H_t - H_{t-1} > L_{t-1} - L_t \\ \\wedge\\ >0) \\\\ 0 & \\text{otherwise} \\end{cases} $$
+
+    真の値幅 $\\mathrm{TR}$ を Wilder 平滑化した $\\mathrm{ATR}$ で正規化して
+    $+\\mathrm{DI} = 100\\cdot \\mathrm{Wilder}(+\\mathrm{DM})/\\mathrm{ATR}$（−DI も同様）。
+    さらに $\\mathrm{DX} = 100\\cdot |{+\\mathrm{DI}} - {-\\mathrm{DI}}| / ({+\\mathrm{DI}} + {-\\mathrm{DI}})$ を
+    Wilder 平滑化したものが $\\mathrm{ADX}$。ADX はトレンドの「強さ」（方向は問わない）を表し、
+    一般に 25 以上で明確なトレンド、20 未満でトレンドレスとされる。
+
+    Args:
+        df: ``High`` / ``Low`` / ``Close`` 列を持つ DataFrame。
+
+    Returns:
+        列 ``plus_di`` / ``minus_di`` / ``adx`` を持つ DataFrame（入力と同一 index）。
+    """
+    high, low, close = df["High"], df["Low"], df["Close"]
+    up_move = high.diff()
+    down_move = -low.diff()
+    plus_dm = up_move.where((up_move > down_move) & (up_move > 0), 0.0)
+    minus_dm = down_move.where((down_move > up_move) & (down_move > 0), 0.0)
+
+    prev_close = close.shift(1)
+    tr = pd.concat(
+        [high - low, (high - prev_close).abs(), (low - prev_close).abs()], axis=1
+    ).max(axis=1)
+
+    alpha = 1.0 / window
+    atr_n = tr.ewm(alpha=alpha, adjust=False, min_periods=window).mean()
+    plus_di = 100.0 * plus_dm.ewm(alpha=alpha, adjust=False, min_periods=window).mean() / atr_n
+    minus_di = 100.0 * minus_dm.ewm(alpha=alpha, adjust=False, min_periods=window).mean() / atr_n
+    di_sum = plus_di + minus_di
+    dx = 100.0 * (plus_di - minus_di).abs() / di_sum.where(di_sum != 0.0)
+    adx_line = dx.ewm(alpha=alpha, adjust=False, min_periods=window).mean()
+    return pd.DataFrame({"plus_di": plus_di, "minus_di": minus_di, "adx": adx_line})
+
+
 def atr(df: pd.DataFrame, window: int = 14) -> pd.Series:
     """ATR（Average True Range、Wilder 平滑化）。
 
