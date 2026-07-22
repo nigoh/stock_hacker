@@ -153,7 +153,9 @@ def main(argv: list[str] | None = None) -> int:
     n_total = len(items)
 
     prices, errors = _fetch_universe(items, args.period, args.synthetic)
-    if not prices:
+    if not prices and not args.synthetic:
+        # 実データ全滅（＝ネットワーク障害シグナル）。合成では発火させない
+        # （合成は取得失敗しないため、ここに来るのは空ユニバース＝入力が薄いだけ）。
         print("エラー: ユニバースの実データを1件も取得できませんでした。"
               "Yahoo（query1/2.finance.yahoo.com）への到達性を確認してください。", file=sys.stderr)
         for e in errors:

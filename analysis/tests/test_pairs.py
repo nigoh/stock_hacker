@@ -119,3 +119,16 @@ def test_cli_synthetic_smoke() -> None:
     assert res.returncode == 0, res.stderr
     last = res.stdout.strip().splitlines()[-1]
     assert last.startswith("RESULT pairs=") and "data=synthetic" in last
+
+
+def test_cli_synthetic_small_universe_not_unavailable(tmp_path: Path) -> None:
+    # 1銘柄 + --synthetic はペア不足でも data=unavailable/exit2 に落とさない。
+    u = tmp_path / "one.csv"
+    u.write_text("code,name,sector\n7203,トヨタ,輸送用機器\n", encoding="utf-8")
+    res = subprocess.run(
+        [sys.executable, str(REPO_ROOT / "analysis" / "pairs_screen.py"),
+         "--synthetic", "--universe", str(u)],
+        capture_output=True, text=True, cwd=REPO_ROOT,
+    )
+    assert res.returncode == 0, res.stderr
+    assert "data=synthetic" in res.stdout and "data=unavailable" not in res.stdout

@@ -169,7 +169,8 @@ def make_forecast(code: str, df: pd.DataFrame, *, name: str = "", data: str = "r
 
     1. **トレンド** $s_{\\text{trend}} = \\tfrac12\\big(\\mathrm{sgn}(C_t - \\mathrm{SMA}^{25}_t)
        + \\mathrm{sgn}(\\mathrm{SMA}^{25}_t - \\mathrm{SMA}^{75}_t)\\big)$
-       （終値の 25日線との上下 と 25/75日線の並び。$\\{-1, 0, 1\\}$）。
+       （終値の 25日線との上下 と 25/75日線の並び。2つの符号の平均で
+       $\\{-1, -0.5, 0, 0.5, 1\\}$ を取る）。
     2. **モメンタム** $s_{\\text{mom}} = \\mathrm{clip}\\!\\big(m_{20} / (\\sigma_d\\sqrt{20}),\\ -1, 1\\big)$、
        $m_{20} = C_t / C_{t-20} - 1$、$\\sigma_d$ は日次リターンの20日標準偏差
        （20営業日モメンタムをその期間の標準偏差で正規化した z 値相当）。
@@ -302,7 +303,9 @@ def grade_forecast(fc: Forecast, future_df: pd.DataFrame) -> GradeResult | None:
     """
     if "Close" not in future_df.columns:
         raise ForecastError("grade_forecast には Close 列を持つ DataFrame を渡してください")
-    close = future_df["Close"].dropna()
+    close = future_df["Close"].dropna().sort_index()  # 昇順を保証（未ソート入力での誤採用を防ぐ）
+    if isinstance(close.index, pd.DatetimeIndex) and close.index.tz is not None:
+        close.index = close.index.tz_localize(None)  # tz-aware 入力でも naive の asof と比較可能に
     asof_ts = pd.Timestamp(fc.asof_date)
     after = close[close.index > asof_ts]
     if len(after) == 0:
@@ -475,8 +478,16 @@ class Summary:
     per_direction: dict[str, tuple[int, float]] = field(default_factory=dict)
 
 
-def _graded(ledger: pd.DataFrame) -> pd.DataFrame:
+def _graded(ledger: pd.DataFrame, data: str | None = "real") -> pd.DataFrame:
+    """採点済み（status=graded）行を返す。
+
+    ``data`` を指定すると台帳の ``data`` 列（欠落は real 扱い）で絞る。既定 ``"real"`` は
+    実データの track record を集計するため——合成（``--synthetic``）で書き込まれた採点行が
+    同じ台帳に混ざっても、実データの的中率・Brier・較正に混入させない。``None`` で全件。
+    """
     g = ledger[ledger["status"] == "graded"].copy()
+    if data is not None and "data" in g.columns:
+        g = g[g["data"].fillna("real") == data]
     for col in ("dir_hit", "in_range"):
         g[col] = g[col].map(_to_bool)
     for col in ("actual_return", "abs_error", "brier", "prob_up"):
@@ -490,14 +501,16 @@ def _to_bool(value: object) -> bool:
     return str(value).strip().lower() in {"true", "1", "1.0", "yes"}
 
 
-def summarize(ledger: pd.DataFrame) -> Summary:
+def summarize(ledger: pd.DataFrame, data: str | None = "real") -> Summary:
     """採点済み台帳の的中率・Brier・レンジ的中率などを集計する。
+
+    ``data`` で集計対象を絞る（既定 ``"real"``。合成採点行を実データ成績に混ぜない）。
 
     Brier スコアは上昇確率の較正（calibration）の指標で、低いほど良い。
     無情報予想（常に $p=0.5$）の Brier は 0.25 で、これを下回れば予想が
     無情報より役立っていることを意味する（:data:`baseline_brier`）。
     """
-    g = _graded(ledger)
+    g = _graded(ledger, data)
     n = len(g)
     if n == 0:
         return Summary(0, 0, float("nan"), float("nan"), float("nan"), float("nan"), 0.25)
@@ -527,12 +540,15 @@ def summarize(ledger: pd.DataFrame) -> Summary:
     )
 
 
-def calibration_table(ledger: pd.DataFrame, bins: Sequence[float] | None = None) -> list[dict[str, object]]:
+def calibration_table(
+    ledger: pd.DataFrame, bins: Sequence[float] | None = None, data: str | None = "real"
+) -> list[dict[str, object]]:
     """上昇確率のビンごとに「予想上昇確率」と「実際の上昇頻度」を集計する。
 
     較正が取れていれば、各ビンの予想確率の平均 ≒ 実際の上昇頻度になる。
+    ``data`` で対象を絞る（既定 ``"real"``）。
     """
-    g = _graded(ledger)
+    g = _graded(ledger, data)
     if len(g) == 0:
         return []
     edges = list(bins) if bins is not None else [0.0, 0.4, 0.45, 0.5, 0.55, 0.6, 1.0001]
@@ -552,9 +568,12 @@ def calibration_table(ledger: pd.DataFrame, bins: Sequence[float] | None = None)
     return rows
 
 
-def per_code_hit_rate(ledger: pd.DataFrame) -> list[dict[str, object]]:
-    """銘柄ごとの方向的中率（flat 除く）と件数を返す（件数降順）。"""
-    g = _graded(ledger)
+def per_code_hit_rate(ledger: pd.DataFrame, data: str | None = "real") -> list[dict[str, object]]:
+    """銘柄ごとの方向的中率（flat 除く）と件数を返す（件数降順）。
+
+    ``data`` で対象を絞る（既定 ``"real"``）。
+    """
+    g = _graded(ledger, data)
     directional = g[g["direction"] != "flat"]
     out: list[dict[str, object]] = []
     for code, sub in directional.groupby("code"):

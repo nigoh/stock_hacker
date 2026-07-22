@@ -165,7 +165,8 @@ def main(argv: list[str] | None = None) -> int:
         except DataFetchError as exc:
             errors.append(f"{code}: {exc}")
 
-    if not prices:
+    if not prices and not args.synthetic:
+        # 実データ全滅のみ発火（合成は取得失敗しないため空ユニバースでは落とさない）。
         print("エラー: ユニバースの実データを1件も取得できませんでした。"
               "Yahoo への到達性を確認してください。", file=sys.stderr)
         for e in errors:

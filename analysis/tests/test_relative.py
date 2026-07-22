@@ -141,3 +141,15 @@ def test_cli_no_valuation_flag() -> None:
     assert res.returncode == 0, res.stderr
     assert "valuation=0" in res.stdout  # 取得を省いたので0
     assert "セクター相対バリュエーション" not in res.stdout
+
+
+def test_cli_synthetic_empty_universe_not_unavailable(tmp_path: Path) -> None:
+    u = tmp_path / "empty.csv"
+    u.write_text("code,name,sector\n", encoding="utf-8")
+    res = subprocess.run(
+        [sys.executable, str(REPO_ROOT / "analysis" / "relative_strength.py"),
+         "--synthetic", "--universe", str(u)],
+        capture_output=True, text=True, cwd=REPO_ROOT,
+    )
+    assert res.returncode == 0, res.stderr
+    assert "data=synthetic" in res.stdout and "data=unavailable" not in res.stdout

@@ -131,3 +131,16 @@ def test_cli_bad_universe_exits_1(tmp_path: Path) -> None:
         capture_output=True, text=True, cwd=REPO_ROOT,
     )
     assert res.returncode == 1
+
+
+def test_cli_synthetic_empty_universe_not_unavailable(tmp_path: Path) -> None:
+    # 空ユニバース + --synthetic は data=unavailable/exit2 に落とさない（合成は取得失敗しない）。
+    u = tmp_path / "empty.csv"
+    u.write_text("code,name,sector\n", encoding="utf-8")
+    res = subprocess.run(
+        [sys.executable, str(REPO_ROOT / "analysis" / "market_breadth.py"),
+         "--synthetic", "--universe", str(u)],
+        capture_output=True, text=True, cwd=REPO_ROOT,
+    )
+    assert res.returncode == 0, res.stderr
+    assert "data=synthetic" in res.stdout and "data=unavailable" not in res.stdout
