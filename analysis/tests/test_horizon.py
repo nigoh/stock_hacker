@@ -254,3 +254,20 @@ def test_cli_rejects_unknown_horizon() -> None:
         "--horizon", "weekly", "--synthetic", "--no-charts",
     )
     assert proc.returncode == 2  # argparse の choices エラー
+
+
+# ---------------------------------------------------------------------------
+# バグ修正の回帰: 基本情報テーブルの比率指標を % 表記にする
+# ---------------------------------------------------------------------------
+
+def test_fmt_info_value_ratio_keys_as_percent() -> None:
+    # 配当利回り・ROE は比率で来るので % を付ける（旧: fmt_num で「0.03」と単位なし表示）。
+    assert analyze_stock._fmt_info_value("配当利回り", 0.0331) == "3.31%"
+    assert analyze_stock._fmt_info_value("ROE", 0.08) == "8.00%"
+    # 百分率エンコード（>0.5）の配当利回りも %（_fmt_dividend_yield のヒューリスティック）。
+    assert analyze_stock._fmt_info_value("配当利回り", 3.4).endswith("%")
+    # 非比率キーは従来どおり桁区切り。
+    assert analyze_stock._fmt_info_value("時価総額", 34800853319680) == "34,800,853,319,680"
+    assert analyze_stock._fmt_info_value("PER（実績）", 9.95) == "9.95"
+    # 欠損・非数値は "-"。
+    assert analyze_stock._fmt_info_value("ROE", None) == "-"
