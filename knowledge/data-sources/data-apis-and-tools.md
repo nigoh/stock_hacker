@@ -65,6 +65,17 @@ df = yf.download("7203.T", start="2020-01-01", auto_adjust=True)
 
 利点は手軽さと世界市場との横断比較のしやすさだが、(1) 非公式であり仕様変更・取得失敗が頻発する、(2) 商用利用は規約上問題がある、(3) 日本株の配当・分割データの精度が米国株より低い、という制約を理解して「プロトタイピング用」と割り切るのが実務的である。名証・福証・札証銘柄は `.NG` 等のサフィックスだが収録は不完全である。
 
+### プロキシ環境での落とし穴と本リポジトリの実装（2026年時点）
+
+yfinance の新しめのバージョン（0.2.40 以降）は内部の HTTP クライアントに `curl_cffi` を使い、ブラウザの TLS フィンガープリントを偽装して Yahoo のボット対策を回避する。ところが **TLS を再終端する（中間で復号・再暗号化する）プロキシ環境**——たとえば企業プロキシや Claude Code のエージェントプロキシ——では、この偽装 TLS ハンドシェイクが途中で切断され、`curl: (35) Recv failure: Connection reset by peer` として全取得が失敗する。プロキシが Yahoo への到達自体は許可していても起きる、分かりにくい失敗である。
+
+回避策は、`curl_cffi` を使わず**標準の `requests`（プロキシの CA を信頼する通常の TLS）で Yahoo の API を直接叩く**こと。実務上は次の2エンドポイントで事足りる。
+
+- 価格（OHLCV）: `https://query1.finance.yahoo.com/v8/finance/chart/<ticker>?range=1y&interval=1d`。ブラウザ相当の `User-Agent` を付けて GET すると JSON が返る。`indicators.quote[0]` に OHLCV、`indicators.adjclose[0].adjclose` に配当・分割調整済み終値が入る（`auto_adjust=True` 相当にするには OHLC を `adjclose/close` 倍する）。場中の当日バーは `close` が `null` なので落とす。
+- 基本情報（PER・PBR・ROE 等）: `https://query2.finance.yahoo.com/v10/finance/quoteSummary/<ticker>`。ただし cookie + crumb が必要で、`https://fc.yahoo.com` で cookie を得てから `/v1/test/getcrumb` で crumb を取り、`crumb=` と `modules=price,summaryDetail,defaultKeyStatistics,financialData,assetProfile` を付けて GET する。
+
+本リポジトリの `analysis/stocklib/data.py` はこの2経路を**第一手段**として実装し（`_fetch_one_yahoo_http` / `_fetch_info_http`）、失敗時のみ yfinance ライブラリにフォールバックする。これによりローカルでもエージェントプロキシ経由のリモート環境でも、同じコードで実データを取得できる。UA・crumb は Yahoo 側の仕様変更で無効化されうるため、取得が急に全滅したらまずこの経路の健全性を疑う。
+
 ## 情報サイト：株探・IRバンク等
 
 - **株探（かぶたん）**：決算速報の速さと「決算売買」文化の中心。プレミアム（有料）で過去25期以上の業績データ閲覧が可能（2025年時点）。

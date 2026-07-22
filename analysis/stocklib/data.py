@@ -1,8 +1,14 @@
 """データ取得モジュール。
 
-yfinance による株価取得（4桁コード・2024年以降の英字入りコード → ``.T`` 正規化、
-data/cache/ への CSV キャッシュ）と、
-ネットワーク不要の合成 OHLCV データ生成（GBM + ボラティリティクラスタ）を提供する。
+Yahoo Finance からの株価・基本情報取得（4桁コード・2024年以降の英字入りコード →
+``.T`` 正規化、data/cache/ への CSV キャッシュ）と、ネットワーク不要の合成 OHLCV
+データ生成（GBM + ボラティリティクラスタ）を提供する。
+
+Yahoo への取得は **標準 ``requests`` による API 直叩きを第一手段**とし（価格は
+chart API、基本情報は crumb 付き quoteSummary API）、失敗時のみ yfinance
+ライブラリにフォールバックする。yfinance 新版が使う curl_cffi のブラウザ偽装 TLS は、
+TLS を再終端するエージェントプロキシ環境で接続 reset されることがあるため、
+ライブラリに依存しない経路を優先することでリモート環境でも実データを取得できる。
 """
 
 from __future__ import annotations

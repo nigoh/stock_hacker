@@ -112,10 +112,12 @@ CRON_TZ=Asia/Tokyo
 - スケジュール: 平日夕方〜夜の cron 式（時刻基準が UTC かローカルかは環境設定を確認）。
 - 実行内容: 「Routine による自動実行である」ことをプロンプトに含めると、スキルの自動実行の扱い
   （RESULT 行での分岐・簡潔報告）が確実に適用される。
-- **注意: リモート環境では Yahoo Finance がプロキシで遮断されている場合がある**。その場合
-  `overnight_forecast.py` は exit 2 / `data=unavailable` で終了する（正しい挙動）。実データで
-  動かすには環境のネットワークポリシーで Yahoo Finance への到達を許可するか、方法1を使う。
-  `data=unavailable` のとき `--synthetic` で予想を作り直して市況風に見せることは禁止。
+- **リモート環境でも `stocklib.data` は標準 `requests` で Yahoo API を直叩きするため、多くの場合
+  そのまま実データを取得できる**（yfinance ライブラリの curl_cffi がプロキシで reset される問題を
+  回避する設計）。それでも Yahoo への到達が環境のネットワークポリシーで許可されていない場合は
+  `overnight_forecast.py` が exit 2 / `data=unavailable` で終了する（正しい挙動）。その場合は
+  ポリシーで Yahoo への到達を許可するか、方法1を使う。`data=unavailable` のとき `--synthetic` で
+  予想を作り直して市況風に見せることは禁止。
 
 ## 台帳（forecasts/ledger.csv）の扱い
 

@@ -8,7 +8,7 @@
 | 環境 | Yahoo Finance (yfinance) | J-Quants / EDINET | 備考 |
 |---|---|---|---|
 | (a) ユーザーのローカル | 到達可 | 到達可 | 自動実行の推奨環境 |
-| (b) Claude Code リモート環境 | **プロキシで遮断されることがある** | 到達可 | ネットワークポリシーで Yahoo Finance を許可すれば動作。J-Quants Free は12週間遅延（2025年時点）のため朝のシグナル検出の代替にはならない |
+| (b) Claude Code リモート環境 | **多くの場合到達可** | 到達可 | 価格・基本情報とも標準 `requests` による API 直叩き（`stocklib.data`）でエージェントプロキシ経由でも取得できる。ネットワークポリシーで Yahoo（`query1/2.finance.yahoo.com`）が許可されている必要はある。J-Quants Free は12週間遅延（2025年時点）のため朝のシグナル検出の代替にはならない |
 
 ## CLI の機械可読な契約（自動実行の土台）
 
@@ -107,7 +107,7 @@ Claude Code の Routine（スケジュールトリガー）で、**平日朝に�
 
 - スケジュール: 平日朝の cron 式（例: JST 8:30 = UTC 23:30 前日なので `30 23 * * 0-4`。Routine の時刻基準が UTC かローカルかは環境の設定を確認する）。
 - 実行内容: 新規セッションで `/brief` を実行するプロンプト。セッションは毎回まっさらな状態から始まるため、プロンプトには「Routine による自動実行である」ことを含めると、スキルの自動実行モード（RESULT 行での分岐・簡潔報告）が確実に適用される。
-- **注意: リモート環境では Yahoo Finance がプロキシで遮断されている場合がある**。その場合 `daily_brief.py` は exit 2 / `data=unavailable` で終了する（これは正しい挙動）。実データでブリーフを動かすには、環境のネットワークポリシーで Yahoo Finance（`query1.finance.yahoo.com` 等）への到達を許可するか、方法1（ローカル cron）を使う。
+- **注意: リモート環境でも `stocklib.data` は標準 `requests` で Yahoo API を直叩きするため、多くの場合そのまま実データを取得できる**（yfinance ライブラリの curl_cffi がプロキシで reset される問題を回避するための設計）。それでも Yahoo への到達自体が環境のネットワークポリシーで許可されていない場合は `daily_brief.py` が exit 2 / `data=unavailable` で終了する（これは正しい挙動）。その場合はポリシーで Yahoo（`query1/2.finance.yahoo.com`）への到達を許可するか、方法1（ローカル cron）を使う。
 - `data=unavailable` のとき、Routine 側のセッションが `--synthetic` で再実行して市況風のレポートを作ることは禁止（冒頭の大原則）。失敗の簡潔な報告のみ行う。
 
 ## 通知の考え方
