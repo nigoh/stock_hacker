@@ -281,10 +281,13 @@ def _fetch_one_yahoo_http(ticker: str, period: str, interval: str) -> pd.DataFra
     if period in _YAHOO_RANGES:
         params["range"] = period
     else:
-        # 未知の期間トークンは日数に換算して period1/period2（エポック秒）で指定する。
+        # 未知の期間トークンは period1/period2（エポック秒）で指定する。
+        # period_to_days は「営業日」概算を返すため（1y→252, 1mo→21）、暦日オフセットに
+        # 使うときは営業日→暦日（≈ ×7/5）に換算しないと取得窓が約5/7に縮む（過少取得）。
         span_days = period_to_days(period)
+        cal_days = int(span_days * 7 / 5) + 10  # 営業日→暦日 + 週末/祝日の余裕
         now = int(dt.datetime.now(dt.timezone.utc).timestamp())
-        params["period1"] = now - (span_days + 5) * 86400
+        params["period1"] = now - cal_days * 86400
         params["period2"] = now
 
     last_err: str = "unknown"
@@ -318,6 +321,10 @@ def _parse_yahoo_chart(payload: dict) -> pd.DataFrame | None:
 
     値が揃わない進行中バー（close が None）は除外する。``adjclose`` があれば
     OHLC を ``adjclose/close`` 倍して分割・配当調整済み系列に揃え、Close に adjclose を使う。
+
+    注意: ``Volume`` は無調整の生値を返す（``adjclose/close`` 倍率は分割と配当の両方を
+    含むため出来高にそのまま適用できない——配当落ちは出来高をスケールしないため）。
+    分割をまたぐ期間では価格は調整済み・出来高は未調整となる点に留意すること。
     """
     result = (payload.get("chart") or {}).get("result") or []
     if not result:
@@ -530,6 +537,14 @@ def fetch_info(code: str, *, synthetic: bool = False) -> dict[str, object]:
         value = raw.get(key)
         if value is not None:
             info[label] = value
+    # 配当利回りの単位を「比率」に統一する。Yahoo chart/quoteSummary の raw は比率
+    # （0.034=3.4%）だが、yfinance ライブラリ（フォールバック経路）は版により
+    # 百分率（3.4）を返すことがある。取得経路で単位が揺れると screen.py 等の下流
+    # （× 100 して%表示）が桁違いになるため、1 超なら百分率とみなして比率へ正規化する
+    # （現実の配当利回りが 100% を超えることはなく、閾値 1 で安全に判別できる）。
+    dy = info.get("配当利回り")
+    if isinstance(dy, (int, float)) and not isinstance(dy, bool) and dy > 1.0:
+        info["配当利回り"] = float(dy) / 100.0
     return info
 
 

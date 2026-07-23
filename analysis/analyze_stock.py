@@ -166,6 +166,20 @@ def _fmt_dividend_yield(value: object) -> str:
     return report.fmt_pct(v) if v <= 0.5 else f"{v:.2f}%"
 
 
+def _fmt_info_value(key: str, value: object) -> str:
+    """基本情報テーブルの値を項目に応じて整形する。
+
+    比率で返る指標（配当利回り・ROE）は ``%`` を付けて表示し、比率のまま単位なしで
+    出て誤読される（例: 配当利回り 0.0331 が「0.03」と見える）のを防ぐ。それ以外は
+    :func:`stocklib.report.fmt_num`（桁区切り）で整形する。
+    """
+    if key == "配当利回り":
+        return _fmt_dividend_yield(value)
+    if key == "ROE" and isinstance(value, (int, float)) and not isinstance(value, bool):
+        return report.fmt_pct(float(value))
+    return report.fmt_num(value)
+
+
 def _horizon_short_section(df: pd.DataFrame, atr14: pd.Series, rsi14: pd.Series) -> list[str]:
     """「短期の視点（〜数週間）」節を構築する。
 
@@ -442,7 +456,7 @@ def build_report(
         lines.append("")
         lines.append(report.markdown_table(
             ["項目", "値"],
-            [[k, report.fmt_num(v)] for k, v in info.items()],
+            [[k, _fmt_info_value(k, v)] for k, v in info.items()],
         ))
         lines.append("")
 

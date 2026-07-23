@@ -352,3 +352,36 @@ def test_resolve_universe_missing_code_column_raises(tmp_path: Path) -> None:
     csv.write_text("ticker\n7203\n", encoding="utf-8")
     with pytest.raises(ForecastError):
         overnight_forecast.resolve_universe(csv)
+
+
+# ---------------------------------------------------------------------------
+# バグ修正の回帰: 集計の real/synthetic 分離・grade_forecast の防御
+# ---------------------------------------------------------------------------
+
+def test_summarize_excludes_synthetic_by_default() -> None:
+    # real と synthetic の採点行が混在する台帳でも、既定(real)は real のみ集計する。
+    ledger = forecast.load_ledger(Path("/nonexistent/l.csv"))
+    real_fc = _forecast(code="7203", data="real")
+    synth_fc = _forecast(code="6758", data="synthetic")
+    ledger = forecast.upsert_forecast(ledger, real_fc, dt.date(2026, 6, 30))
+    ledger = forecast.upsert_forecast(ledger, synth_fc, dt.date(2026, 6, 30))
+    up = _future({"2026-06-30": 1000.0, "2026-07-01": 1010.0})
+    ledger = forecast.apply_grade(ledger, forecast.grade_forecast(real_fc, up), dt.date(2026, 7, 1))
+    ledger = forecast.apply_grade(ledger, forecast.grade_forecast(synth_fc, up), dt.date(2026, 7, 1))
+    assert forecast.summarize(ledger).n_graded == 1                 # 既定 real のみ
+    assert forecast.summarize(ledger, data="synthetic").n_graded == 1
+    assert forecast.summarize(ledger, data=None).n_graded == 2      # 全件
+
+
+def test_grade_forecast_handles_unsorted_and_tz_aware() -> None:
+    fc = _forecast()  # asof 2026-06-30, asof_close 1000
+    # 降順 index + tz-aware。旧バグ: iloc[0] が翌々日を誤採用 / tz比較で TypeError。
+    idx = pd.DatetimeIndex(
+        [pd.Timestamp("2026-07-02"), pd.Timestamp("2026-07-01"), pd.Timestamp("2026-06-30")],
+        tz="Asia/Tokyo",
+    )
+    future = pd.DataFrame({"Close": [1020.0, 1010.0, 1000.0]}, index=idx)
+    g = forecast.grade_forecast(fc, future)
+    assert g is not None
+    assert g.actual_date == dt.date(2026, 7, 1)   # 翌営業日（翌々日ではない）
+    assert g.actual_close == pytest.approx(1010.0)

@@ -98,23 +98,30 @@ def run_backtest(
     equity = (1.0 + strat_ret).cumprod()
     total_return = float(equity.iloc[-1] - 1.0) if len(equity) else float("nan")
 
-    active = strat_ret[exec_pos > 0]
+    entries = ((exec_pos == 1.0) & (exec_pos.shift(1).fillna(0.0) == 0.0))
+    n_trades = int(entries.sum())
+
+    # トレード区間 = 保有日 + 手仕舞い執行日。手仕舞い日（exec_pos が 1→0 に戻る日）は
+    # held=False だが往復コストの後半（イグジット分）がその日の strat_ret に載るため、
+    # 保有日だけで集計すると手仕舞いコストが脱落し、勝率・t統計量が楽観方向に偏る。
+    # そこで「保有日、または前日が保有日」を区間に含めて手仕舞いコストを巻き込む。
+    held = exec_pos == 1.0
+    span = held | held.shift(1, fill_value=False)  # 直後の手仕舞い執行日を含める
+
+    active = strat_ret[span]
     n = len(active)
     if n >= 2 and float(active.std()) > 0:
         t_stat = float(active.mean() / (active.std() / np.sqrt(n)))
     else:
         t_stat = float("nan")
 
-    entries = ((exec_pos == 1.0) & (exec_pos.shift(1).fillna(0.0) == 0.0))
-    n_trades = int(entries.sum())
-
-    # トレード単位の損益: 保有区間ごとに複利リターンを計算
+    # トレード単位の損益: 区間ごとに複利リターンを計算（trade_id は手仕舞い日にも
+    # 直前トレードの id が残る＝entries は手仕舞い日に発火しないため、span に直接使える）。
     trade_id = entries.cumsum()
-    held = exec_pos == 1.0
     win_rate = float("nan")
     if n_trades > 0:
         trade_rets = (
-            (1.0 + strat_ret[held]).groupby(trade_id[held]).prod() - 1.0
+            (1.0 + strat_ret[span]).groupby(trade_id[span]).prod() - 1.0
         )
         win_rate = float((trade_rets > 0).mean())
 

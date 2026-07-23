@@ -146,12 +146,13 @@ def main(argv: list[str] | None = None) -> int:
         except DataFetchError as exc:
             errors.append(f"{code}: {exc}")
 
-    if len(prices) < 2:
+    if len(prices) < 2 and not args.synthetic:
+        # 実データ全滅のみ発火（合成は取得失敗しないため、薄い入力では落とさない）。
         print("エラー: ペア評価には最低2銘柄の実データが必要ですが取得できませんでした。"
               "Yahoo への到達性を確認してください。", file=sys.stderr)
         for e in errors:
             print(f"  {e}", file=sys.stderr)
-        print(f"RESULT pairs=0 mean_reverting=0 data=unavailable")
+        print("RESULT pairs=0 mean_reverting=0 data=unavailable")
         return 2
 
     results = pairs.find_pairs(

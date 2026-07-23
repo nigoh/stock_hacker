@@ -282,9 +282,10 @@ def _grade_report(
         lines.append("（翌営業日の実績が揃った未採点予想はありませんでした）")
         lines.append("")
 
-    summary = forecast.summarize(ledger)
+    # 実行モード（real/synthetic）と同じ data の採点行のみを集計する（混在防止）。
+    summary = forecast.summarize(ledger, data="synthetic" if synthetic else "real")
     if summary.n_graded:
-        lines.append("## 累積成績（台帳の採点済み全件）")
+        lines.append(f"## 累積成績（採点済み全件・{'合成' if synthetic else '実データ'}）")
         lines.append("")
         lines.append(_summary_lines(summary))
         lines.append("")

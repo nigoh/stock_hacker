@@ -260,3 +260,23 @@ def test_new_strategies_run_backtest_end_to_end() -> None:
         result = run_backtest(prices, sig, cost_bps=10.0)
         assert isinstance(result, BacktestResult)
         assert result.n_days > 0
+
+
+def test_win_rate_includes_exit_cost() -> None:
+    # 往復コスト(0.8%)が粗利(0.5%)を上回るトレードは、コスト後は負け＝勝率0であるべき。
+    # 旧バグ: 手仕舞い日コストがトレード集計から脱落し勝率1.0（勝ち）と誤計上していた。
+    prices = _series([100.0, 100.0, 100.5, 100.5, 100.5])
+    positions = pd.Series([0.0, 1.0, 0.0, 0.0, 0.0], index=prices.index)
+    result = run_backtest(prices, positions, cost_bps=40.0)  # 片道0.4%＝往復0.8%
+    assert result.n_trades == 1
+    assert result.total_return < 0            # コスト後は損失
+    assert result.win_rate == pytest.approx(0.0)  # 負けトレードは勝率に数えない
+
+
+def test_win_rate_unaffected_without_cost() -> None:
+    # コスト0なら手仕舞い日の strat_ret=0 で従来どおり（回帰: 2トレード0.5）。
+    prices = _series([100.0, 100.0, 110.0, 110.0, 100.0, 100.0, 90.0, 90.0])
+    positions = pd.Series([1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0], index=prices.index)
+    result = run_backtest(prices, positions, cost_bps=0.0)
+    assert result.n_trades == 2
+    assert result.win_rate == pytest.approx(0.5)
