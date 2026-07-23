@@ -28,7 +28,7 @@ stock_hacker/
 │   ├── data-sources/      # データソース・API・ツール
 │   └── strategies/        # 投資戦略・ファクター・イベントドリブン
 ├── analysis/              # 分析コード（Python 3.11+）
-│   ├── stocklib/          # 共通ライブラリ（data/indicators/metrics/backtest/report/portfolio/signals/charts/edinet/fundamentals/jquants/journal/adr/currency/planning/income/performance/forecast/breadth/relative/pairs/events）
+│   ├── stocklib/          # 共通ライブラリ（data/indicators/metrics/backtest/report/portfolio/signals/charts/edinet/fundamentals/jquants/journal/adr/currency/planning/income/performance/forecast/breadth/relative/sector/pairs/events）
 │   ├── analyze_stock.py   # CLI: 個別銘柄の総合分析
 │   ├── screen.py          # CLI: 銘柄スクリーニング
 │   ├── compare.py         # CLI: 複数銘柄の相対比較・相関
@@ -37,6 +37,7 @@ stock_hacker/
 │   ├── daily_brief.py     # CLI: 市況+ウォッチリストのデイリーブリーフ
 │   ├── market_breadth.py  # CLI: 市場ブレッシュ（ユニバースの%>SMA・騰落数・騰落レシオ25・新高値安値）
 │   ├── relative_strength.py # CLI: 相対強度(RS)ランキング＆セクター相対バリュエーション（ユニバース横断）
+│   ├── sector_rotation.py # CLI: セクターローテーション（セクター別モメンタムの中央値集約→順位・セクター内ブレッシュ）
 │   ├── pairs_screen.py    # CLI: ペアトレード共和分スクリーナ（対数価格の連動・スプレッド平均回帰の検定）
 │   ├── catalyst_radar.py  # CLI: カタリスト・レーダー（直近の決算発表・配当落ち予定を接近順に）
 │   ├── fundamentals_report.py # CLI: 業績推移・決算分析
@@ -81,6 +82,7 @@ stock_hacker/
 | デイリーブリーフ | `python3 analysis/daily_brief.py --watchlist data/watchlist.csv` | 市況サマリー+ウォッチ銘柄シグナル（`reports/brief-...`） |
 | 市場ブレッシュ | `python3 analysis/market_breadth.py`（既定 liquid30。`--universe CSV` で任意ユニバース） | ユニバース全体の内部状態（移動平均超の銘柄割合 SMA25/75/200・前日比の騰落数・騰落レシオ25日・52週新高値/新安値）を集計したレポート（`reports/breadth-...`。指数の水準だけでは見えない上昇の裾野の広狭を測る。RESULT 行・exit code の自動実行契約あり。機械的な内部状態の記述で将来予測ではない旨の注記付き） |
 | 相対強度・相対バリュエーション | `python3 analysis/relative_strength.py`（既定 liquid30。`--top N` / `--no-valuation` / `--universe CSV`） | ユニバース横断で、RS ランク（3/6/9/12ヶ月モメンタムの加重合成→パーセンタイル1〜99）の上位/下位と、各銘柄の PER/PBR の同セクター中央値に対する乖離（相対割安/割高）を集計したレポート（`reports/relative-...`。クロスセクションの機械的比較で将来予測でも助言でもない旨の注記付き。RESULT 行・exit code の自動実行契約あり） |
+| セクターローテーション | `python3 analysis/sector_rotation.py`（既定 large70。`--universe CSV` で任意ユニバース） | ユニバース各銘柄の複数期間モメンタム（1/3/6/12ヶ月）をセクター単位に中央値で集約し、代表窓（3ヶ月）で相対強度順にランキング（リーダー/ラガード）＋セクター内ブレッシュ（終値>SMA50 の割合）を集計したレポート（`reports/sector-...`。クロスセクションの機械的な相対比較で将来の騰落予測でも投資助言でもない旨・セクター分類はユニバースCSV由来・少数銘柄セクターの不安定さの注記付き。RESULT 行・exit code の自動実行契約あり） |
 | ペアトレード候補スクリーニング | `python3 analysis/pairs_screen.py`（既定 liquid30。`--same-sector` / `--top N` / `--universe CSV`） | ユニバースの全ペアについて、対数価格のヘッジ比β・スプレッドの Dickey-Fuller 統計量（平均回帰の強さ）・OU 半減期・現在の z スコアを算出し、平均回帰の強い順に候補を並べたレポート（`reports/pairs-...`。numpy のみで実装。インサンプル統計・多重比較の偽陽性・空売りコストの注意付き。将来予測でも助言でもない。RESULT 行・exit code の自動実行契約あり） |
 | カタリスト・レーダー | `python3 analysis/catalyst_radar.py`（既定 watchlist→liquid30。`--within N` / `--universe CSV`） | 各銘柄の次の決算発表日・配当落ち日（Yahoo カレンダー）を取得し、指定日数以内に到来するイベントを接近順に並べたレポート（`reports/catalyst-...`。決算後ドリフト PEAD・権利落ちの起点把握用。予定は取得日時点のもので変更されうる・確定でない・助言でない旨の注記付き。RESULT 行・exit code の自動実行契約あり） |
 | 業績・決算分析 | `python3 analysis/fundamentals_report.py 7203 --years 5` | 売上/利益推移・CAGR・マージンのレポート（`reports/fundamentals-...`） |
