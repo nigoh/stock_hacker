@@ -305,7 +305,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
         border: 1px solid var(--hair); border-radius: 3px; overflow: hidden; }
 .loop-step { background: var(--bg); padding: 14px 14px 12px; }
 .loop-step .n { font-size: 10.5px; letter-spacing: 0.14em; color: var(--green); }
-.loop-step h4 { font-size: 13px; color: var(--ink-strong); margin: 8px 0 5px; }
+.loop-step h3 { font-size: 13px; color: var(--ink-strong); margin: 8px 0 5px; }
 .loop-step p { font-size: 12px; color: var(--dim); margin: 0; line-height: 1.55; }
 
 /* --- 目次 ---------------------------------------------------------------- */

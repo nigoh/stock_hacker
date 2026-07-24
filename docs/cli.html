@@ -109,6 +109,15 @@
         オプションの完全な一覧は各 CLI の <code>--help</code> が正です。
       </p>
 
+      <div class="callout">
+        <span class="micro">ユニバースの偏り（生存者バイアス）</span>
+        同梱の <code>liquid30.csv</code>（2025年時点）・<code>large70.csv</code>（2026年時点、69銘柄）は、
+        <strong>その時点で上場・存続していた大型高流動性銘柄を後から選んだリスト</strong>です。
+        上場廃止・経営破綻した銘柄を含まないため、過去に遡る集計（バックテスト・ブレッシュ・季節性・ペア・相対強度）は
+        <strong>生存者バイアスで実力より良く出ます</strong>。また小型株・新興株の挙動は代表していません。
+        詳細は <a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/math/backtesting-and-statistics.md">backtesting-and-statistics.md</a>。
+      </div>
+
       <div class="grid grid-2">
         <div class="cell">
           <span class="call">Input · 銘柄コード</span>
@@ -219,7 +228,7 @@
           <button class="tab" type="button" data-filter-tab="cli" data-value="forecast" aria-pressed="false">予想と記録</button>
           <button class="tab" type="button" data-filter-tab="cli" data-value="data" aria-pressed="false">データ基盤</button>
         </div>
-        <span class="micro"><span data-filter-count="cli"></span> 件</span>
+        <span class="micro"><span data-filter-count="cli">22</span> 件</span>
       </div>
 
       <div class="scroll">
@@ -447,7 +456,7 @@
 
         <dt id="relative_strength">relative_strength.py</dt>
         <dd>
-          ユニバースの中で相対的に強い／割安な銘柄をクロスセクションで順位づけします。
+          ユニバースの中で相対的に強い銘柄と、同セクター中央値に対して倍率の低い銘柄をクロスセクションで順位づけします。
           3/6/9/12ヶ月モメンタムの加重合成を 1〜99 のパーセンタイル（RS ランク）にし、
           あわせて各銘柄の PER/PBR の同セクター中央値に対する乖離を出します。
 <pre><code><span class="g">$</span> python3 analysis/relative_strength.py --top 10
@@ -481,7 +490,7 @@
         <dd>
           東証の現地株・米国 ADR・ドル円の3つを突き合わせ、乖離を機械的に測ります。
           理論 ADR 価格 = 東証終値 × ADR比率 ÷ ドル円、乖離% = ADR終値 / 理論値 − 1、
-          円換算 ADR 価格 = ADR終値 × ドル円 ÷ ADR比率（翌朝の寄り付き水準の目安）を並べます。
+          円換算 ADR 価格 = ADR終値 × ドル円 ÷ ADR比率（東京閉場後に米国市場で付いた価格の情報（翌朝の始値を予測する値ではない））を並べます。
 <pre><code><span class="g">$</span> python3 analysis/adr_parity.py <span class="a">7203</span>
 <span class="g">$</span> python3 analysis/adr_parity.py --all      <span class="c"># adr_map.csv の全銘柄</span></code></pre>
           <span class="note">位置引数 <code>codes</code>（0個以上。<code>analysis/universe/adr_map.csv</code> に登録済みの銘柄のみ）。<code>--all</code>（対応表の全銘柄）、<code>--period</code>（既定 1mo。直近終値のみ使用）、<code>--synthetic</code>、<code>--source</code>。</span>
@@ -665,7 +674,7 @@
 <span class="g">$</span> python3 analysis/screen.py --universe <span class="a">data/universe/jquants-all.csv</span> --rsi-below 30</code></pre>
           <span class="note"><code>--out</code>（出力先 CSV、既定 <code>data/universe/jquants-all.csv</code>。<code>data/</code> は gitignore 範囲でディレクトリは自動作成）、<code>--market</code>（市場区分名の部分一致。例 プライム / スタンダード / グロース）、<code>--sector33</code>（33業種名の部分一致。例 銀行 / 電気機器 / 医薬品）、<code>--exclude-etf-reit</code> / <code>--no-exclude-etf-reit</code>（既定 ON。33業種・市場区分が「その他」の ETF・REIT 等を除外）、<code>--date</code>（銘柄一覧の基準日 YYYY-MM-DD。省略時は最新）。</span>
           <span class="note"><strong>環境変数 <code>JQUANTS_API_KEY</code> が必須</strong>（V2・APIキー方式・無期限、2026年時点）。未設定・無効時は <code>JQuantsAuthError</code> が導入手順つきのメッセージを出します。<code>--synthetic</code> も <code>--source</code> もありません。</span>
-          <span class="note">J-Quants の5桁コードは予備桁が <code>0</code> のものだけ4桁化でき、優先株等はスキップして件数が stdout に報告されます。無料プランの銘柄一覧・株価は12週間遅延（2025年時点）。全銘柄の価格取得は yfinance 経由になるため、小型株ではデータ品質と所要時間に注意します（<a href="./knowledge.html">Knowledge</a> の data-sources 分野を参照）。</span>
+          <span class="note">J-Quants の5桁コードは予備桁が <code>0</code> のものだけ4桁化でき、優先株等はスキップして件数が stdout に報告されます。無料プランの銘柄一覧・株価は12週間遅延（2026年時点）。全銘柄の価格取得は yfinance 経由になるため、小型株ではデータ品質と所要時間に注意します（<a href="./knowledge.html">Knowledge</a> の data-sources 分野を参照）。</span>
         </dd>
 
       </dl>

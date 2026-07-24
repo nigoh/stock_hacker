@@ -46,7 +46,7 @@
           <span class="shell-dot" aria-hidden="true"></span>
           <span class="shell-dot" aria-hidden="true"></span>
           <span class="shell-dot" aria-hidden="true"></span>
-          <span class="shell-title">~/stock_hacker — overnight forecast</span>
+          <span class="shell-title">~/stock_hacker — overnight forecast（出力形式の例示）</span>
         </div>
         <div class="shell-body">
 <pre><span class="prompt"><span class="user">analyst</span>@tokyo:<span class="path">~/stock_hacker</span>$</span> <span class="cmd">python3 analysis/overnight_forecast.py run</span>
@@ -58,6 +58,7 @@
 
 <span class="prompt"><span class="user">analyst</span>@tokyo:<span class="path">~/stock_hacker</span>$</span> <span class="caret" aria-hidden="true"></span></pre>
         </div>
+        <p class="micro" style="padding:10px 16px;margin:0">上は出力形式の例示であり、特定の実行ログではありません。実際の実行結果は <code>forecasts/ledger.csv</code> と <code>reports/</code> に残ります。</p>
       </div>
 
       <div style="margin-top:32px">
@@ -71,7 +72,7 @@
         </p>
       </div>
 
-      <div class="toc" style="margin-top:26px">
+      <nav class="toc" style="margin-top:26px" aria-label="このページの目次">
         <span class="micro">On this page</span>
         <ul>
           <li><a href="#why">なぜ答え合わせなのか</a></li>
@@ -84,7 +85,7 @@
           <li><a href="#automation">自動運用</a></li>
           <li><a href="#limits">限界</a></li>
         </ul>
-      </div>
+      </nav>
     </div>
   </section>
 
@@ -121,23 +122,23 @@
       <h2>閉ループ</h2>
       <div class="loop">
         <div class="loop-step">
-          <span class="n">01</span><h4>予想</h4>
+          <span class="n">01</span><h3>予想</h3>
           <p><code>forecast</code> がユニバース各銘柄の方向・上昇確率・予想レンジを固定ルールで生成する。</p>
         </div>
         <div class="loop-step">
-          <span class="n">02</span><h4>記録</h4>
+          <span class="n">02</span><h3>記録</h3>
           <p><code>forecasts/ledger.csv</code> に <code>status=pending</code> の行として upsert される（git 管理対象）。</p>
         </div>
         <div class="loop-step">
-          <span class="n">03</span><h4>答え合わせ</h4>
+          <span class="n">03</span><h3>答え合わせ</h3>
           <p><code>grade</code> が asof より後の最初の実データ日の終値で採点し、同じ行を <code>graded</code> に更新する。</p>
         </div>
         <div class="loop-step">
-          <span class="n">04</span><h4>測定</h4>
+          <span class="n">04</span><h3>測定</h3>
           <p><code>calibration</code> が台帳から方向的中率・Brier・較正表・銘柄別成績を集計する。</p>
         </div>
         <div class="loop-step">
-          <span class="n">05</span><h4>改善</h4>
+          <span class="n">05</span><h3>改善</h3>
           <p>測定に根拠がある場合だけ手法を直す。少数標本では動かさない。</p>
         </div>
       </div>
@@ -291,7 +292,7 @@ confidence = |s|                                            <span class="c"># �
       <h2>台帳（forecasts/ledger.csv）</h2>
       <p>
         1行 = 1銘柄・1営業日ぶんの予想と採点結果。列の定義は <code>forecast.py</code> の
-        <code>LEDGER_COLUMNS</code>（全27列。前半18列が予想時に、後半9列が採点時に埋まる）が正です。
+        <code>LEDGER_COLUMNS</code>（全27列。前半18列が予想時に、後半9列が採点時に埋まる（うち <code>status</code> だけは予想時に <code>pending</code> として書かれ、採点時に <code>graded</code> へ更新される））が正です。
         台帳は <strong>git 管理対象</strong>で、コミットのたびに track record が積み上がります。
       </p>
       <div class="scroll">
@@ -341,6 +342,16 @@ confidence = |s|                                            <span class="c"># �
           <h3>合成予想は実データで採点しない</h3>
           <p><code>--synthetic</code> で作った予想は <code>data=synthetic</code> と記録され、実データの実績とは採点されません。集計（<code>summarize</code> / <code>calibration_table</code>）も既定で <code>data=real</code> のみを対象にし、実績成績に合成が混ざらないようにしています。</p>
         </div>
+      </div>
+      <div class="callout red">
+        <span class="micro">場中に実行しないこと（成績が痕跡なく書き換わる）</span>
+        <code>forecast</code> は取得系列の<strong>末尾の足</strong>を asof とするため、大引け前に回すと
+        <strong>未確定の当日バー</strong>を基準に予想を作り、暫定値のまま採点してしまいます。
+        さらに upsert は同一 asof の行を<strong>採点済みでも上書き</strong>するので、確定後に再実行すると
+        台帳の成績が痕跡を残さず書き換わります。実行は<strong>当日終値が確定してから</strong>
+        （15:30 以降。2024年11月の立会時間延長後、2026年時点）に限ってください。
+        暫定値で採点した集計を先に公開してしまった場合は、確定後に再採点した旨と差分を明記すること
+        （このページの「現在の記録」がまさにその例です）。
       </div>
       <p>
         書式の詳細は <a href="https://github.com/nigoh/stock_hacker/blob/main/forecasts/README.md">forecasts/README.md</a>。
@@ -395,16 +406,23 @@ confidence = |s|                                            <span class="c"># �
       <h2>現在の記録</h2>
       <p>
         現時点で採点済みの実データは<strong>1営業日ぶんだけ</strong>です。
-        2026-07-23 の終値を基準（asof）に31銘柄の予想を生成し、2026-07-24 の実績終値で採点しました。
-        データ出所は yfinance、ユニバースは liquid30 を中心とする31銘柄です。
+        2026-07-23 の終値を基準（asof）に31銘柄の予想を生成し、2026-07-24 の確定終値で採点しました。
+        データ出所は yfinance、ユニバースは <strong>liquid30（30銘柄）に 4419 Finatext を加えた31銘柄</strong>
+        （<code>analysis/universe/forecast31.csv</code>）です。4419 だけは小型グロースで他30銘柄と性格が異なる点は、
+        少数標本の解釈時に留意してください。
       </p>
+      <div class="callout green">
+        <span class="micro">再現できます</span>
+        以下の数値は <code>forecasts/ledger.csv</code> の asof=2026-07-23 の31行から、
+        <code>python3 analysis/overnight_forecast.py calibration</code> を実行して<strong>そのまま再現できます</strong>。
+        台帳・ユニバースともリポジトリにコミットしてあります。
+      </div>
 
       <div class="stats" style="margin-bottom:22px">
-        <div class="stat"><span class="n">31</span><span class="k">採点済み件数</span></div>
-        <div class="stat"><span class="n">50.0%</span><span class="k">方向的中率 (14/28)</span></div>
-        <div class="stat"><span class="n">0.2953</span><span class="k">平均 Brier</span></div>
-        <div class="stat"><span class="n">0.25</span><span class="k">無情報 Brier 基準</span></div>
-        <div class="stat"><span class="n">1</span><span class="k">営業日ぶん</span></div>
+        <div class="stat"><span class="n">31</span><span class="k">採点済み件数（1営業日ぶん・結論不可）</span></div>
+        <div class="stat"><span class="n">50.0%</span><span class="k">方向的中率 14/28 ＝ コイン投げ水準</span></div>
+        <div class="stat"><span class="n">0.2953</span><span class="k">平均 Brier（低いほど良い）</span></div>
+        <div class="stat"><span class="n">0.25</span><span class="k">無情報基準 — これを上回った＝無情報以下</span></div>
       </div>
 
       <div class="callout red">
@@ -457,11 +475,15 @@ confidence = |s|                                            <span class="c"># �
         重みを動かすのは台帳が積み上がってからです。現時点で言えるのは「そういう外れ方をした日があった」という事実だけです。
       </p>
       <div class="callout">
-        <span class="micro">数値の出所</span>
-        上記は台帳の採点結果を <code>overnight_forecast.py calibration</code> と同じ定義で集計した値で、
-        2026-07-24 の<strong>確定終値</strong>で再採点しています（場中の暫定値で採点した速報とは小数点以下がずれます）。
-        台帳は営業日ごとに積み上がるため、この数字は最新の集計コマンドの出力と一致しないことがあります。
-        最新値は手元で <code>python3 analysis/overnight_forecast.py calibration</code> を実行して確認してください。
+        <span class="micro">数値の出所と、採点タイミングによる差</span>
+        上記は 2026-07-24 の<strong>確定終値</strong>で採点した結果です
+        （<code>forecasts/ledger.csv</code> の asof=2026-07-23 の31行、<code>calibration</code> と同じ定義）。
+        同日<strong>場中</strong>（13:20 JST 時点）の暫定値で採点した速報とは、
+        レンジ的中率 74.2%（23/31）→ <strong>80.6%（25/31）</strong>、平均 Brier 0.3067 → <strong>0.2953</strong>、
+        MAE 2.14% → 2.06%、当日の騰落銘柄数 12/19 → 10/21 と、<strong>指標の読みが変わりうる幅で動いています</strong>
+        （方向的中率 50.0% だけは変わりませんでした）。
+        1営業日・31件の標本では、採点に使う終値スナップショットの違いだけでこの程度動く——これもここから読み取れる事実です。
+        台帳は営業日ごとに積み上がるため、この数字は最新の集計出力と一致しないことがあります。
       </div>
     </div>
   </section>
