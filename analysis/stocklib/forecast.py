@@ -417,6 +417,10 @@ def apply_grade(ledger: pd.DataFrame, grade: GradeResult, graded_on: dt.date) ->
         "brier": round(grade.brier, 6),
     }
     for col, val in updates.items():
+        # 採点列が全 pending の初回採点では NA 列が float64 と推論され、
+        # 文字列/真偽値の代入が TypeError になる。object へ昇格してから代入する。
+        if isinstance(val, (str, bool)) and ledger[col].dtype != object:
+            ledger[col] = ledger[col].astype(object)
         ledger.loc[mask, col] = val
     return ledger
 
