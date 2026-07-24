@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>stock_hacker — 日本株 総合分析環境</title>
+<meta name="description" content="日本株（東証上場株式）の分析を一手に担う開発環境。90文書のナレッジベース、22の分析CLI、Claude Code のスキル/エージェントを備え、予想と答え合わせを台帳に蓄積する。">
+<link rel="stylesheet" href="./assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230B0E0C'/%3E%3Ctext x='2' y='12' font-family='monospace' font-size='11' fill='%236EE7A0'%3E%24%3C/text%3E%3C/svg%3E">
+<script>
+  /* テーマのちらつき防止: 描画前に保存済みテーマを適用する */
+  (function () {
+    try {
+      var t = localStorage.getItem("stock_hacker.theme");
+      if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+    } catch (e) {}
+  })();
+</script>
+</head>
+<body>
+<a class="skip" href="#main">本文へスキップ</a>
+
+<header class="topbar">
+  <div class="col-wide topbar-inner">
+    <div class="brand"><a href="./index.html">stock_hacker</a><span class="cursor">_</span></div>
+    <nav class="nav" aria-label="サイト">
+      <a href="./index.html" aria-current="page">Home</a>
+      <a href="./getting-started.html">Start</a>
+      <a href="./cli.html">CLI</a>
+      <a href="./knowledge.html">Knowledge</a>
+      <a href="./skills.html">Skills</a>
+      <a href="./forecast.html">Forecast</a>
+      <a href="https://github.com/nigoh/stock_hacker">GitHub ↗</a>
+    </nav>
+    <button class="toggle" type="button" data-theme-toggle>◐ light</button>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ヒーロー: 端末セッション -->
+  <section class="hero">
+    <div class="col-wide">
+      <div class="shell">
+        <div class="shell-head">
+          <span class="shell-dot" aria-hidden="true"></span>
+          <span class="shell-dot" aria-hidden="true"></span>
+          <span class="shell-dot" aria-hidden="true"></span>
+          <span class="shell-title">~/stock_hacker — 日本株 総合分析環境</span>
+        </div>
+        <div class="shell-body">
+<pre><span class="prompt"><span class="user">analyst</span>@tokyo:<span class="path">~/stock_hacker</span>$</span> <span class="cmd">python3 analysis/analyze_stock.py 7203 --horizon mid</span>
+<span class="c">→ reports/analyze-7203-mid-2026-07-24.md</span>
+
+<span class="prompt"><span class="user">analyst</span>@tokyo:<span class="path">~/stock_hacker</span>$</span> <span class="cmd">python3 analysis/overnight_forecast.py run</span>
+<span class="c">→ 前回予想を採点 → 翌営業日を予想 → forecasts/ledger.csv に蓄積</span>
+
+<span class="prompt"><span class="user">analyst</span>@tokyo:<span class="path">~/stock_hacker</span>$</span> <span class="caret" aria-hidden="true"></span></pre>
+        </div>
+      </div>
+
+      <div style="margin-top:32px">
+        <span class="micro">日本株 / 東証上場株式 · オープンソース</span>
+        <h1 class="page-title">分析し、記録し、答え合わせをして、手法を醸成する。</h1>
+        <p class="lede">
+          stock_hacker は日本株の分析を一手に担う開発環境です。ナレッジベースを土台に、
+          分析ライブラリと CLI、Claude Code のスキル / サブエージェントを備え、
+          <strong>出した予想を必ず後から採点して台帳に貯める</strong>ことで、
+          手法そのものを検証可能に保ちます。
+        </p>
+      </div>
+
+      <div class="stats" style="margin-top:26px">
+        <div class="stat"><span class="n">90</span><span class="k">ナレッジ文書</span></div>
+        <div class="stat"><span class="n">22</span><span class="k">分析 CLI</span></div>
+        <div class="stat"><span class="n">25</span><span class="k">stocklib モジュール</span></div>
+        <div class="stat"><span class="n">18</span><span class="k">スキル</span></div>
+        <div class="stat"><span class="n">4</span><span class="k">エージェント</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3本柱 -->
+  <section class="section">
+    <div class="col-wide">
+      <span class="micro">Overview</span>
+      <h2>3つの層でできている</h2>
+      <div class="grid grid-3">
+        <div class="cell">
+          <span class="call">Layer 01 · knowledge</span>
+          <h3>ナレッジベース</h3>
+          <p>市場制度・歴史・クオンツ数学・ファンダメンタル・テクニカル・マクロ・デリバティブ・規制税制・データソース・戦略の10分野、90文書。分析の判断枠組みをコードの外に持つ。</p>
+        </div>
+        <div class="cell">
+          <span class="call">Layer 02 · analysis</span>
+          <h3>分析ライブラリと CLI</h3>
+          <p>共通ライブラリ <code>stocklib</code> の上に22の CLI。個別分析・スクリーニング・バックテスト・ポートフォリオ・リスク・季節性・ペア・夜間フォーキャストまで、結果は Markdown レポートで残る。</p>
+        </div>
+        <div class="cell">
+          <span class="call">Layer 03 · agent</span>
+          <h3>スキルとエージェント</h3>
+          <p>Claude Code のスキル18種・スラッシュコマンド20種・サブエージェント4種。<code>/analyze 7203</code> のように自然言語から分析を起動し、成果物は品質ゲートに通す。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 閉ループ -->
+  <section class="section">
+    <div class="col-wide">
+      <span class="micro">Closed loop</span>
+      <h2>予想を出しっぱなしにしない</h2>
+      <p class="lede" style="margin-bottom:20px">
+        この環境の中心にあるのは、予想を出して終わりにしない閉ループです。
+        機械予想は必ず翌営業日の実績で採点され、台帳に蓄積され、的中率・Brier スコア・
+        較正として測定されます。良し悪しは主観ではなく記録が決めます。
+      </p>
+      <div class="loop">
+        <div class="loop-step"><span class="n">01</span><h4>予想</h4><p>翌営業日の方向・上昇確率・予想レンジを固定ルールで機械的に生成する。</p></div>
+        <div class="loop-step"><span class="n">02</span><h4>記録</h4><p><code>forecasts/ledger.csv</code> と <code>journal/</code> に、根拠と反証条件つきで残す。</p></div>
+        <div class="loop-step"><span class="n">03</span><h4>答え合わせ</h4><p>翌日の実績終値で採点。方向的中・レンジ的中・Brier を自動で埋める。</p></div>
+        <div class="loop-step"><span class="n">04</span><h4>測定</h4><p>蓄積した台帳から的中率・較正曲線・銘柄別成績を集計する。</p></div>
+        <div class="loop-step"><span class="n">05</span><h4>改善</h4><p>測定結果を根拠に手法を直す。少数標本では過剰反応しない。</p></div>
+      </div>
+      <p style="margin-top:16px"><a href="./forecast.html">夜間フォーキャストの詳細 →</a></p>
+    </div>
+  </section>
+
+  <!-- クイックスタート -->
+  <section class="section">
+    <div class="col-wide">
+      <span class="micro">Quick start</span>
+      <h2>3分で動かす</h2>
+<pre><code><span class="c"># 1. 取得して依存を入れる</span>
+<span class="g">$</span> git clone https://github.com/nigoh/stock_hacker.git
+<span class="g">$</span> cd stock_hacker
+<span class="g">$</span> pip install -r requirements.txt
+
+<span class="c"># 2. 個別銘柄を分析する（7203 = トヨタ自動車）</span>
+<span class="g">$</span> python3 analysis/analyze_stock.py <span class="a">7203</span> --period 2y --benchmark ^N225
+
+<span class="c"># 3. ネットワークが使えない場合は合成データで手法デモ</span>
+<span class="g">$</span> python3 analysis/analyze_stock.py <span class="a">7203</span> --synthetic</code></pre>
+      <div class="callout">
+        <span class="micro">合成データの扱い</span>
+        <code>--synthetic</code> はネットワーク不要で全機能を動かすための合成価格データです。
+        これで作ったレポートは<strong>手法のデモであり実データではない</strong>ことを必ず明記します。
+        実データが取れないときに合成データで「今日の市況」を装うことは、この環境では禁止事項です。
+      </div>
+      <p><a href="./getting-started.html">セットアップと使い方の詳細 →</a></p>
+    </div>
+  </section>
+
+  <!-- ドキュメント案内 -->
+  <section class="section">
+    <div class="col-wide">
+      <span class="micro">Documentation</span>
+      <h2>どこから読むか</h2>
+      <dl class="manpage">
+        <dt><a href="./getting-started.html">getting-started</a></dt>
+        <dd>導入・データソース設定・最初の分析まで。<span class="note">まずここ。J-Quants / EDINET の任意設定もここで扱う。</span></dd>
+        <dt><a href="./cli.html">cli</a></dt>
+        <dd>22の分析 CLI のリファレンス。<span class="note">目的から引く索引と、共通オプション（--period / --synthetic / --source / --in-currency）。</span></dd>
+        <dt><a href="./knowledge.html">knowledge</a></dt>
+        <dd>90文書のナレッジベース索引。<span class="note">10分野。分析の判断枠組みと、数式つきの理論。</span></dd>
+        <dt><a href="./skills.html">skills</a></dt>
+        <dd>Claude Code のスキル18・コマンド20・サブエージェント4。<span class="note">自然言語から分析を起動する層。</span></dd>
+        <dt><a href="./forecast.html">forecast</a></dt>
+        <dd>夜間フォーキャストの設計と運用。<span class="note">予想モデル・採点・較正・自動実行の契約。</span></dd>
+      </dl>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="col-wide">
+    <p class="disclaimer">
+      <strong>免責</strong>：本環境および本サイトの出力は<strong>投資助言ではなく分析支援</strong>です。
+      掲載する指標・予想・レポートは機械的な集計と再現可能なベースラインであり、
+      将来の騰落を断定するものではありません。投資判断はご自身の責任で行ってください。
+    </p>
+    <div class="foot-links">
+      <a href="https://github.com/nigoh/stock_hacker">GitHub リポジトリ ↗</a>
+      <a href="./cli.html">CLI リファレンス</a>
+      <a href="./knowledge.html">ナレッジベース</a>
+    </div>
+    <p style="margin-top:14px">
+      データソースは yfinance（非公式 API）および J-Quants（任意設定）。
+      価格データの分割・配当調整には不備が起こりうるため、異常な騰落を見たらまずデータ品質を疑うこと。
+    </p>
+  </div>
+</footer>
+
+<script src="./assets/site.js"></script>
+</body>
+</html>

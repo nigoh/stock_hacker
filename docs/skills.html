@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skills — stock_hacker</title>
+<meta name="description" content="stock_hacker の Claude Code 層。スキル18・スラッシュコマンド20・サブエージェント4・hooks 3 の一覧と使い分け。自然言語から分析 CLI を起動し、規約を仕組みで守る。">
+<link rel="stylesheet" href="./assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230B0E0C'/%3E%3Ctext x='2' y='12' font-family='monospace' font-size='11' fill='%236EE7A0'%3E%24%3C/text%3E%3C/svg%3E">
+<script>
+  /* テーマのちらつき防止: 描画前に保存済みテーマを適用する */
+  (function () {
+    try {
+      var t = localStorage.getItem("stock_hacker.theme");
+      if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+    } catch (e) {}
+  })();
+</script>
+</head>
+<body>
+<a class="skip" href="#main">本文へスキップ</a>
+
+<header class="topbar">
+  <div class="col-wide topbar-inner">
+    <div class="brand"><a href="./index.html">stock_hacker</a><span class="cursor">_</span></div>
+    <nav class="nav" aria-label="サイト">
+      <a href="./index.html">Home</a>
+      <a href="./getting-started.html">Start</a>
+      <a href="./cli.html">CLI</a>
+      <a href="./knowledge.html">Knowledge</a>
+      <a href="./skills.html" aria-current="page">Skills</a>
+      <a href="./forecast.html">Forecast</a>
+      <a href="https://github.com/nigoh/stock_hacker">GitHub ↗</a>
+    </nav>
+    <button class="toggle" type="button" data-theme-toggle>◐ light</button>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ヒーロー -->
+  <section class="hero">
+    <div class="col-wide">
+      <div class="shell">
+        <div class="shell-head">
+          <span class="shell-dot" aria-hidden="true"></span>
+          <span class="shell-dot" aria-hidden="true"></span>
+          <span class="shell-dot" aria-hidden="true"></span>
+          <span class="shell-title">claude — ~/stock_hacker</span>
+        </div>
+        <div class="shell-body">
+<pre><span class="prompt">&gt;</span> <span class="cmd">/analyze 7203</span>
+<span class="c">⏺ Skill(analyze-stock) — 個別銘柄の総合分析</span>
+<span class="c">  ⎿ Read  knowledge/00-index.md → technical/ · fundamental/ の関連文書</span>
+<span class="c">  ⎿ Bash  python3 analysis/analyze_stock.py 7203 --period 2y --benchmark ^N225</span>
+<span class="c">  ⎿ Write reports/analyze-7203-2026-07-24.md</span>
+<span class="c">  ⎿ hook  check_report_disclaimer.py → 免責文あり / ok</span>
+
+<span class="prompt">&gt;</span> <span class="cmd">/review-report</span>
+<span class="c">⏺ Task(risk-officer) — reports/ の最新レポートを敵対的レビュー</span>
+<span class="c">  ⎿ 統計的誤り / ルックアヘッド / 投資助言化 / 合成データ偽装 を検査</span>
+
+<span class="prompt">&gt;</span> <span class="caret" aria-hidden="true"></span></pre>
+        </div>
+      </div>
+
+      <div style="margin-top:32px">
+        <span class="micro">Layer 03 · agent</span>
+        <h1 class="page-title">CLI を覚えなくていい。意図を言えば、手順が走る。</h1>
+        <p class="lede">
+          Skills は stock_hacker の一番上の層です。<code>--period</code> や <code>--cost-bps</code> を
+          思い出す代わりに <code>/analyze 7203</code> と書けば、スキルが
+          <strong>読むべきナレッジ・叩くべき CLI・通すべき検証・書くべき免責</strong>まで含んだ手順を実行します。
+          コマンドは薄いラッパーで、手順の正は <code>.claude/skills/*/SKILL.md</code> にあります。
+        </p>
+      </div>
+
+      <div class="stats" style="margin-top:26px">
+        <div class="stat"><span class="n">18</span><span class="k">スキル</span></div>
+        <div class="stat"><span class="n">20</span><span class="k">スラッシュコマンド</span></div>
+        <div class="stat"><span class="n">4</span><span class="k">サブエージェント</span></div>
+        <div class="stat"><span class="n">3</span><span class="k">hooks</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- スラッシュコマンド一覧 -->
+  <section class="section">
+    <div class="col-wide">
+      <span class="micro">Slash commands</span>
+      <h2>スラッシュコマンド 20</h2>
+      <p class="lede" style="margin-bottom:18px">
+        Claude Code のセッションで <code>/</code> から始まる入力。ほとんどは対応するスキルを
+        起動するだけの薄いラッパーで、実際の手順・禁止事項はスキル本文が持ちます。
+        引数を省略すると、必要な情報（銘柄コード・ファイルパス等）を確認してから進みます。
+      </p>
+
+      <div class="filter-bar">
+        <input class="field" type="search" data-filter-input="cmd" placeholder="コマンド名・用途で絞り込む（例: 配当, backtest）" aria-label="コマンドを絞り込む">
+        <div class="tabs">
+          <button class="tab" type="button" data-filter-tab="cmd" data-value="all" aria-pressed="true">ALL</button>
+          <button class="tab" type="button" data-filter-tab="cmd" data-value="analysis">分析</button>
+          <button class="tab" type="button" data-filter-tab="cmd" data-value="assets">資産・税</button>
+          <button class="tab" type="button" data-filter-tab="cmd" data-value="record">記録・検証</button>
+          <button class="tab" type="button" data-filter-tab="cmd" data-value="knowledge">知識</button>
+          <button class="tab" type="button" data-filter-tab="cmd" data-value="quality">品質・自己改善</button>
+        </div>
+        <span class="micro"><span data-filter-count="cmd"></span> 件</span>
+      </div>
+
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>コマンド</th><th>起動するスキル</th><th>用途</th></tr>
+          </thead>
+          <tbody>
+            <tr data-filter-item="cmd" data-cat="analysis" data-text="/analyze analyze-stock 個別銘柄 総合分析 テクニカル ファンダメンタル レポート">
+              <td><code>/analyze 7203</code></td>
+              <td>analyze-stock</td>
+              <td>個別銘柄（日本株）の総合分析レポートを作成する。</td>
+            </tr>
+            <tr data-filter-item="cmd" data-cat="analysis" data-text="/compare compare-stocks 複数銘柄 相対パフォーマンス 相関 比較">
+              <td><code>/compare 7203 6758</code></td>
+              <td>compare-stocks</td>
+              <td>複数の日本株銘柄の相対パフォーマンス・相関を比較する。</td>
+            </tr>
+            <tr data-filter-item="cmd" data-cat="analysis" data-text="/screen screen-market スクリーニング 銘柄抽出 RSI 割安 条件">
+              <td><code>/screen RSI30以下</code></td>
+              <td>screen-market</td>
+              <td>条件に合う日本株をスクリーニングして候補リストを作成する。</td>
+            </tr>
+            <tr data-filter-item="cmd" data-cat="analysis" data-text="/earnings earnings-analysis 決算 業績推移 売上 利益 マージン EDINET 有報">
+              <td><code>/earnings 7203</code></td>
+              <td>earnings-analysis</td>
+              <td>決算・業績推移の深掘り分析レポートを作成する。</td>
+            </tr>
+            <tr data-filter-item="cmd" data-cat="analysis" data-text="/backtest backtest-strategy バックテスト 売買戦略 統計的検証 ゴールデンクロス">
+              <td><code>/backtest ゴールデンクロス 7203</code></td>
+              <td>backtest-strategy</td>
+              <td>売買戦略をバックテストし統計的に検証する。</td>
+            </tr>
+            <tr data-filter-item="cmd" data-cat="analysis" data-text="/market market-review 市況レビュー 日経平均 為替 米国市場 セクター マクロ">
+              <td><code>/market</code></td>
+              <td>market-review</td>
+              <td>市場全体の市況レビュー（指数・為替・米国市場・セクター）を作成する。</td>
+            </tr>
+            <tr data-filter-item="cmd" data-cat="analysis" data-text="/brief daily-brief デイリーブリーフ ウォッチリスト シグナル 定点観測 朝">
+              <td><code>/brief</code></td>
+              <td>daily-brief</td>
+              <td>ウォッチリスト銘柄のデイリーブリーフ（市況＋シグナル検出）を作成する。</td>
+            </tr>
+            <tr data-filter-item="cmd" data-cat="assets" data-text="/portfolio portfolio-review ポートフォリオ 保有 損益 セクター配分 β VaR 集中度">
+              <td><code>/portfolio</code></td>
+              <td>portfolio-review</td>
+              <td>保有ポートフォリオの評価・リスクレビュー（損益・セクター配分・β・集中度）を行う。</td>
+            </tr>
+            <tr data-filter-item="cmd" data-cat="assets" data-text="/income dividend-income 配当 インカム YOC 利回り NISA 非課税 手取り">
+              <td><code>/income</code></td>
+              <td>dividend-income</td>
+              <td>配当インカム・レポート（年間受取配当見込み・YOC・NISA非課税メリット）を作成する。</td>
+            </tr>
+            <tr data-filter-item="cmd" data-cat="assets" data-text="/tax tax-view 税 含み損益 損出し 損益通算 繰越控除 課税口座">
+              <td><code>/tax</code></td>
+              <td>tax-view</td>
+              <td>課税口座の含み損益 税価値ビュー（損出し・損益通算の判断材料の機械的整理）を作成する。</td>
+            </tr>
+            <tr data-filter-item="cmd" data-cat="assets" data-text="/performance performance-review XIRR 実績 金額加重リターン 取引履歴 ベンチマーク比較">
+              <td><code>/performance</code></td>
+              <td>performance-review</td>
+              <td>取引履歴からの実運用パフォーマンス（実績年率 XIRR・損益内訳・ベンチマーク比較）を作成する。</td>
+            </tr>
+            <tr data-filter-item="cmd" data-cat="assets" data-text="/plan asset-planning 資産形成 積立 シミュレーション 目標逆算 取り崩し 新NISA">
+              <td><code>/plan 毎月5万円を20年</code></td>
+              <td>asset-planning</td>
+              <td>資産形成プランニング（積立シミュレーション・目標逆算・取り崩し・新NISA活用）を行う。</td>
+            </tr>
+            <tr data-filter-item="cmd" data-cat="record" data-text="/journal research-journal リサーチジャーナル 仮説 記録 終値スナップショット 反証条件">
+              <td><code>/journal 7203 上方修正期待</code></td>
+              <td>research-journal</td>
+              <td>分析仮説をリサーチジャーナル（journal/）に記録する（終値スナップショット付き）。</td>
+            </tr>
+            <tr data-filter-item="cmd" data-cat="record" data-text="/journal-review journal-review 仮説検証 期日 答え合わせ hit miss mixed 振り返り">
+              <td><code>/journal-review</code></td>
+              <td>journal-review</td>
+              <td>検証期日が来たジャーナル仮説を検証し、当たり外れから学ぶ振り返りを行う。</td>
+            </tr>
+            <tr data-filter-item="cmd" data-cat="record" data-text="/overnight overnight-forecast 夜間フォーキャスト 翌営業日 予想 答え合わせ 台帳 Brier 較正">
+              <td><code>/overnight</code></td>
+              <td>overnight-forecast</td>
+              <td>翌営業日の機械予想を生成し、前回予想の答え合わせをして実績台帳に蓄積する。</td>
+            </tr>
+            <tr data-filter-item="cmd" data-cat="knowledge" data-text="/kb ナレッジ検索 出典 質問 回答 knowledge スキルなし">
+              <td><code>/kb PERとPBRの関係</code></td>
+              <td><span class="chip">スキルなし</span></td>
+              <td>ナレッジベース（knowledge/）を検索して出典パス付きで質問に回答する。</td>
+            </tr>
+            <tr data-filter-item="cmd" data-cat="knowledge" data-text="/learn knowledge-doc ナレッジ追加 文書作成 索引 00-index 調査">
+              <td><code>/learn 空売り規制</code></td>
+              <td>knowledge-doc</td>
+              <td>指定トピックを調査して knowledge/ にナレッジ文書を追加・更新する（索引反映まで）。</td>
+            </tr>
+            <tr data-filter-item="cmd" data-cat="quality" data-text="/review-report risk-officer 敵対的レビュー 品質ゲート 外部共有 意思決定 スキルなし">
+              <td><code>/review-report</code></td>
+              <td><span class="chip amber">risk-officer に委譲</span></td>
+              <td>レポートを risk-officer による敵対的レビューにかける（外部共有・意思決定前の品質ゲート）。</td>
+            </tr>
+            <tr data-filter-item="cmd" data-cat="quality" data-text="/mape-night mape-night MAPE-K 夜間周回 Monitor Analyze Plan 計画イシュー チェックリスト">
+              <td><code>/mape-night</code></td>
+              <td>mape-night</td>
+              <td>MAPE-K 夜間周回（M→A→P）を1周まわし、改善チェックリストを GitHub 計画イシューに掲示/更新する。</td>
+            </tr>
+            <tr data-filter-item="cmd" data-cat="quality" data-text="/mape-execute mape-execute MAPE-K Execute 実装 pytest ドラフトPR 1周1件">
+              <td><code>/mape-execute</code></td>
+              <td>mape-execute</td>
+              <td>計画イシューのチェック済み・未着手を1周1件だけ安全に実装する（pytest 緑→ドラフト PR）。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="empty" data-filter-empty="cmd" hidden>該当する項目がありません。</p>
+
+      <p class="micro">
+        コマンド定義は <code>.claude/commands/*.md</code>。<code>/kb</code> と <code>/review-report</code> だけは
+        対応スキルを持たず、前者はコマンド本文の手順で、後者はサブエージェントへの委譲で動きます。
+      </p>
+    </div>
+  </section>
+
+  <!-- スキルの使い分け -->
+  <section class="section">
+    <div class="col-wide">
+      <span class="micro">Skills</span>
+      <h2>スキル 18 — どんなときに、どれを使うか</h2>
+      <p class="lede" style="margin-bottom:20px">
+        スキルは「この依頼が来たら、この順で、この禁止事項を守って作業する」という手順書です。
+        各スキルの <code>description</code> には<strong>使う場面と使わない場面</strong>が明記されていて、
+        Claude はそれを見て自動で選びます（<code>/…</code> で明示的に呼ぶこともできます）。
+      </p>
+
+      <dl class="manpage">
+        <dt>analyze-stock</dt>
+        <dd>特定1銘柄の分析・評価・調査を頼まれたとき。テクニカル・ファンダメンタルズ・リスク指標・セクター文脈を統合し、ナレッジベースを枠組みとして reports/ に日本語レポートを生成する。
+          <span class="note">コマンド: <code>/analyze</code> ／ 複数銘柄の比較・スクリーニングには使わない。</span></dd>
+
+        <dt>compare-stocks</dt>
+        <dd>指定された2銘柄以上の相対比較。期首=100 の相対パフォーマンス、年率リターン/ボラ、シャープ、最大DD、日次リターン相関行列を取得し、ポートフォリオ理論の文書で解釈する。
+          <span class="note">コマンド: <code>/compare</code> ／ 1銘柄の深掘り・条件抽出には使わない。</span></dd>
+
+        <dt>screen-market</dt>
+        <dd>「RSI30以下の銘柄は？」「割安な銘柄を探して」のように、条件に合う銘柄を複数抽出したいとき。結果は結論ではなく<strong>仮説の候補リスト</strong>として解釈・報告する。
+          <span class="note">コマンド: <code>/screen</code> ／ 指定済み銘柄の比較には使わない。</span></dd>
+
+        <dt>earnings-analysis</dt>
+        <dd>業績推移・決算の時系列深掘り。売上・利益・マージン・ROE の推移や CAGR、法定開示（EDINET）の確認まで。
+          <span class="note">コマンド: <code>/earnings</code> ／ 株価・テクニカルを含む総合分析には使わない。</span></dd>
+
+        <dt>backtest-strategy</dt>
+        <dd>ルールベース売買戦略の過去データ検証。数字を出すだけでは完了ではなく、t統計量・多重検定補正・ルックアヘッド/生存者バイアス・取引コスト・IS/OOS 分割のチェックを必ず通す。
+          <span class="note">コマンド: <code>/backtest</code> ／ 単発の銘柄分析には使わない。</span></dd>
+
+        <dt>market-review</dt>
+        <dd>個別銘柄ではなく市場全体（指数・為替・金利・セクター動向）の把握。事実（数値・騰落）と解釈（背景・文脈）を必ず分離して書く。
+          <span class="note">コマンド: <code>/market</code> ／ 個別銘柄の深掘り・条件スクリーニングには使わない。</span></dd>
+
+        <dt>daily-brief</dt>
+        <dd>ウォッチリスト銘柄の定点観測。市況（^N225・1306.T・USDJPY=X・^GSPC）と各銘柄のシグナル（RSI過熱・移動平均クロス・出来高急増・52週高安接近・MACD・ボリンジャー・ADX）を検出する。
+          <span class="note">コマンド: <code>/brief</code> ／ 市況の詳細レビューには market-review を使う。</span></dd>
+
+        <dt>portfolio-review</dt>
+        <dd>保有銘柄 CSV の評価額・損益・セクター配分・加重β・相関・集中度（HHI）・VaR の定量評価とリスク解釈。
+          <span class="note">コマンド: <code>/portfolio</code> ／ 保有していない銘柄同士の比較には使わない。</span></dd>
+
+        <dt>dividend-income</dt>
+        <dd>保有銘柄の配当インカム集計。TTM 実績配当ベースの年間受取見込み・YOC・時価利回り・口座区分別の税引後手取り・NISA 非課税メリットまで。
+          <span class="note">コマンド: <code>/income</code> ／ 高配当銘柄の抽出は screen-market の領分。</span></dd>
+
+        <dt>tax-view</dt>
+        <dd>課税口座の含み損益を税価値の観点で機械的に整理。損益通算・繰越控除・NISA が対象外である点を対比する。<strong>どの銘柄を売るかの判断はしない。</strong>
+          <span class="note">コマンド: <code>/tax</code> ／ 配当の税引後手取りは dividend-income。</span></dd>
+
+        <dt>performance-review</dt>
+        <dd>「これまで年率何%で回っていたか」を取引履歴 CSV から測定。入出金を調整した金額加重リターン（XIRR）・損益内訳・同じキャッシュフローをベンチマークに投じた場合の比較。
+          <span class="note">コマンド: <code>/performance</code> ／ 現時点のスナップショット評価は portfolio-review。</span></dd>
+
+        <dt>asset-planning</dt>
+        <dd>積立額・目標額・進捗・取り崩し・新NISA 枠の試算。ネットワーク不要・価格データ不使用で、決定論的複利＋モンテカルロのファンチャートを出し、想定リターンの根拠を問い直すところまで行う。
+          <span class="note">コマンド: <code>/plan</code> ／ 出力は仮定に基づく試算であり将来の予測・保証ではない。</span></dd>
+
+        <dt>research-journal</dt>
+        <dd>検証可能な仮説を後から機械的に採点できる形で journal/ に記録する。記録時点の終値を自動スナップショットし、仮説・根拠・<strong>反証条件</strong>を残す。
+          <span class="note">コマンド: <code>/journal</code> ／ 期日が来た仮説の検証は journal-review。</span></dd>
+
+        <dt>journal-review</dt>
+        <dd>検証期日が来た仮説の答え合わせ。ベンチマーク調整後リターンから hit/miss/mixed を機械判定し、行動ファイナンスの認知バイアスの枠組みで「外れた仮説から何を学ぶか」を振り返る。
+          <span class="note">コマンド: <code>/journal-review</code> ／ 判定は機械に任せ、スキルの主眼は解釈と振り返り。</span></dd>
+
+        <dt>overnight-forecast</dt>
+        <dd>翌営業日の機械予想 → 翌日の採点 → 台帳（forecasts/ledger.csv）への蓄積 → 的中率・Brier・較正の集計。短期予想の track record を継続測定したいとき。
+          <span class="note">コマンド: <code>/overnight</code> ／ 詳細は <a href="./forecast.html">Forecast ページ</a>。予想は断定でも助言でもない。</span></dd>
+
+        <dt>knowledge-doc</dt>
+        <dd>knowledge/ への文書の新規追加・更新。ケバブケースのファイル名・冒頭要約・LaTeX 数式・「〜年時点」表記といった規約と、<code>00-index.md</code> への索引反映・相互リンクまでを一貫して行う。
+          <span class="note">コマンド: <code>/learn</code> ／ 索引未反映のままだと hook がブロックする。</span></dd>
+
+        <dt>mape-night</dt>
+        <dd>MAPE-K の夜間周回（Monitor→Analyze→Plan）。予測精度と分析カバレッジを観測して改善案を作り、GitHub 計画イシューにチェックリストで掲示する。読み取り中心で安全。
+          <span class="note">コマンド: <code>/mape-night</code> ／ 実装は含まない（それは mape-execute）。</span></dd>
+
+        <dt>mape-execute</dt>
+        <dd>MAPE-K の Execute。計画イシューのチェック済み・未着手を<strong>1周1件だけ</strong>実装し、pytest が緑ならドラフト PR、赤なら破棄して記録する。
+          <span class="note">コマンド: <code>/mape-execute</code> ／ 個別銘柄の分析や新規レポート作成には使わない。</span></dd>
+      </dl>
+
+      <div class="callout green" style="margin-top:28px">
+        <span class="micro">使い分けの原則</span>
+        <p>
+          1銘柄の深掘り → <strong>analyze-stock</strong>／業績の時系列 → <strong>earnings-analysis</strong>／
+          横比較 → <strong>compare-stocks</strong>／条件で絞り込む → <strong>screen-market</strong>／
+          売買ルールの検証 → <strong>backtest-strategy</strong>／市場全体 → <strong>market-review</strong>／
+          保有の評価 → <strong>portfolio-review</strong>／ウォッチ銘柄の定点観測 → <strong>daily-brief</strong>。
+        </p>
+        <p>
+          知識を足す → <strong>knowledge-doc</strong>／仮説を残す → <strong>research-journal</strong>／
+          期日が来た仮説を検証 → <strong>journal-review</strong>／翌営業日予想と答え合わせ → <strong>overnight-forecast</strong>。
+        </p>
+        <p style="margin-bottom:0">
+          積立・目標・取り崩し → <strong>asset-planning</strong>／配当収入 → <strong>dividend-income</strong>／
+          含み損益の税務整理 → <strong>tax-view</strong>／実績リターン（XIRR） → <strong>performance-review</strong>。
+          迷ったら、対象が「1銘柄か・複数か・市場全体か・自分の資産か」で切り分けるのが早い。
+        </p>
+      </div>
+
+      <p><a href="./cli.html">各スキルが叩く分析 CLI のリファレンス →</a></p>
+    </div>
+  </section>
+
+  <!-- サブエージェント -->
+  <section class="section">
+    <div class="col-wide">
+      <span class="micro">Subagents</span>
+      <h2>サブエージェント 4 — 重い作業の委譲先</h2>
+      <p class="lede" style="margin-bottom:20px">
+        独立した文脈で長い作業を回すための専門家。定義は <code>.claude/agents/*.md</code> にあり、
+        それぞれ持てるツールが絞られています（例: risk-officer は Write / Edit を持たない＝レビューはするが直さない）。
+      </p>
+
+      <div class="grid grid-2">
+        <div class="cell">
+          <span class="call">agent · analysis</span>
+          <h3>stock-analyst</h3>
+          <p>
+            個別銘柄の深掘り分析とレポート作成。テクニカル・ファンダメンタル・リスク・セクター文脈を統合し、
+            事実と解釈を峻別したレポートを reports/ に書く。<br>
+            <strong>使わない場面</strong>: 複数銘柄の比較、戦略バックテスト、市場全体のスクリーニング。
+          </p>
+        </div>
+        <div class="cell">
+          <span class="call">agent · research</span>
+          <h3>quant-researcher</h3>
+          <p>
+            戦略研究・バックテスト・統計的検証。人格の中核は統計的懐疑主義で、
+            「儲かって見える結果」をまず偶然・バイアス・過剰適合の産物として疑う（t統計量・多重検定・IS/OOS）。<br>
+            <strong>使わない場面</strong>: 個別銘柄の総合分析、完成レポートのレビュー。
+          </p>
+        </div>
+        <div class="cell">
+          <span class="call">agent · gate</span>
+          <h3>risk-officer</h3>
+          <p>
+            成果物（レポート・スクリプト・バックテスト結果）の敵対的レビュー。著者の主張を鵜呑みにせず、
+            数字・コード・記述の整合性を独立に検証する。ツールは読み取り系のみ。<br>
+            <strong>使わない場面</strong>: 新規の分析やレポート作成そのもの。
+          </p>
+        </div>
+        <div class="cell">
+          <span class="call">agent · knowledge</span>
+          <h3>knowledge-curator</h3>
+          <p>
+            knowledge/ の保守。索引（00-index.md）と本文の整合、重複トピックの統合、
+            「〜年時点」記述の陳腐化検出と更新、新規文書の追加。<br>
+            <strong>使わない場面</strong>: 銘柄分析・バックテスト・レポートレビュー。
+          </p>
+        </div>
+      </div>
+
+      <div class="callout" style="margin-top:24px">
+        <span class="micro">品質ゲート</span>
+        <p>
+          <strong>重要なレポートを外部共有・意思決定に使う前は、必ず <code>/review-report</code> を通す。</strong>
+          risk-officer が検出するのは4点——<strong>統計的誤り</strong>（t統計量の欠落・多重検定の未申告・年率化の誤り）、
+          <strong>ルックアヘッド・バイアス</strong>（シグナルと約定の同一足、生存者バイアス、コスト仮定）、
+          <strong>投資助言化</strong>（断定的将来予測・売買推奨に読める記述・免責文の欠落）、
+          <strong>合成データの偽装</strong>（<code>--synthetic</code> 使用の明記なしに実データと誤認させる記述。これが最重大）。
+        </p>
+        <p style="margin-bottom:0">
+          報告は重大度順に「重大度・根拠・修正案」の形式で返り、最後に総合判定（差し戻し／条件付き可／可）が付きます。
+          修正はレビューの範囲外です（risk-officer は書き込み権限を持たない）。
+          レビューを通ったことは、投資判断の正しさを保証しません。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- hooks -->
+  <section class="section">
+    <div class="col-wide">
+      <span class="micro">Hooks</span>
+      <h2>hooks 3 — 規約を人の記憶ではなく仕組みで守る</h2>
+      <p class="lede" style="margin-bottom:18px">
+        「索引に載せ忘れない」「免責を書き忘れない」は、注意力ではなく自動実行に任せます。
+        設定は <code>.claude/settings.json</code>、実体は <code>scripts/</code> 配下のスクリプトです。
+        PostToolUse フックが exit 2 を返すと、その内容が Claude に差し戻され、修正してから先へ進みます。
+      </p>
+
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>フック</th><th>スクリプト</th><th>動作</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>SessionStart</td>
+              <td><code>scripts/session_start.sh</code></td>
+              <td>依存パッケージ（pandas / numpy / yfinance / pytest）の確認と導入、<code>reports/</code>・<code>data/cache/</code> の作成、stocklib のインポート・スモークチェック、環境の要点とジャーナル期日サマリーをセッション文脈に注入。ネットワーク不通でもセッションを止めない（原則 exit 0）。</td>
+            </tr>
+            <tr>
+              <td>PostToolUse <span class="chip">Write｜Edit</span></td>
+              <td><code>scripts/check_knowledge_index.py</code></td>
+              <td>書き込まれたファイルが knowledge/ 配下の Markdown なのに <code>00-index.md</code> から参照されていなければ <strong>exit 2 でブロック</strong>し、索引への反映を促す。<code>--all</code> で索引リンクの解決・文書数の一致まで含めた全体整合チェック（CI 用）も行える。</td>
+            </tr>
+            <tr>
+              <td>PostToolUse <span class="chip">Write｜Edit</span></td>
+              <td><code>scripts/check_report_disclaimer.py</code></td>
+              <td>reports/ 配下の Markdown に「投資助言ではありません」または「免責」が含まれなければ <strong>exit 2 でブロック</strong>し、<code>stocklib.report.DISCLAIMER</code> の追記を促す。CLI 生成レポートは自動で免責が付くが、Claude が直接書いたレポートには機械的な担保がないため。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- MAPE-K -->
+  <section class="section">
+    <div class="col-wide">
+      <span class="micro">MAPE-K</span>
+      <h2>夜間セルフ改善 — 読むフェーズと壊しうるフェーズを分ける</h2>
+      <p class="lede" style="margin-bottom:20px">
+        「株の解析の醸成」を主題に、<strong>予測精度</strong>（台帳の的中率・Brier、ジャーナルの hit 率）と
+        <strong>分析カバレッジ</strong>（ユニバースの網羅・ナレッジの鮮度）の2軸を夜間に測り、改善へ回す仕組みです。
+        安全性の要は、安く読んで考える工程と、実際にコードを触る工程を分離したことにあります。
+      </p>
+
+      <div class="grid grid-2">
+        <div class="cell">
+          <span class="call">/mape-night · 読み取り中心</span>
+          <h3>Monitor → Analyze → Plan</h3>
+          <p>
+            リポジトリを観測し（<code>mape/analysis_signals.py</code> が台帳・ジャーナル・ユニバース・ナレッジを
+            stdlib のみ・ネットワーク不使用で集計）、改善案をチェックリストにして GitHub 計画イシューに掲示・更新する。
+            壊しうる実装はしないため、夜通し何度回しても安全。
+          </p>
+        </div>
+        <div class="cell">
+          <span class="call">/mape-execute · 壊しうる</span>
+          <h3>Execute（1周1件）</h3>
+          <p>
+            計画イシューのうち<strong>チェック済み・未着手</strong>の項目を1周に1件だけ実装する。
+            pytest が緑ならドラフト PR、赤なら破棄して記録。冪等にチェックを付けてコメントを残す。
+          </p>
+        </div>
+      </div>
+
+      <p style="margin-top:18px">
+        承認ゲートは GitHub 計画イシューに掲示される<strong>リスク3分類のチェックリスト</strong>（自動 / 承認 / 相談）です。
+        投資助言化・実データや実発注に関わるもの・秘密や課金は「相談」、合成データで実データを偽装する提案は却下、
+        という不変条件が分類に織り込まれています。人がチェックを入れた項目だけが Execute の対象になります。
+      </p>
+
+      <div class="tags" style="margin-bottom:14px">
+        <span class="chip green">自動</span>
+        <span class="chip amber">承認</span>
+        <span class="chip red">相談</span>
+      </div>
+
+      <p>
+        設計・分類・ガードレール・スケジュールの詳細は
+        <a href="https://github.com/nigoh/stock_hacker/blob/main/docs/mape-k.md">docs/mape-k.md ↗</a>。
+        測定対象である夜間フォーキャストの仕組みは <a href="./forecast.html">Forecast ページ</a>にあります。
+      </p>
+    </div>
+  </section>
+
+  <!-- 次に読む -->
+  <section class="section">
+    <div class="col-wide">
+      <span class="micro">Next</span>
+      <h2>次に読む</h2>
+      <dl class="manpage">
+        <dt><a href="./cli.html">cli</a></dt>
+        <dd>スキルが実際に叩く22の分析 CLI のリファレンス。<span class="note">スキルを使わず手で回したいときはこちら。</span></dd>
+        <dt><a href="./knowledge.html">knowledge</a></dt>
+        <dd>スキルが解釈の枠組みとして読む90文書のナレッジベース索引。<span class="note">10分野。数式つきの理論も。</span></dd>
+        <dt><a href="./forecast.html">forecast</a></dt>
+        <dd>overnight-forecast スキルと MAPE-K が測っている対象。<span class="note">予想モデル・採点・較正・自動実行の契約。</span></dd>
+        <dt><a href="./getting-started.html">getting-started</a></dt>
+        <dd>導入・データソース設定・最初の分析まで。<span class="note">まだ動かしていないならここから。</span></dd>
+      </dl>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="col-wide">
+    <p class="disclaimer">
+      <strong>免責</strong>：本環境および本サイトの出力は<strong>投資助言ではなく分析支援</strong>です。
+      掲載する指標・予想・レポートは機械的な集計と再現可能なベースラインであり、
+      将来の騰落を断定するものではありません。投資判断はご自身の責任で行ってください。
+    </p>
+    <div class="foot-links">
+      <a href="https://github.com/nigoh/stock_hacker">GitHub リポジトリ ↗</a>
+      <a href="./cli.html">CLI リファレンス</a>
+      <a href="./knowledge.html">ナレッジベース</a>
+    </div>
+    <p style="margin-top:14px">
+      データソースは yfinance（非公式 API）および J-Quants（任意設定）。
+      価格データの分割・配当調整には不備が起こりうるため、異常な騰落を見たらまずデータ品質を疑うこと。
+    </p>
+  </div>
+</footer>
+
+<script src="./assets/site.js"></script>
+</body>
+</html>
