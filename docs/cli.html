@@ -1,0 +1,784 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CLI リファレンス — stock_hacker</title>
+<meta name="description" content="stock_hacker の22の分析 CLI リファレンス。個別銘柄・市場横断・戦略検証・保有資産・予想と記録・データ基盤の6分類で、目的から引く索引と各コマンドの実行例・主要オプションをまとめる。">
+<link rel="stylesheet" href="./assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230B0E0C'/%3E%3Ctext x='2' y='12' font-family='monospace' font-size='11' fill='%236EE7A0'%3E%24%3C/text%3E%3C/svg%3E">
+<script>
+  /* テーマのちらつき防止: 描画前に保存済みテーマを適用する */
+  (function () {
+    try {
+      var t = localStorage.getItem("stock_hacker.theme");
+      if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+    } catch (e) {}
+  })();
+</script>
+</head>
+<body>
+<a class="skip" href="#main">本文へスキップ</a>
+
+<header class="topbar">
+  <div class="col-wide topbar-inner">
+    <div class="brand"><a href="./index.html">stock_hacker</a><span class="cursor">_</span></div>
+    <nav class="nav" aria-label="サイト">
+      <a href="./index.html">Home</a>
+      <a href="./getting-started.html">Start</a>
+      <a href="./cli.html" aria-current="page">CLI</a>
+      <a href="./knowledge.html">Knowledge</a>
+      <a href="./skills.html">Skills</a>
+      <a href="./forecast.html">Forecast</a>
+      <a href="https://github.com/nigoh/stock_hacker">GitHub ↗</a>
+    </nav>
+    <button class="toggle" type="button" data-theme-toggle>◐ light</button>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ヒーロー -->
+  <section class="hero">
+    <div class="col-wide">
+      <div class="shell">
+        <div class="shell-head">
+          <span class="shell-dot" aria-hidden="true"></span>
+          <span class="shell-dot" aria-hidden="true"></span>
+          <span class="shell-dot" aria-hidden="true"></span>
+          <span class="shell-title">~/stock_hacker — analysis CLI</span>
+        </div>
+        <div class="shell-body">
+<pre><span class="prompt"><span class="user">analyst</span>@tokyo:<span class="path">~/stock_hacker</span>$</span> <span class="cmd">ls analysis/*.py | wc -l</span>
+<span class="c">22</span>
+
+<span class="prompt"><span class="user">analyst</span>@tokyo:<span class="path">~/stock_hacker</span>$</span> <span class="cmd">python3 analysis/analyze_stock.py --help</span>
+<span class="c">usage: analyze_stock.py [-h] [--period PERIOD] [--benchmark BENCHMARK]</span>
+<span class="c">                        [--horizon {short,mid,long}] [--synthetic]</span>
+<span class="c">                        [--source {yfinance,jquants}] [--no-charts]</span>
+<span class="c">                        [--in-currency {EUR,GBP,USD}] [--in-usd]</span>
+<span class="c">                        code</span>
+
+<span class="prompt"><span class="user">analyst</span>@tokyo:<span class="path">~/stock_hacker</span>$</span> <span class="caret" aria-hidden="true"></span></pre>
+        </div>
+      </div>
+
+      <div style="margin-top:32px">
+        <span class="micro">Reference · analysis/*.py</span>
+        <h1 class="page-title">22の分析コマンド</h1>
+        <p class="lede">
+          すべての CLI はリポジトリルートから <code>python3 analysis/&lt;command&gt;.py</code> で起動し、
+          結果を <code>reports/</code> の Markdown レポートとして残します。
+          共通ライブラリ <code>analysis/stocklib/</code> の上に載っているので、
+          期間指定・データソース切替・合成データ・基準通貨併記といった約束は
+          コマンドをまたいで同じ形で効きます。
+        </p>
+      </div>
+
+      <div class="stats" style="margin-top:26px">
+        <div class="stat"><span class="n">22</span><span class="k">分析 CLI</span></div>
+        <div class="stat"><span class="n">6</span><span class="k">カテゴリ</span></div>
+        <div class="stat"><span class="n">9</span><span class="k">自動実行契約つき</span></div>
+        <div class="stat"><span class="n">25</span><span class="k">stocklib モジュール</span></div>
+      </div>
+
+      <div class="toc" style="margin-top:26px">
+        <span class="micro">On this page</span>
+        <ul>
+          <li><a href="#common">共通の約束</a></li>
+          <li><a href="#index">目的から引く索引</a></li>
+          <li><a href="#single">個別銘柄</a></li>
+          <li><a href="#cross">横断・市場全体</a></li>
+          <li><a href="#strategy">戦略検証</a></li>
+          <li><a href="#portfolio">保有・資産</a></li>
+          <li><a href="#forecast">予想と記録</a></li>
+          <li><a href="#data">データ基盤</a></li>
+          <li><a href="#quirks">特筆すべき挙動</a></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 共通の約束 -->
+  <section class="section" id="common">
+    <div class="col-wide">
+      <span class="micro">Conventions</span>
+      <h2>共通の約束</h2>
+      <p class="lede" style="margin-bottom:20px">
+        個々のコマンドを読む前に、22本すべてに共通する入出力の作法を押さえておくと迷いません。
+        オプションの完全な一覧は各 CLI の <code>--help</code> が正です。
+      </p>
+
+      <div class="grid grid-2">
+        <div class="cell">
+          <span class="call">Input · 銘柄コード</span>
+          <h3>4桁で渡す</h3>
+          <p>銘柄コードは4桁数字（例 <code>7203</code>）で渡し、内部の <code>normalize_code</code> が
+          <code>7203.T</code> に正規化します。<code>^N225</code>・<code>1306.T</code>・<code>USDJPY=X</code>
+          のような指数・ETF・為替ティッカーはそのまま渡せます。</p>
+        </div>
+        <div class="cell">
+          <span class="call">Output · reports/</span>
+          <h3>Markdown で残る</h3>
+          <p>結果は <code>reports/&lt;種別&gt;-&lt;日付&gt;.md</code> に保存され、そのパスが stdout に出ます
+          （<code>stocklib.report.save_report</code>）。免責文は保存時に自動付与されます。
+          <code>reports/</code> は gitignore 対象です。</p>
+        </div>
+        <div class="cell">
+          <span class="call">Cache · data/cache/</span>
+          <h3>価格は CSV キャッシュ</h3>
+          <p>取得した価格系列は <code>data/cache/</code> に CSV で保存され、再実行では再利用されます。
+          <code>data/</code> は gitignore 対象なので、保有情報やキャッシュがコミットされることはありません。</p>
+        </div>
+        <div class="cell">
+          <span class="call">Charts · reports/img/</span>
+          <h3>図は PNG で埋め込み</h3>
+          <p>チャートを持つ CLI は PNG を <code>reports/img/</code> に出してレポートへ埋め込みます。
+          matplotlib が無い環境では警告してチャートなしに自動で縮退します。</p>
+        </div>
+      </div>
+
+      <h3 id="common-options">コマンドをまたぐ共通オプション</h3>
+      <dl class="manpage">
+        <dt>--period PERIOD</dt>
+        <dd>価格の取得期間（yfinance 形式の <code>6mo</code> / <code>1y</code> / <code>2y</code> / <code>5y</code> / <code>max</code> 等）。
+          <span class="note">既定値はコマンドごとに違います（例: compare 1y / run_backtest 2y / market_breadth 2y / seasonality_report max）。各コマンドの項に明記しています。</span></dd>
+
+        <dt>--synthetic</dt>
+        <dd>ネットワーク不要の合成価格データ（シード固定）で全機能を動かします。20の CLI が対応
+          （非対応は価格データを使わない <code>asset_plan.py</code> と <code>build_universe.py</code>）。
+          <span class="note">合成データで作ったレポートは「手法のデモであり実データではない」ことが本文に明記されます。実データが取れないときに合成データで当日の市況を装うのは、この環境では禁止事項です。</span></dd>
+
+        <dt>--source {yfinance,jquants}</dt>
+        <dd>日足 OHLCV の取得元を切り替えます（19の CLI が対応。非対応は <code>asset_plan.py</code> /
+          <code>build_universe.py</code> / <code>fundamentals_report.py</code>）。優先順位は
+          <code>--source</code> &gt; 環境変数 <code>STOCK_HACKER_SOURCE</code> &gt; 既定 <code>yfinance</code>。
+          <span class="note">jquants は <code>JQUANTS_API_KEY</code> が必要・日足のみ・無料プランは12週間遅延。指数と為替は J-Quants 非対応のため自動で yfinance にフォールバックし、PER/PBR 等の <code>fetch_info</code> は常に yfinance を使います。</span></dd>
+
+        <dt>--in-currency {USD,EUR,GBP}</dt>
+        <dd>海外投資家視点で基準通貨建ての評価を併記します。対応は6コマンド
+          （<code>analyze_stock</code> / <code>compare</code> / <code>screen</code> /
+          <code>run_backtest</code> / <code>portfolio_review</code> / <code>daily_brief</code>）。
+          <span class="note">対応通貨は <code>stocklib.currency.SUPPORTED_CURRENCIES</code> のホワイトリスト（2026年時点で USD/EUR/GBP）。<code>--in-usd</code> は <code>--in-currency USD</code> の後方互換エイリアスです。</span></dd>
+
+        <dt>--no-charts</dt>
+        <dd>チャート PNG の生成・埋め込みを無効化します。対応は
+          <code>analyze_stock</code> / <code>compare</code> / <code>run_backtest</code> /
+          <code>asset_plan</code> の4コマンド。
+          <span class="note">図の生成がボトルネックになる一括実行や、テキストだけで足りる自動実行で使います。</span></dd>
+      </dl>
+
+      <h3 id="contract">自動実行契約（RESULT 行と exit code）</h3>
+      <p>
+        Routine / cron からの定期実行を想定する9つの CLI は、機械可読な契約を持ちます。
+        stdout の最終行に <code>RESULT ...</code> を出力し、
+        <strong>実データが1件も取れなかった場合は exit 2</strong>（<code>data=unavailable</code>・レポート非生成）、
+        <strong>CSV 不正などの引数エラーは exit 1</strong>（RESULT 行なし）、正常終了は exit 0 です。
+        通知の振り分け方は <code>docs/automation.md</code> に整理されています。
+      </p>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>CLI</th><th>RESULT 行</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>daily_brief.py</code></td><td><code>RESULT signals=&lt;検出総数&gt; watch=&lt;成功&gt;/&lt;総数&gt; data=&lt;real|synthetic|unavailable&gt;</code></td></tr>
+            <tr><td><code>market_breadth.py</code></td><td><code>RESULT breadth=&lt;成功&gt;/&lt;総数&gt; ad_ratio=&lt;値|na&gt; data=&lt;…&gt;</code></td></tr>
+            <tr><td><code>relative_strength.py</code></td><td><code>RESULT rs=&lt;算出数&gt;/&lt;総数&gt; valuation=&lt;PER取得数&gt; data=&lt;…&gt;</code></td></tr>
+            <tr><td><code>sector_rotation.py</code></td><td><code>RESULT sectors=&lt;セクター数&gt; covered=&lt;成功&gt;/&lt;総数&gt; data=&lt;…&gt;</code></td></tr>
+            <tr><td><code>risk_report.py</code></td><td><code>RESULT var95=&lt;値&gt; maxdd=&lt;値&gt; data=&lt;…&gt;</code></td></tr>
+            <tr><td><code>seasonality_report.py</code></td><td><code>RESULT months=&lt;集計月数&gt; years=&lt;年数&gt; data=&lt;…&gt;</code></td></tr>
+            <tr><td><code>pairs_screen.py</code></td><td><code>RESULT pairs=&lt;評価ペア数&gt; mean_reverting=&lt;候補数&gt; data=&lt;…&gt;</code></td></tr>
+            <tr><td><code>catalyst_radar.py</code></td><td><code>RESULT events=&lt;接近イベント数&gt; covered=&lt;成功&gt;/&lt;総数&gt; data=&lt;…&gt;</code></td></tr>
+            <tr><td><code>overnight_forecast.py</code></td><td><code>forecast:</code> <code>RESULT forecasts=&lt;件数&gt; universe=&lt;成功&gt;/&lt;総数&gt; data=&lt;…&gt;</code> ／ <code>grade:</code> <code>RESULT graded=&lt;採点数&gt; pending=&lt;残保留&gt; data=&lt;…&gt;</code> ／ <code>run:</code> 両者を合成 ／ <code>calibration:</code> <code>RESULT graded=&lt;件数&gt; data=real</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="micro">残り13の CLI は RESULT 行を持たず、成功時にレポートパスを stdout に出力します。</p>
+    </div>
+  </section>
+
+  <!-- 目的から引く索引 -->
+  <section class="section" id="index">
+    <div class="col-wide">
+      <span class="micro">Index</span>
+      <h2>目的から引く</h2>
+      <p class="lede" style="margin-bottom:18px">
+        「何をしたいか」からコマンドを引くための索引です。検索欄にコマンド名でも和名でも
+        キーワードでも打ち込めます。カテゴリのタブで絞り込めます。
+      </p>
+
+      <div class="filter-bar">
+        <input class="field" type="search" data-filter-input="cli" placeholder="コマンド名・目的で絞り込む（例: リスク, backtest, NISA）" aria-label="コマンドを絞り込む">
+        <div class="tabs">
+          <button class="tab" type="button" data-filter-tab="cli" data-value="all" aria-pressed="true">ALL</button>
+          <button class="tab" type="button" data-filter-tab="cli" data-value="single" aria-pressed="false">個別銘柄</button>
+          <button class="tab" type="button" data-filter-tab="cli" data-value="cross" aria-pressed="false">横断・市場</button>
+          <button class="tab" type="button" data-filter-tab="cli" data-value="strategy" aria-pressed="false">戦略検証</button>
+          <button class="tab" type="button" data-filter-tab="cli" data-value="portfolio" aria-pressed="false">保有・資産</button>
+          <button class="tab" type="button" data-filter-tab="cli" data-value="forecast" aria-pressed="false">予想と記録</button>
+          <button class="tab" type="button" data-filter-tab="cli" data-value="data" aria-pressed="false">データ基盤</button>
+        </div>
+        <span class="micro"><span data-filter-count="cli"></span> 件</span>
+      </div>
+
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>コマンド</th><th>目的</th><th>出力</th></tr>
+          </thead>
+          <tbody>
+            <tr data-filter-item="cli" data-cat="single" data-text="analyze_stock 個別銘柄 総合分析 テクニカル ファンダメンタル リスク horizon 時間軸">
+              <td><a href="#analyze_stock"><code>analyze_stock.py</code></a><br><span class="micro">個別銘柄の総合分析</span></td>
+              <td>1銘柄をテクニカル・ファンダメンタル・リスク・シグナルで一気に見る。時間軸（短期/中期/長期）の視点を足せる。</td>
+              <td><code>reports/analyze-&lt;code&gt;[-&lt;horizon&gt;]-&lt;日付&gt;.md</code></td>
+            </tr>
+            <tr data-filter-item="cli" data-cat="single" data-text="fundamentals_report 業績 決算 売上 利益 マージン CAGR EDINET 有報 ファンダメンタル">
+              <td><a href="#fundamentals_report"><code>fundamentals_report.py</code></a><br><span class="micro">業績・決算分析</span></td>
+              <td>売上・利益・マージンの時系列と成長率（CAGR）。EDINET キーがあれば法定開示書類の一覧も付く。</td>
+              <td><code>reports/fundamentals-&lt;code&gt;-&lt;日付&gt;.md</code></td>
+            </tr>
+            <tr data-filter-item="cli" data-cat="single" data-text="risk_report リスク ボラティリティ VaR ES CVaR ソルティノ 下方偏差 ドローダウン テールリスク">
+              <td><a href="#risk_report"><code>risk_report.py</code></a><br><span class="micro">リスク/ボラティリティ指標</span></td>
+              <td>下方偏差・ソルティノ・ヒストリカル VaR/ES・最大ドローダウンと継続日数・ボラレジームを集計。</td>
+              <td><code>reports/risk-&lt;code&gt;-&lt;日付&gt;.md</code> <span class="chip green">RESULT</span></td>
+            </tr>
+            <tr data-filter-item="cli" data-cat="single" data-text="seasonality_report 季節性 アノマリー 月別 曜日別 Sell in May 半期 カレンダー 月初 月末">
+              <td><a href="#seasonality_report"><code>seasonality_report.py</code></a><br><span class="micro">季節性・カレンダー効果</span></td>
+              <td>月別・曜日別・月内（月初/月末）・半期（Sell in May）のリターンを標本数 n つきで集計。</td>
+              <td><code>reports/seasonality-&lt;code&gt;-&lt;日付&gt;.md</code> <span class="chip green">RESULT</span></td>
+            </tr>
+            <tr data-filter-item="cli" data-cat="cross" data-text="screen スクリーニング 銘柄抽出 RSI SMA 出来高 PER PBR 配当利回り 割安 売られすぎ">
+              <td><a href="#screen"><code>screen.py</code></a><br><span class="micro">銘柄スクリーニング</span></td>
+              <td>ユニバースをテクニカル・出来高・バリュエーション条件で絞り込み、候補リストを作る。</td>
+              <td><code>reports/screen-&lt;日付&gt;.md</code> ＋ stdout テーブル</td>
+            </tr>
+            <tr data-filter-item="cli" data-cat="cross" data-text="compare 比較 相対パフォーマンス 相関 シャープ 複数銘柄">
+              <td><a href="#compare"><code>compare.py</code></a><br><span class="micro">複数銘柄の比較</span></td>
+              <td>指定した2銘柄以上の相対パフォーマンス・年率リターン/ボラ・相関行列を並べる。</td>
+              <td><code>reports/compare-&lt;codes&gt;-&lt;日付&gt;.md</code></td>
+            </tr>
+            <tr data-filter-item="cli" data-cat="cross" data-text="daily_brief デイリーブリーフ ウォッチリスト 市況 定点観測 シグナル 朝">
+              <td><a href="#daily_brief"><code>daily_brief.py</code></a><br><span class="micro">デイリーブリーフ</span></td>
+              <td>指数・為替の市況サマリーとウォッチリスト各銘柄のシグナル検出を1本にまとめる。</td>
+              <td><code>reports/brief-&lt;日付&gt;.md</code> <span class="chip green">RESULT</span></td>
+            </tr>
+            <tr data-filter-item="cli" data-cat="cross" data-text="market_breadth ブレッシュ 市場内部 騰落レシオ 新高値 新安値 内部状態 マーケットインターナルズ">
+              <td><a href="#market_breadth"><code>market_breadth.py</code></a><br><span class="micro">市場ブレッシュ</span></td>
+              <td>移動平均超の銘柄割合・騰落数・騰落レシオ25日・52週新高値/新安値で上昇の裾野を測る。</td>
+              <td><code>reports/breadth-&lt;日付&gt;.md</code> <span class="chip green">RESULT</span></td>
+            </tr>
+            <tr data-filter-item="cli" data-cat="cross" data-text="relative_strength 相対強度 RS ランキング モメンタム 相対バリュエーション PER PBR セクター中央値">
+              <td><a href="#relative_strength"><code>relative_strength.py</code></a><br><span class="micro">相対強度・相対バリュエーション</span></td>
+              <td>複数期間モメンタムの合成 RS を1〜99のパーセンタイルで順位づけし、PER/PBR のセクター中央値乖離も出す。</td>
+              <td><code>reports/relative-&lt;日付&gt;.md</code> <span class="chip green">RESULT</span></td>
+            </tr>
+            <tr data-filter-item="cli" data-cat="cross" data-text="sector_rotation セクターローテーション 業種 モメンタム リーダー ラガード セクター内ブレッシュ">
+              <td><a href="#sector_rotation"><code>sector_rotation.py</code></a><br><span class="micro">セクターローテーション</span></td>
+              <td>銘柄のモメンタムをセクター単位に中央値集約し、リーダー/ラガードとセクター内ブレッシュを出す。</td>
+              <td><code>reports/sector-&lt;日付&gt;.md</code> <span class="chip green">RESULT</span></td>
+            </tr>
+            <tr data-filter-item="cli" data-cat="cross" data-text="catalyst_radar カタリスト イベント 決算発表 配当落ち 権利落ち PEAD イベントドリブン">
+              <td><a href="#catalyst_radar"><code>catalyst_radar.py</code></a><br><span class="micro">カタリスト・レーダー</span></td>
+              <td>次の決算発表日・配当落ち日を取得し、指定日数以内に到来するイベントを接近順に並べる。</td>
+              <td><code>reports/catalyst-&lt;日付&gt;.md</code> <span class="chip green">RESULT</span></td>
+            </tr>
+            <tr data-filter-item="cli" data-cat="cross" data-text="adr_parity ADR パリティ 乖離 ドル円 東証終値 米国預託証券 クロスマーケット">
+              <td><a href="#adr_parity"><code>adr_parity.py</code></a><br><span class="micro">ADRパリティ・モニタ</span></td>
+              <td>東証終値 × ADR比率 ÷ ドル円の理論価格に対する ADR 終値の乖離%と、円換算 ADR 価格を並べる。</td>
+              <td><code>reports/adr-&lt;日付&gt;.md</code></td>
+            </tr>
+            <tr data-filter-item="cli" data-cat="strategy" data-text="run_backtest バックテスト 戦略検証 ゴールデンクロス ma_cross rsi_reversal macd bollinger dca 積立 IS OOS スイープ">
+              <td><a href="#run_backtest"><code>run_backtest.py</code></a><br><span class="micro">戦略バックテスト</span></td>
+              <td>5つの戦略を過去データで検証。IS/OOS 分割・パラメータスイープ・取引コスト・t統計量まで出す。</td>
+              <td><code>reports/backtest-&lt;strategy&gt;-&lt;code&gt;-&lt;日付&gt;.md</code></td>
+            </tr>
+            <tr data-filter-item="cli" data-cat="strategy" data-text="pairs_screen ペアトレード 共和分 スプレッド 平均回帰 OU 半減期 zスコア 統計的裁定">
+              <td><a href="#pairs_screen"><code>pairs_screen.py</code></a><br><span class="micro">ペアトレード共和分スクリーナ</span></td>
+              <td>全ペアのヘッジ比β・Dickey-Fuller 統計量・OU 半減期・現在の z スコアを算出し平均回帰の強い順に並べる。</td>
+              <td><code>reports/pairs-&lt;日付&gt;.md</code> <span class="chip green">RESULT</span></td>
+            </tr>
+            <tr data-filter-item="cli" data-cat="portfolio" data-text="portfolio_review ポートフォリオ 保有 損益 セクター配分 β VaR HHI 集中度 NISA ドリフト リバランス">
+              <td><a href="#portfolio_review"><code>portfolio_review.py</code></a><br><span class="micro">ポートフォリオ評価</span></td>
+              <td>保有 CSV から損益・セクター配分・加重β・年率ボラ・VaR・HHI・下落ストレス感応度を出す。</td>
+              <td><code>reports/portfolio-&lt;日付&gt;.md</code></td>
+            </tr>
+            <tr data-filter-item="cli" data-cat="portfolio" data-text="income_report 配当 インカム YOC 利回り 税引後 手取り NISA 非課税 高配当">
+              <td><a href="#income_report"><code>income_report.py</code></a><br><span class="micro">配当インカム・レポート</span></td>
+              <td>TTM 実績配当ベースの年間受取見込み・YOC・時価利回り・口座区分別の税引後手取りを集計。</td>
+              <td><code>reports/income-&lt;日付&gt;.md</code></td>
+            </tr>
+            <tr data-filter-item="cli" data-cat="portfolio" data-text="tax_report 税 含み損益 損出し 損益通算 繰越控除 20.315% 課税口座 税価値">
+              <td><a href="#tax_report"><code>tax_report.py</code></a><br><span class="micro">含み損益の税価値ビュー</span></td>
+              <td>課税口座の含み損益と「実現した場合の税価値（条件付き試算）」を整理。売る銘柄の判断はしない。</td>
+              <td><code>reports/tax-&lt;日付&gt;.md</code></td>
+            </tr>
+            <tr data-filter-item="cli" data-cat="portfolio" data-text="performance_report パフォーマンス XIRR 金額加重リターン MWR 取引履歴 実績 ベンチマーク比較">
+              <td><a href="#performance_report"><code>performance_report.py</code></a><br><span class="micro">実運用パフォーマンス（XIRR）</span></td>
+              <td>取引履歴 CSV から入出金調整後の実績年率（MWR = XIRR）・損益内訳・ベンチマーク比較を出す。</td>
+              <td><code>reports/performance-&lt;日付&gt;.md</code></td>
+            </tr>
+            <tr data-filter-item="cli" data-cat="portfolio" data-text="asset_plan 資産形成 プランニング 積立 目標逆算 進捗 取り崩し モンテカルロ NISA ネットワーク不要">
+              <td><a href="#asset_plan"><code>asset_plan.py</code></a><br><span class="micro">資産形成プランニング</span></td>
+              <td>積立予測・目標逆算・進捗確認・取り崩しの4サブコマンド。価格データもネットワークも使わない。</td>
+              <td><code>reports/plan-&lt;サブコマンド&gt;-&lt;日付&gt;.md</code></td>
+            </tr>
+            <tr data-filter-item="cli" data-cat="forecast" data-text="overnight_forecast 夜間フォーキャスト 翌営業日 予想 答え合わせ 採点 台帳 ledger 的中率 Brier 較正 キャリブレーション">
+              <td><a href="#overnight_forecast"><code>overnight_forecast.py</code></a><br><span class="micro">夜間フォーキャスト</span></td>
+              <td>翌営業日の機械予想 → 翌日の答え合わせ → 台帳蓄積 → 的中率/Brier/較正の集計まで回す。</td>
+              <td><code>forecasts/ledger.csv</code> ＋ <code>reports/forecast-*-&lt;日付&gt;.md</code> <span class="chip green">RESULT</span></td>
+            </tr>
+            <tr data-filter-item="cli" data-cat="forecast" data-text="research_journal リサーチジャーナル 仮説 記録 検証 期日 hit miss mixed 反証条件 スナップショット">
+              <td><a href="#research_journal"><code>research_journal.py</code></a><br><span class="micro">リサーチジャーナル</span></td>
+              <td>仮説を終値スナップショットつきで記録し、検証期日が来たらベンチマーク調整後で hit/miss/mixed を判定。</td>
+              <td><code>journal/&lt;YYYY&gt;/&lt;日付&gt;-&lt;slug&gt;.md</code></td>
+            </tr>
+            <tr data-filter-item="cli" data-cat="data" data-text="build_universe ユニバース 全上場銘柄 J-Quants JQUANTS_API_KEY CSV 33業種 市場区分 プライム">
+              <td><a href="#build_universe"><code>build_universe.py</code></a><br><span class="micro">ユニバース CSV 構築</span></td>
+              <td>J-Quants の全上場銘柄一覧から <code>screen.py</code> 互換の <code>code,name,sector</code> CSV を生成する。</td>
+              <td>指定した CSV（既定 <code>data/universe/jquants-all.csv</code>）</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="empty" data-filter-empty="cli" hidden>該当する項目がありません。検索語を短くするか ALL に戻してください。</p>
+      <p class="micro" style="margin-top:12px">
+        <span class="chip green">RESULT</span> は自動実行契約（RESULT 行 + exit code）を持つコマンドです。
+      </p>
+    </div>
+  </section>
+
+  <!-- 個別銘柄 -->
+  <section class="section" id="single">
+    <div class="col-wide">
+      <span class="micro">Category 01 · single</span>
+      <h2>個別銘柄 — 1銘柄を深く見る</h2>
+      <dl class="manpage">
+
+        <dt id="analyze_stock">analyze_stock.py</dt>
+        <dd>
+          単一銘柄の総合分析レポートを生成します。テクニカル指標・ファンダメンタルズ・リスク指標・
+          シグナル検出・ベンチマーク相対をひとつの Markdown にまとめ、ローソク足チャートを埋め込みます。
+<pre><code><span class="g">$</span> python3 analysis/analyze_stock.py <span class="a">7203</span> --period 2y --benchmark ^N225
+<span class="g">$</span> python3 analysis/analyze_stock.py <span class="a">7203</span> --horizon mid --in-currency USD</code></pre>
+          <span class="note">位置引数 <code>code</code>（必須）。<code>--period</code>（既定 2y。<code>--horizon</code> 指定時は short=6mo / mid=2y / long=5y）、<code>--benchmark</code>（既定 <code>^N225</code>）、<code>--horizon {short,mid,long}</code>、<code>--synthetic</code>、<code>--source</code>、<code>--no-charts</code>、<code>--in-currency {USD,EUR,GBP}</code>（<code>--in-usd</code> はエイリアス）。</span>
+          <span class="note">出力: <code>reports/analyze-&lt;code&gt;[-&lt;horizon&gt;]-&lt;日付&gt;.md</code>。スキル <code>/analyze</code> から起動できます（<a href="./skills.html">Skills</a>）。</span>
+        </dd>
+
+        <dt id="fundamentals_report">fundamentals_report.py</dt>
+        <dd>
+          業績（決算）の時系列分析。売上・利益・マージンの推移と成長率を集計します。
+          業績数値は yfinance の <code>income_stmt</code> / <code>balance_sheet</code> / <code>cashflow</code> が第一ソースです。
+<pre><code><span class="g">$</span> python3 analysis/fundamentals_report.py <span class="a">7203</span> --years 5</code></pre>
+          <span class="note">位置引数 <code>code</code>（必須）。<code>--years</code>（取得する最大年数、既定 5）、<code>--synthetic</code>。<strong>このコマンドに <code>--source</code> はありません</strong>（財務データは yfinance のみ）。</span>
+          <span class="note">環境変数 <code>EDINET_API_KEY</code> があれば、EDINET API v2 で直近の有価証券報告書・四半期/半期報告書の一覧（docID 付き）を原文確認の導線としてレポートに添えます。出力: <code>reports/fundamentals-&lt;code&gt;-&lt;日付&gt;.md</code>。</span>
+        </dd>
+
+        <dt id="risk_report">risk_report.py</dt>
+        <dd>
+          年率リターン・ボラだけでは見えない「下方への偏り」と「テールの厚み」を集計します。
+          下方偏差（MAR=0, 年率）・ソルティノレシオ・ヒストリカル VaR / 期待ショートフォール（ES/CVaR）95%・99%・
+          最大ドローダウンとその最長継続日数・直近ボラの全期間分布パーセンタイルを出します。
+<pre><code><span class="g">$</span> python3 analysis/risk_report.py <span class="a">7203</span> --period 5y --vol-window 21</code></pre>
+          <span class="note">位置引数 <code>code</code>（必須）。<code>--period</code>（既定 2y）、<code>--vol-window</code>（ローリング年率ボラの窓、営業日、既定 21 ≒ 1ヶ月）、<code>--synthetic</code>、<code>--source</code>。</span>
+          <span class="note">自動実行契約あり: <code>RESULT var95=&lt;値&gt; maxdd=&lt;値&gt; data=&lt;…&gt;</code>。VaR/ES は過去分布に基づく推定でテールを過小評価しうる旨がレポートに注記されます。</span>
+        </dd>
+
+        <dt id="seasonality_report">seasonality_report.py</dt>
+        <dd>
+          単一銘柄／指数の長期価格から暦効果を集計します。月別平均リターンと勝率、曜日別平均リターン、
+          月内（月初/月末）効果、半期比較（Sell in May: 5〜10月 vs 11〜4月）を、
+          各集計に標本数 n を併記した形で出します。
+<pre><code><span class="g">$</span> python3 analysis/seasonality_report.py <span class="a">^N225</span>
+<span class="g">$</span> python3 analysis/seasonality_report.py <span class="a">7203</span> --period 10y --first-days 3 --last-days 3</code></pre>
+          <span class="note">位置引数 <code>code</code>（必須。4桁は <code>.T</code> 正規化、<code>^N225</code> 等の指数も可）。<code>--period</code>（既定 <code>max</code>）、<code>--first-days</code>（月初の立会日数、既定 3）、<code>--last-days</code>（月末の立会日数、既定 3）、<code>--synthetic</code>、<code>--source</code>。</span>
+          <span class="note">自動実行契約あり: <code>RESULT months=… years=… data=…</code>。月×曜日×期間の探索は本質的に多重検定であり、データスヌーピングで偶然のアノマリーが生じうる旨がレポートに明記されます。</span>
+        </dd>
+
+      </dl>
+    </div>
+  </section>
+
+  <!-- 横断・市場全体 -->
+  <section class="section" id="cross">
+    <div class="col-wide">
+      <span class="micro">Category 02 · cross</span>
+      <h2>横断・市場全体 — 銘柄をまたいで見る</h2>
+      <dl class="manpage">
+
+        <dt id="screen">screen.py</dt>
+        <dd>
+          ユニバース CSV（列 <code>code,name,sector</code>）の全銘柄を条件で絞り込みます。
+          テクニカル（RSI・SMA・期間リターン）、出来高、バリュエーション（PER・PBR・配当利回り）の条件を
+          自由に組み合わせられます。結果テーブルは stdout にも出ます。
+<pre><code><span class="g">$</span> python3 analysis/screen.py --universe <span class="a">analysis/universe/liquid30.csv</span> \
+      --rsi-below 30 --price-above-sma 200</code></pre>
+          <span class="note">絞り込み条件: <code>--rsi-below</code> / <code>--rsi-above</code>（RSI(14)）、<code>--price-above-sma N</code> / <code>--price-below-sma N</code>、<code>--volume-surge X</code>（直近出来高が過去20日平均の X 倍以上）、<code>--return-below PCT</code> / <code>--return-above PCT</code>、<code>--per-below X</code>、<code>--pbr-below X</code>、<code>--dividend-yield-above PCT</code>。</span>
+          <span class="note">その他: <code>--universe</code>（既定 <code>analysis/universe/liquid30.csv</code>）、<code>--period</code>（既定 1y）、<code>--synthetic</code>、<code>--source</code>、<code>--in-currency</code>。PER/PBR/配当利回りの条件は値が取得できない銘柄を除外します。出力: <code>reports/screen-&lt;日付&gt;.md</code>。</span>
+        </dd>
+
+        <dt id="compare">compare.py</dt>
+        <dd>
+          指定した2銘柄以上の相対パフォーマンスと相関を比較します。期首=100 の相対推移図、
+          年率リターン・年率ボラ・シャープ・最大ドローダウン、日次リターンの相関行列を出します。
+<pre><code><span class="g">$</span> python3 analysis/compare.py <span class="a">7203 6758 9984</span> --period 1y</code></pre>
+          <span class="note">位置引数 <code>codes</code>（2つ以上）。<code>--period</code>（既定 1y）、<code>--synthetic</code>、<code>--source</code>、<code>--no-charts</code>、<code>--in-currency</code>。出力: <code>reports/compare-&lt;codes&gt;-&lt;日付&gt;.md</code>（stdout にもレポート本文を出します）。</span>
+        </dd>
+
+        <dt id="daily_brief">daily_brief.py</dt>
+        <dd>
+          市況（<code>^N225</code>・<code>1306.T</code>・<code>USDJPY=X</code>・<code>^GSPC</code> の前日比・5日・1ヶ月リターン）と、
+          ウォッチリスト各銘柄の現在値・前日比・検出シグナルを1本にまとめます。定期自動実行の主役です。
+<pre><code><span class="g">$</span> python3 analysis/daily_brief.py --watchlist <span class="a">data/watchlist.csv</span>
+<span class="c">RESULT signals=4 watch=12/12 data=real</span></code></pre>
+          <span class="note"><code>--watchlist</code>（既定 <code>data/watchlist.csv</code>。列 <code>code,note</code>。無い場合は雛形を案内して市況のみで続行）、<code>--period</code>（既定 1y。52週高安・75日線の判定には 1y 以上を推奨）、<code>--max-alerts N</code>（シグナル詳細の表示を種別優先度の上位 N 件に絞る）、<code>--synthetic</code>、<code>--source</code>、<code>--in-currency</code>。</span>
+          <span class="note">部分失敗（一部銘柄だけ取得できない）でも <code>data=real</code> のまま継続し、失敗銘柄はレポートの「取得失敗」節に列挙されます。<code>signals=0</code> が「変化なし」なのか「取得できず監視に穴」なのかは <code>watch=</code> の分子分母で区別します。出力: <code>reports/brief-&lt;日付&gt;.md</code>。</span>
+        </dd>
+
+        <dt id="market_breadth">market_breadth.py</dt>
+        <dd>
+          指数の水準だけでは見えない「上昇の裾野の広さ」を、ユニバースの銘柄群から機械的に集計します。
+          終値が SMA25/75/200 を上回る銘柄割合、前日比の騰落数、騰落レシオ（25日）、52週新高値/新安値を出します。
+<pre><code><span class="g">$</span> python3 analysis/market_breadth.py
+<span class="g">$</span> python3 analysis/market_breadth.py --universe <span class="a">analysis/universe/large70.csv</span></code></pre>
+          <span class="note"><code>--universe</code>（既定 <code>analysis/universe/liquid30.csv</code>）、<code>--period</code>（既定 2y。SMA200・騰落レシオ25日の算出に 1y 以上を推奨）、<code>--synthetic</code>、<code>--source</code>。</span>
+          <span class="note">自動実行契約あり: <code>RESULT breadth=&lt;成功&gt;/&lt;総数&gt; ad_ratio=&lt;値|na&gt; data=&lt;…&gt;</code>。ブレッシュは機械的な内部状態の記述であり、将来の騰落の予測ではない旨がレポートに注記されます。出力: <code>reports/breadth-&lt;日付&gt;.md</code>。</span>
+        </dd>
+
+        <dt id="relative_strength">relative_strength.py</dt>
+        <dd>
+          ユニバースの中で相対的に強い／割安な銘柄をクロスセクションで順位づけします。
+          3/6/9/12ヶ月モメンタムの加重合成を 1〜99 のパーセンタイル（RS ランク）にし、
+          あわせて各銘柄の PER/PBR の同セクター中央値に対する乖離を出します。
+<pre><code><span class="g">$</span> python3 analysis/relative_strength.py --top 10
+<span class="g">$</span> python3 analysis/relative_strength.py --no-valuation   <span class="c"># PER/PBR 取得を省いて高速化</span></code></pre>
+          <span class="note"><code>--universe</code>（既定 liquid30）、<code>--period</code>（既定 2y。12ヶ月モメンタムに 1y 以上を推奨）、<code>--top</code>（RS 上位/下位の表示件数、既定 10）、<code>--no-valuation</code>、<code>--synthetic</code>、<code>--source</code>。</span>
+          <span class="note">自動実行契約あり: <code>RESULT rs=&lt;算出数&gt;/&lt;総数&gt; valuation=&lt;PER取得数&gt; data=&lt;…&gt;</code>。RS が高い＝過去に強かった、であって将来を保証しません。出力: <code>reports/relative-&lt;日付&gt;.md</code>。</span>
+        </dd>
+
+        <dt id="sector_rotation">sector_rotation.py</dt>
+        <dd>
+          各銘柄の複数期間モメンタム（1/3/6/12ヶ月）をセクター単位に中央値で集約し、
+          代表窓（3ヶ月）の相対強度順にリーダー／ラガードを並べます。
+          セクター内ブレッシュ（終値 &gt; SMA50 の割合）も併記します。
+<pre><code><span class="g">$</span> python3 analysis/sector_rotation.py
+<span class="g">$</span> python3 analysis/sector_rotation.py --universe <span class="a">data/universe/jquants-all.csv</span></code></pre>
+          <span class="note"><code>--universe</code>（<strong>既定は <code>analysis/universe/large70.csv</code></strong>。他の横断系 CLI と既定が違う点に注意）、<code>--period</code>（既定 2y）、<code>--synthetic</code>、<code>--source</code>。</span>
+          <span class="note">自動実行契約あり: <code>RESULT sectors=… covered=&lt;成功&gt;/&lt;総数&gt; data=…</code>。セクター分類はユニバース CSV の <code>sector</code> 列に依存し、少数銘柄のセクターは不安定になります。出力: <code>reports/sector-&lt;日付&gt;.md</code>。</span>
+        </dd>
+
+        <dt id="catalyst_radar">catalyst_radar.py</dt>
+        <dd>
+          各銘柄の次の決算発表日・配当落ち日を Yahoo Finance のカレンダーから取得し、
+          指定日数以内に到来するイベントを接近順に並べます。決算後ドリフト（PEAD）や
+          権利落ちなど、イベントドリブンの起点を機械的に把握するためのツールです。
+<pre><code><span class="g">$</span> python3 analysis/catalyst_radar.py --within 14</code></pre>
+          <span class="note"><code>--universe</code>（既定は <code>data/watchlist.csv</code>、無ければ liquid30 にフォールバック）、<code>--within</code>（何日以内のイベントを対象にするか、既定 30）、<code>--synthetic</code>、<code>--source</code>。</span>
+          <span class="note">自動実行契約あり: <code>RESULT events=… covered=&lt;成功&gt;/&lt;総数&gt; data=…</code>。イベント日は取得日時点の予定であり変更されうる（確定ではない）旨がレポートに注記されます。出力: <code>reports/catalyst-&lt;日付&gt;.md</code>。</span>
+        </dd>
+
+        <dt id="adr_parity">adr_parity.py</dt>
+        <dd>
+          東証の現地株・米国 ADR・ドル円の3つを突き合わせ、乖離を機械的に測ります。
+          理論 ADR 価格 = 東証終値 × ADR比率 ÷ ドル円、乖離% = ADR終値 / 理論値 − 1、
+          円換算 ADR 価格 = ADR終値 × ドル円 ÷ ADR比率（翌朝の寄り付き水準の目安）を並べます。
+<pre><code><span class="g">$</span> python3 analysis/adr_parity.py <span class="a">7203</span>
+<span class="g">$</span> python3 analysis/adr_parity.py --all      <span class="c"># adr_map.csv の全銘柄</span></code></pre>
+          <span class="note">位置引数 <code>codes</code>（0個以上。<code>analysis/universe/adr_map.csv</code> に登録済みの銘柄のみ）。<code>--all</code>（対応表の全銘柄）、<code>--period</code>（既定 1mo。直近終値のみ使用）、<code>--synthetic</code>、<code>--source</code>。</span>
+          <span class="note">東証と米国市場では終値の暦日がずれるため、乖離には時差由来の成分が含まれます。ADR 比率は対応表の登録値（2025年時点、要確認）です。出力: <code>reports/adr-&lt;日付&gt;.md</code>。</span>
+        </dd>
+
+      </dl>
+    </div>
+  </section>
+
+  <!-- 戦略検証 -->
+  <section class="section" id="strategy">
+    <div class="col-wide">
+      <span class="micro">Category 03 · strategy</span>
+      <h2>戦略検証 — ルールを過去データにぶつける</h2>
+      <dl class="manpage">
+
+        <dt id="run_backtest">run_backtest.py</dt>
+        <dd>
+          売買ルールのバックテスト。戦略とバイ&amp;ホールドの統計（トータル/年率リターン、年率ボラ、
+          シャープ、最大ドローダウン、取引回数、勝率、t統計量、対象営業日数）を並べ、資産曲線を埋め込みます。
+          戦略は <code>ma_cross</code> / <code>rsi_reversal</code> / <code>macd</code> /
+          <code>bollinger_reversal</code> / <code>dca</code> の5種類です。
+<pre><code><span class="g">$</span> python3 analysis/run_backtest.py --strategy ma_cross --code <span class="a">7203</span> \
+      --fast 25 --slow 75 --cost-bps 10 --split 0.7 --sweep
+<span class="g">$</span> python3 analysis/run_backtest.py --strategy dca --code <span class="a">7203</span> --monthly 30000</code></pre>
+          <span class="note">共通: <code>--strategy</code>（既定 <code>ma_cross</code>）、<code>--code</code>（必須）、<code>--period</code>（既定 2y）、<code>--cost-bps</code>（片道取引コスト bps、既定 10）、<code>--split R</code>（時間順で前 R をインサンプル、残りをアウトオブサンプルとして並記）、<code>--sweep</code>（パラメータ近傍グリッドを走らせ試行回数 N と成績分布を表化。<code>--split</code> 併用時は IS 区間のみ）、<code>--synthetic</code>、<code>--source</code>、<code>--no-charts</code>、<code>--in-currency</code>。</span>
+          <span class="note">戦略別パラメータ: <code>ma_cross</code> は <code>--fast</code>（既定 25）/ <code>--slow</code>（75）。<code>rsi_reversal</code> は <code>--rsi-window</code>（14）/ <code>--rsi-lower</code>（30）/ <code>--rsi-upper</code>（50）。<code>macd</code> は <code>--macd-fast</code>（12）/ <code>--macd-slow</code>（26）/ <code>--macd-signal</code>（9）。<code>bollinger_reversal</code> は <code>--bb-window</code>（20）/ <code>--bb-std</code>（2.0）。<code>dca</code> は <code>--monthly</code>（30000）/ <code>--day-of-month</code>（1）。</span>
+          <span class="note">出力: <code>reports/backtest-&lt;strategy&gt;-&lt;code&gt;-&lt;日付&gt;.md</code>。<code>--sweep</code> の試行回数は多重検定の分母として必ず読むこと（後述の「特筆すべき挙動」参照）。</span>
+        </dd>
+
+        <dt id="pairs_screen">pairs_screen.py</dt>
+        <dd>
+          ユニバースの全ペアについて、対数価格の連動性とスプレッドの平均回帰の強さを測ります。
+          ヘッジ比β・スプレッドの Dickey-Fuller 統計量・OU 半減期・現在の z スコアを算出し、
+          平均回帰の強い順に候補を並べます（実装は numpy のみ）。
+<pre><code><span class="g">$</span> python3 analysis/pairs_screen.py --same-sector --top 20</code></pre>
+          <span class="note"><code>--universe</code>（既定 liquid30）、<code>--period</code>（既定 3y。共和分の推定には長めを推奨）、<code>--top</code>（表示ペア数、既定 15）、<code>--same-sector</code>（同セクターのペアのみ＝経済的な連動の裏付けがあるペアに絞る）、<code>--min-overlap</code>（評価に必要な最小の重なり営業日数、既定 250）、<code>--synthetic</code>、<code>--source</code>。</span>
+          <span class="note">自動実行契約あり: <code>RESULT pairs=… mean_reverting=… data=…</code>。N銘柄で N(N−1)/2 ペアを検定する多重比較のため偽陽性が出やすく、インサンプルの統計であり将来の平均回帰を保証しません。空売りコストも考慮外です。出力: <code>reports/pairs-&lt;日付&gt;.md</code>。</span>
+        </dd>
+
+      </dl>
+    </div>
+  </section>
+
+  <!-- 保有・資産 -->
+  <section class="section" id="portfolio">
+    <div class="col-wide">
+      <span class="micro">Category 04 · portfolio</span>
+      <h2>保有・資産 — 自分の口座を測る</h2>
+      <p class="lede" style="margin-bottom:18px">
+        このカテゴリの CLI は <code>data/portfolio.csv</code> / <code>data/transactions.csv</code> を読みます。
+        <code>data/</code> は gitignore 対象なので、個人の保有情報がコミットされることはありません。
+        雛形は <code>analysis/templates/</code> にあります。
+      </p>
+      <dl class="manpage">
+
+        <dt id="portfolio_review">portfolio_review.py</dt>
+        <dd>
+          保有 CSV から評価額・損益・セクター配分・加重β・相関・年率ボラ・VaR・HHI 集中度・
+          下落ストレス感応度（β近似）をまとめます。CSV の任意列によってレポートの節が増える設計です。
+<pre><code><span class="g">$</span> python3 analysis/portfolio_review.py --file <span class="a">data/portfolio.csv</span> --period 1y
+<span class="g">$</span> python3 analysis/portfolio_review.py --drift-band 5.0 --in-currency USD</code></pre>
+          <span class="note"><code>--file</code>（既定 <code>data/portfolio.csv</code>）、<code>--period</code>（既定 1y）、<code>--benchmark</code>（β計算のベンチマーク、既定 <code>^N225</code>）、<code>--drift-band</code>（目標配分ドリフトの閾値バンド %pt、既定 5.0）、<code>--synthetic</code>、<code>--source</code>、<code>--in-currency</code>。</span>
+          <span class="note">CSV の任意列: <code>account</code>（NISA口座状況の節）、<code>target_weight</code>（目標配分とのドリフト節）、<code>manual_price</code>（投信・現金など手入力評価行）、<code>proxy_ticker</code>（手入力行をリスク指標に組み込むための上場プロキシ）、<code>fx_at_cost</code>（基準通貨建て損益の分解）、<code>acquired_date</code>・<code>memo</code>。</span>
+          <span class="note">下落ストレス感応度の節は常に入り、ベンチマークが −10%/−20%/−30% 下落した場合の推定損益を ΔV ≈ Σ MV_i·β_i·Δm で試算します（予測ではなくβ一定仮定の感応度試算。ストレス時はβ・相関が上昇しがちという限界も併記）。出力: <code>reports/portfolio-&lt;日付&gt;.md</code>。</span>
+        </dd>
+
+        <dt id="income_report">income_report.py</dt>
+        <dd>
+          保有銘柄ごとに直近12ヶ月（TTM）の実績1株配当 × 株数で年間受取配当見込みを推計し、
+          取得原価ベースの YOC・時価ベースの配当利回り・税引後の手取り・月割り額をまとめます。
+<pre><code><span class="g">$</span> python3 analysis/income_report.py --file <span class="a">data/portfolio.csv</span> --period 1y</code></pre>
+          <span class="note"><code>--file</code>（既定 <code>data/portfolio.csv</code>）、<code>--period</code>（時価利回りの分母となる現在値の取得期間、既定 1y）、<code>--synthetic</code>（合成配当系列＝シード固定・年2回の半期配当）、<code>--source</code>。</span>
+          <span class="note"><code>account</code> 列があれば NISA分を非課税・課税口座分を源泉徴収 20.315%（2025年時点）として手取りを併記し、NISA分の非課税メリット（年間フロー = NISA分税引前配当 × 20.315%）を試算します。NISA配当の非課税には株式数比例配分方式の選択が必要である旨が必ず注記されます。</span>
+          <span class="note"><code>manual_price</code> を持つ行（投信・現金など）は配当・価格の取得対象外で、年間配当 0 として集計されます。TTM 実績は会社予想ではなく将来の配当を保証しません（減配リスク）。出力: <code>reports/income-&lt;日付&gt;.md</code>。</span>
+        </dd>
+
+        <dt id="tax_report">tax_report.py</dt>
+        <dd>
+          課税口座（特定・一般）ポジションの銘柄別含み損益と、含み損銘柄を
+          「実現した場合の税価値（試算）」= 含み損 × 20.315%（2025年時点の申告分離課税率）を一覧します。
+          NISA 口座の含み損が損益通算・繰越控除の対象外であることも対比表示します。
+<pre><code><span class="g">$</span> python3 analysis/tax_report.py --file <span class="a">data/portfolio.csv</span> --period 1y</code></pre>
+          <span class="note"><code>--file</code>（既定 <code>data/portfolio.csv</code>）、<code>--period</code>（既定 1y）、<code>--synthetic</code>、<code>--source</code>。</span>
+          <span class="note">実務上の注意——同一銘柄の同日買い戻しで取得単価が平均化され実現できる損失が縮む点、繰越控除には確定申告が必要な点、税価値のために投資判断を歪める本末転倒（tax tail wagging the dog）——が本文に自動挿入されます。</span>
+          <span class="note"><strong>この CLI は「実現した場合の」条件付き試算に徹する情報整理であり、損出し・売却・保有継続の判断はしません。</strong>出力: <code>reports/tax-&lt;日付&gt;.md</code>。</span>
+        </dd>
+
+        <dt id="performance_report">performance_report.py</dt>
+        <dd>
+          取引履歴 CSV から「自分の運用はこれまで実際に年率何%だったのか」を測ります。
+          金額加重リターン（MWR = XIRR）をニュートン法＋二分法フォールバックで解き、
+          期間損益の内訳（実現 + 未実現 + 受取配当）と、同じキャッシュフローをベンチマークに投じた場合の比較を出します。
+<pre><code><span class="g">$</span> python3 analysis/performance_report.py --file <span class="a">data/transactions.csv</span>
+<span class="g">$</span> python3 analysis/performance_report.py --benchmark 1306.T   <span class="c"># 配当込みの比較</span></code></pre>
+          <span class="note"><code>--file</code>（既定 <code>data/transactions.csv</code>。列 <code>date,code,side,shares,price,fee,account,memo</code>。<code>side</code> は <code>buy</code> / <code>sell</code> / <code>dividend</code> / <code>deposit</code> / <code>withdraw</code>）、<code>--benchmark</code>（既定 <code>^N225</code>）、<code>--period</code>（省略時は最初の取引日から自動導出）、<code>--synthetic</code>、<code>--source</code>。</span>
+          <span class="note">入出金行があれば口座モード、約定のみならポジションモードに自動判定します。既定の <code>^N225</code> は配当を含まない価格指数なので、配当込みで比べるなら分配金調整済みの <code>1306.T</code> 等を指定します。テンプレート: <code>analysis/templates/transactions-example.csv</code>。出力: <code>reports/performance-&lt;日付&gt;.md</code>。</span>
+        </dd>
+
+        <dt id="asset_plan">asset_plan.py</dt>
+        <dd>
+          資産形成プランニング。<strong>価格データもネットワークも使わない</strong>唯一系統の CLI で、
+          決定論的複利とモンテカルロのファンチャートつきレポートを出します。
+          サブコマンドは <code>project</code>（積立予測）/ <code>goal</code>（目標額から必要積立額を逆算）/
+          <code>progress</code>（現在資産と積立ペースでの到達確認＝要求リターン逆算・到達確率）/
+          <code>decumulate</code>（定額・定率取り崩し）の4つです。
+<pre><code><span class="g">$</span> python3 analysis/asset_plan.py project --monthly 50000 --years 20 --return 5 --nisa
+<span class="g">$</span> python3 analysis/asset_plan.py goal --target 30000000 --years 25 --return 4
+<span class="g">$</span> python3 analysis/asset_plan.py progress --target 30000000 --years 15 \
+      --current 8000000 --monthly 70000 --return 4
+<span class="g">$</span> python3 analysis/asset_plan.py decumulate --initial 30000000 --years 30 \
+      --return 3 --vol 12 --rate 4</code></pre>
+          <span class="note">全サブコマンド共通: <code>--return</code>（必須、想定年率リターン。%表記で <code>5</code> = 年率5%）、<code>--vol</code>（想定年率ボラ、%表記）、<code>--inflation</code>（%表記、既定 0）、<code>--cost</code>（信託報酬等の年率コスト、%表記、既定 0。実効リターン $(1+R)(1-c)-1$ で計算し前提表に控除後リターンを明記）、<code>--paths</code>（モンテカルロのパス数、既定 2000）、<code>--seed</code>（既定 42、固定で再現可能）、<code>--no-charts</code>。</span>
+          <span class="note">サブコマンド別: <code>project</code> は <code>--monthly</code> / <code>--years</code>（必須）・<code>--initial</code>・<code>--nisa</code>（課税口座 20.315%〔2025年時点〕との比較を併記）。<code>goal</code> は <code>--target</code> / <code>--years</code>（必須）・<code>--initial</code>。<code>progress</code> は <code>--target</code> / <code>--years</code> / <code>--current</code> / <code>--monthly</code>（すべて必須）。<code>decumulate</code> は <code>--initial</code> / <code>--years</code>（必須）＋ <code>--monthly</code>（定額）か <code>--rate</code>（定率、%表記）のいずれか、<code>--inflation-linked</code>。</span>
+          <span class="note"><strong><code>--synthetic</code> も <code>--source</code> もありません</strong>（そもそも価格データを引きません）。想定リターンはユーザー入力の仮定であり、将来の保証ではない旨がレポートに必ず明記されます。出力: <code>reports/plan-&lt;サブコマンド&gt;-&lt;日付&gt;.md</code>。</span>
+        </dd>
+
+      </dl>
+    </div>
+  </section>
+
+  <!-- 予想と記録 -->
+  <section class="section" id="forecast">
+    <div class="col-wide">
+      <span class="micro">Category 05 · forecast</span>
+      <h2>予想と記録 — 出した予想を必ず採点する</h2>
+      <p class="lede" style="margin-bottom:18px">
+        この2本がこの環境の閉ループの実体です。予想も仮説も、記録した時点で採点の期日が決まります。
+        設計と運用の詳細は <a href="./forecast.html">Forecast</a> にあります。
+      </p>
+      <dl class="manpage">
+
+        <dt id="overnight_forecast">overnight_forecast.py</dt>
+        <dd>
+          「寝ている間に翌営業日へ向けて予想を出し、翌日その予想の答え合わせをして、
+          実績を台帳（<code>forecasts/ledger.csv</code>）に貯めていく」ループを回します。
+          予想は RSI・移動平均の並び・モメンタムの固定重み合成で、方向・上昇確率・予想リターン・
+          ATR ベースの予想レンジを出します。
+<pre><code><span class="g">$</span> python3 analysis/overnight_forecast.py run          <span class="c"># grade → forecast（夜間実行の本体）</span>
+<span class="g">$</span> python3 analysis/overnight_forecast.py forecast     <span class="c"># 翌営業日の予想を生成して台帳に追加</span>
+<span class="g">$</span> python3 analysis/overnight_forecast.py grade        <span class="c"># pending 予想を実績で採点</span>
+<span class="g">$</span> python3 analysis/overnight_forecast.py calibration  <span class="c"># 的中率・Brier・較正を集計</span></code></pre>
+          <span class="note">共通: <code>--ledger</code>（実績台帳 CSV、既定 <code>forecasts/ledger.csv</code>。主にテスト用）。各サブコマンド: <code>--period</code>（既定 1y。75日線・モメンタムに 1y 以上を推奨）、<code>--synthetic</code>、<code>--source</code>。<code>forecast</code> と <code>run</code> はさらに <code>--universe</code>（既定は <code>data/watchlist.csv</code>、無ければ liquid30。<code>code</code> 列必須、<code>name</code> / <code>note</code> 列は任意）。</span>
+          <span class="note">自動実行契約あり（サブコマンドごとに RESULT 行が異なる。上の <a href="#contract">契約表</a> 参照）。<code>--synthetic</code> で作った予想は台帳に <code>data=synthetic</code> と記録され、実データの実績とは採点されません。</span>
+          <span class="note">出力: <code>forecasts/ledger.csv</code>（git 管理対象）＋ <code>reports/forecast-&lt;日付&gt;.md</code> / <code>forecast-grade-…</code> / <code>forecast-run-…</code> / <code>forecast-calibration-…</code>。予想は機械的なベースラインであり、売買助言でも将来の断定でもありません。</span>
+        </dd>
+
+        <dt id="research_journal">research_journal.py</dt>
+        <dd>
+          「分析のやりっぱなし」をなくすためのツール。仮説を <code>journal/&lt;YYYY&gt;/&lt;日付&gt;-&lt;slug&gt;.md</code> に
+          記録時点の終値を自動スナップショットして残し、検証予定日が来たら現在値と
+          同期間のベンチマーク騰落を突き合わせて hit / miss / mixed を機械判定します。
+<pre><code><span class="g">$</span> python3 analysis/research_journal.py new --codes <span class="a">7203</span> \
+      --title "決算後の上方修正期待" --direction up --review-days 60
+<span class="g">$</span> python3 analysis/research_journal.py due     <span class="c"># 検証期日が来た open エントリ</span>
+<span class="g">$</span> python3 analysis/research_journal.py verify <span class="a">journal/2026/2026-07-16-….md</span>
+<span class="g">$</span> python3 analysis/research_journal.py list    <span class="c"># 全エントリのサマリー</span></code></pre>
+          <span class="note">共通: <code>--journal-dir</code>（既定 <code>journal/</code>。主にテスト用）。<code>new</code>: <code>--codes</code>（必須、複数可）、<code>--title</code>（必須）、<code>--direction</code>（<code>up</code>/<code>down</code>/<code>neutral</code> か <code>7203:up,6758:down</code> の銘柄ごと指定）、<code>--review-days</code>（既定 60）、<code>--benchmark</code>（既定 <code>^N225</code>）、<code>--slug</code>、<code>--synthetic</code>、<code>--source</code>。<code>verify</code>: 位置引数 <code>path</code>、<code>--synthetic</code>、<code>--source</code>。<code>due</code> / <code>list</code> は価格を取得しません（<code>--synthetic</code> は一貫性のため受け付けるだけ）。</span>
+          <span class="note"><code>new --synthetic</code> は frontmatter に <code>data: synthetic</code> を書き込み、<code>verify</code> はエントリの <code>data</code> と <code>--synthetic</code> 指定が食い違うと拒否します（合成スナップショットと実データの比較は判定として無意味なため）。雛形の生成後、<code>## 仮説</code> / <code>## 根拠</code> / <code>## 反証条件</code> を必ず記入します。</span>
+        </dd>
+
+      </dl>
+    </div>
+  </section>
+
+  <!-- データ基盤 -->
+  <section class="section" id="data">
+    <div class="col-wide">
+      <span class="micro">Category 06 · data</span>
+      <h2>データ基盤 — 分析の入力を用意する</h2>
+      <dl class="manpage">
+
+        <dt id="build_universe">build_universe.py</dt>
+        <dd>
+          J-Quants の全上場銘柄一覧（<code>stocklib.jquants.fetch_listed_info()</code>）から、
+          <code>screen.py</code> 互換の <code>code,name,sector</code> CSV を生成します。
+          <code>liquid30</code> / <code>large70</code> を超える全銘柄スクリーニングの入口です。
+<pre><code><span class="g">$</span> set -a &amp;&amp; source .env &amp;&amp; set +a     <span class="c"># JQUANTS_API_KEY を読み込む</span>
+<span class="g">$</span> python3 analysis/build_universe.py --market プライム --sector33 銀行
+<span class="g">$</span> python3 analysis/screen.py --universe <span class="a">data/universe/jquants-all.csv</span> --rsi-below 30</code></pre>
+          <span class="note"><code>--out</code>（出力先 CSV、既定 <code>data/universe/jquants-all.csv</code>。<code>data/</code> は gitignore 範囲でディレクトリは自動作成）、<code>--market</code>（市場区分名の部分一致。例 プライム / スタンダード / グロース）、<code>--sector33</code>（33業種名の部分一致。例 銀行 / 電気機器 / 医薬品）、<code>--exclude-etf-reit</code> / <code>--no-exclude-etf-reit</code>（既定 ON。33業種・市場区分が「その他」の ETF・REIT 等を除外）、<code>--date</code>（銘柄一覧の基準日 YYYY-MM-DD。省略時は最新）。</span>
+          <span class="note"><strong>環境変数 <code>JQUANTS_API_KEY</code> が必須</strong>（V2・APIキー方式・無期限、2026年時点）。未設定・無効時は <code>JQuantsAuthError</code> が導入手順つきのメッセージを出します。<code>--synthetic</code> も <code>--source</code> もありません。</span>
+          <span class="note">J-Quants の5桁コードは予備桁が <code>0</code> のものだけ4桁化でき、優先株等はスキップして件数が stdout に報告されます。無料プランの銘柄一覧・株価は12週間遅延（2025年時点）。全銘柄の価格取得は yfinance 経由になるため、小型株ではデータ品質と所要時間に注意します（<a href="./knowledge.html">Knowledge</a> の data-sources 分野を参照）。</span>
+        </dd>
+
+      </dl>
+    </div>
+  </section>
+
+  <!-- 特筆すべき挙動 -->
+  <section class="section" id="quirks">
+    <div class="col-wide">
+      <span class="micro">Gotchas</span>
+      <h2>特筆すべき挙動</h2>
+      <p class="lede" style="margin-bottom:20px">
+        <code>--help</code> の一行だけでは読み取りにくい、挙動が大きく変わるオプションと入力列をまとめます。
+      </p>
+
+      <div class="callout">
+        <span class="micro">analyze_stock · --horizon</span>
+        <p>
+          <code>--horizon short|mid|long</code> は投資時間軸のフレームです。指定すると
+          <strong>該当時間軸の「視点」節がレポートに追加され</strong>（short: 5/25日線・RSI・ATR倍数のストップ目安・出来高急増・直近20日高安値／
+          mid: 25/75/200日線の並び・3/6/12ヶ月モメンタム・52週高値からの距離／
+          long: 年率リターンとボラ・最大ドローダウン・配当利回り・PBR/PER の長期文脈・積立適性）、
+          <strong><code>--period</code> 未指定時の取得期間が short=6mo / mid=2y / long=5y に変わり</strong>、
+          <strong>出力ファイル名も <code>analyze-&lt;code&gt;-&lt;horizon&gt;-&lt;日付&gt;.md</code> になります</strong>。
+          省略時は従来どおりの全部入り（期間 2y、ファイル名も従来どおり）です。
+        </p>
+      </div>
+
+      <div class="callout">
+        <span class="micro">run_backtest · --strategy dca</span>
+        <p>
+          <code>dca</code> だけは売買シグナル戦略ではなく、<strong>毎月定額買付（ドルコスト平均法）の積立
+          シミュレーション</strong>です。<code>--monthly</code>（毎月の買付金額、円、既定 30000）と
+          <code>--day-of-month</code>（目標買付日 1〜31。非営業日や月に無い日は翌営業日に繰越、既定 1）を取り、
+          累計投資額と同額を期初に一括投資した場合との比較表・チャートを出します。
+          <strong><code>--split</code> / <code>--sweep</code> / <code>--in-currency</code> とは併用できません</strong>（円建てのみ）。
+        </p>
+      </div>
+
+      <div class="callout">
+        <span class="micro">portfolio_review · account 列</span>
+        <p>
+          保有 CSV の任意列 <code>account</code>（<code>nisa_tsumitate</code> / <code>nisa_growth</code> / <code>taxable</code>。
+          空欄・列なしは <code>taxable</code> 扱い）が1銘柄でもあると、レポートに<strong>「NISA口座状況」節</strong>が追加されます。
+          口座区分別の簿価・評価額・損益、年間投資枠（つみたて投資枠120万円・成長投資枠240万円/年）と
+          生涯投資枠（1,800万円、うち成長投資枠1,200万円。簿価残高方式）の使用率、
+          非課税メリット推計（NISA含み益 × 20.315%）を出します。
+          いずれも<strong>2024年開始の新NISA制度</strong>の値、税率は<strong>2025年時点</strong>のものです。
+          保有中の銘柄の簿価のみからの集計で売却済み分・投資信託の買付を含まないため、
+          金融機関側の枠残高管理値とはずれうる点に注意してください。
+          <code>account=nisa_tsumitate</code> に上場銘柄コードがある場合は「つみたて投資枠では個別株は購入できない（2024年制度）」という警告が出ます（エラーにはしません）。
+        </p>
+      </div>
+
+      <div class="callout">
+        <span class="micro">共通 · --in-currency の換算方法</span>
+        <p>
+          基準通貨建ての換算は<strong>クロス円レート（<code>USDJPY=X</code> / <code>EURJPY=X</code> / <code>GBPJPY=X</code>）の
+          同日終値によるヘッジなし近似</strong>です。リターンは恒等式 $(1+r^{B})=(1+r^{JPY})/(1+r^{FX})$ に従います。
+          コマンドごとに効き方が違います——<code>screen</code> は各銘柄の O/H/L/C を換算してから RSI・SMA・リターン条件を評価します
+          （PER/PBR/配当利回りは通貨に依存しない比率なので円建てのまま、出来高は無変換）。
+          <code>run_backtest</code> は<strong>売買シグナルを常に円建て価格で計算</strong>し、確定した日次リターンだけを換算します
+          （換算後の価格でシグナルを出すと、執行と乖離したルックアヘッド類似の歪みが入るため）。
+          <code>portfolio_review</code> では評価額・年率ボラ・VaR は全銘柄で計算しますが、損益の基準通貨建て併記は
+          任意列 <code>fx_at_cost</code>（取得時のクロス円レート）がある銘柄に限られ、未入力の銘柄は円建てのみで注記されます。
+        </p>
+      </div>
+
+      <div class="callout red">
+        <span class="micro">--synthetic の禁止事項</span>
+        <p>
+          <code>--synthetic</code> はネットワーク不要で手法を動かすための合成データです。
+          <strong>自動実行で実データが取れないときに <code>--synthetic</code> で代替して「今日の市況」のように見せることは禁止</strong>です。
+          RESULT 行を持つ CLI はこの場合 <code>data=unavailable</code> ＋ exit 2 で静かに終了するよう作られています。
+          合成データで作ったレポートには必ず「合成データによる手法デモであり実データではない」と明記してください。
+        </p>
+      </div>
+
+      <div class="callout green">
+        <span class="micro">読むときの構え</span>
+        <p>
+          既定のデータソースは yfinance（非公式 API）です。日本株では分割・配当調整の不備が起きうるため、
+          レポートで異常な騰落やギャップを見たら<strong>まずデータ品質を疑ってください</strong>。
+          重要なレポートを外部共有や意思決定に使う前には、敵対的レビュー（<code>/review-report</code>）を通す運用になっています。
+          レビュー観点は <a href="./skills.html">Skills</a>、指標の理論的背景は <a href="./knowledge.html">Knowledge</a>、
+          予想の評価指標（的中率・Brier・較正）は <a href="./forecast.html">Forecast</a> を参照してください。
+        </p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="col-wide">
+    <p class="disclaimer">
+      <strong>免責</strong>：本環境および本サイトの出力は<strong>投資助言ではなく分析支援</strong>です。
+      掲載する指標・予想・レポートは機械的な集計と再現可能なベースラインであり、
+      将来の騰落を断定するものではありません。投資判断はご自身の責任で行ってください。
+    </p>
+    <div class="foot-links">
+      <a href="https://github.com/nigoh/stock_hacker">GitHub リポジトリ ↗</a>
+      <a href="./getting-started.html">はじめかた</a>
+      <a href="./knowledge.html">ナレッジベース</a>
+      <a href="./forecast.html">夜間フォーキャスト</a>
+    </div>
+    <p style="margin-top:14px">
+      データソースは yfinance（非公式 API）および J-Quants（任意設定）。
+      価格データの分割・配当調整には不備が起こりうるため、異常な騰落を見たらまずデータ品質を疑うこと。
+    </p>
+  </div>
+</footer>
+
+<script src="./assets/site.js"></script>
+</body>
+</html>
