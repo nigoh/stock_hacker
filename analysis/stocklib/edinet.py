@@ -59,6 +59,12 @@ SIGNUP_URL: str = "https://api.edinet-fsa.go.jp/api/auth/index.aspx?mode=1"
 
 _REQUEST_TIMEOUT: float = 30.0
 
+# zip 取り込みの上限。EDINET の財務諸表 CSV（zip）は通常 1MB 前後、大きくても
+# 数 MB に収まる。圧縮率の高い zip を展開するとメモリを食い潰す（zip bomb）ため、
+# 応答サイズと展開後サイズの両方に上限を設ける。
+MAX_ZIP_BYTES: int = 64 * 1024 * 1024           # 応答（圧縮状態）の上限 64MB
+MAX_UNCOMPRESSED_BYTES: int = 256 * 1024 * 1024  # 展開後の合計上限 256MB
+
 # 主要な書類種別コード（2024年時点。四半期報告書は2024年4月以降廃止、過去分検索用）
 DOC_TYPE_LABELS: dict[str, str] = {
     "120": "有価証券報告書",
@@ -281,12 +287,34 @@ def fetch_document_csv(doc_id: str, *, api_key: str | None = None) -> pd.DataFra
             f"{doc_id} の CSV（zip）を取得できませんでした。書類が CSV 非対応"
             f"（csvFlag != '1'）か docID が不正の可能性があります。応答冒頭: {content[:200]!r}"
         )
+    if len(content) > MAX_ZIP_BYTES:
+        raise EdinetError(
+            f"{doc_id} の応答が想定より大きすぎます"
+            f"（{len(content):,} バイト > 上限 {MAX_ZIP_BYTES:,}）。取り込みを中止しました。"
+        )
     frames: list[pd.DataFrame] = []
     with zipfile.ZipFile(io.BytesIO(content)) as zf:
+        # zip bomb 対策: 展開後の合計サイズを先に検査する。圧縮率が極端に高い
+        # zip は展開するとメモリを食い潰すため、読む前にヘッダの申告値で弾く。
+        declared = sum(info.file_size for info in zf.infolist())
+        if declared > MAX_UNCOMPRESSED_BYTES:
+            raise EdinetError(
+                f"{doc_id} の zip は展開後 {declared:,} バイトと想定を超えます"
+                f"（上限 {MAX_UNCOMPRESSED_BYTES:,}）。取り込みを中止しました。"
+            )
+        total = 0
         for name in zf.namelist():
             if not name.lower().endswith(".csv"):
                 continue
-            df = _read_member_csv(zf.read(name))
+            raw = zf.read(name)
+            total += len(raw)
+            if total > MAX_UNCOMPRESSED_BYTES:
+                # 申告値が嘘の場合に備え、実際の展開量でも打ち切る。
+                raise EdinetError(
+                    f"{doc_id} の zip の展開量が上限 {MAX_UNCOMPRESSED_BYTES:,} "
+                    "バイトを超えました。取り込みを中止しました。"
+                )
+            df = _read_member_csv(raw)
             df["ソースファイル"] = name.rsplit("/", 1)[-1]
             frames.append(df)
     if not frames:
