@@ -3,6 +3,9 @@
 日本株（東証上場株式）の分析を一手に行うためのリポジトリ。
 **Claude Code で開くだけで「日本株解析のプロフェッショナル」として振る舞う分析環境**になるよう、ナレッジベース・分析ライブラリ・CLI・スキル/エージェント/hooks を一体で整備している。
 
+📖 **ドキュメントサイト: https://nigoh.github.io/stock_hacker/**
+CLI リファレンス・ナレッジベース索引・スキル一覧・夜間フォーキャストの設計を、ブラウザで読めます（ソースは [`docs/`](docs/)）。
+
 > ⚠️ **本リポジトリの出力はすべて「分析支援」であり「投資助言」ではありません。** 数値・枠組み・トレードオフといった判断材料を提供しますが、「買うべき/売るべき」は判断しません。投資判断はご自身の責任で行ってください。
 
 ---
@@ -507,7 +510,7 @@ python3 analysis/screen.py --rsi-below 30
 | `knowledge/` | 日本株ナレッジベース（90文書）。市場制度・歴史・数学/クオンツ・ファンダ/テクニカル分析・マクロ・デリバティブ・規制税制・データソース・投資戦略。入口は [`knowledge/00-index.md`](knowledge/00-index.md)。索引の整合は hooks が自動チェックし、重複統合・陳腐化検出は knowledge-curator エージェントが担う |
 | `analysis/` | 分析コード（Python 3.11+）。共通ライブラリ `stocklib`、14本の CLI、ユニバース定義、pytest テスト |
 | `journal/` | リサーチジャーナル（分析仮説の記録と事後検証。git 管理対象。入口は [`journal/README.md`](journal/README.md)） |
-| `docs/` | 運用ガイド（[`docs/getting-started.md`](docs/getting-started.md): ゼロから始める資産形成の通し順路、[`docs/data-sources.md`](docs/data-sources.md): 無料でデータを見る/取る実践ガイド、[`docs/automation.md`](docs/automation.md): デイリーブリーフの自動実行、[`docs/mape-k.md`](docs/mape-k.md): MAPE-K 夜間セルフ改善の設計と運用） |
+| `docs/` | ドキュメントサイト（https://nigoh.github.io/stock_hacker/ として GitHub Pages で公開。`index.html` ほかの HTML と `assets/`）＋ 運用ガイド（[`docs/getting-started.md`](docs/getting-started.md): ゼロから始める資産形成の通し順路、[`docs/data-sources.md`](docs/data-sources.md): 無料でデータを見る/取る実践ガイド、[`docs/automation.md`](docs/automation.md): デイリーブリーフの自動実行、[`docs/overnight-forecast.md`](docs/overnight-forecast.md): 夜間フォーキャストの自動運用、[`docs/mape-k.md`](docs/mape-k.md): MAPE-K 夜間セルフ改善の設計と運用） |
 | `mape/` | MAPE-K 夜間セルフ改善の決定論スクリプト（Monitor/Analyze/Plan＋サーキットブレーカー）と共有ナレッジ K（`mape/knowledge/`、日本株ナレッジベース `knowledge/` とは別物）。入口は [`mape/README.md`](mape/README.md) |
 | `.claude/` | Claude Code 設定。スキル18種・サブエージェント4種・コマンド20種・hooks |
 | `scripts/` | hooks 用スクリプト（環境セットアップ、ナレッジ索引の整合チェック） |
