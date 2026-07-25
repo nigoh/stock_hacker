@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forecast — 夜間フォーキャストの設計と運用 — stock_hacker</title>
+<meta name="description" content="翌営業日の機械予想を固定ルールで生成し、翌日の実績で採点し、台帳に蓄積して的中率・Brier・較正で測定する閉ループ。モデルの中身・採点方法・評価指標・自動運用の契約・限界までを実装どおりに記述する。">
+<link rel="stylesheet" href="./assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230B0E0C'/%3E%3Ctext x='2' y='12' font-family='monospace' font-size='11' fill='%236EE7A0'%3E%24%3C/text%3E%3C/svg%3E">
+<script>
+  /* テーマのちらつき防止: 描画前に保存済みテーマを適用する */
+  (function () {
+    try {
+      var t = localStorage.getItem("stock_hacker.theme");
+      if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+    } catch (e) {}
+  })();
+</script>
+</head>
+<body>
+<a class="skip" href="#main">本文へスキップ</a>
+
+<header class="topbar">
+  <div class="col-wide topbar-inner">
+    <div class="brand"><a href="./index.html">stock_hacker</a><span class="cursor">_</span></div>
+    <nav class="nav" aria-label="サイト">
+      <a href="./index.html">Home</a>
+      <a href="./getting-started.html">Start</a>
+      <a href="./cli.html">CLI</a>
+      <a href="./knowledge.html">Knowledge</a>
+      <a href="./skills.html">Skills</a>
+      <a href="./forecast.html" aria-current="page">Forecast</a>
+      <a href="https://github.com/nigoh/stock_hacker">GitHub ↗</a>
+    </nav>
+    <button class="toggle" type="button" data-theme-toggle>◐ light</button>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ヒーロー -->
+  <section class="hero">
+    <div class="col-wide">
+      <div class="shell">
+        <div class="shell-head">
+          <span class="shell-dot" aria-hidden="true"></span>
+          <span class="shell-dot" aria-hidden="true"></span>
+          <span class="shell-dot" aria-hidden="true"></span>
+          <span class="shell-title">~/stock_hacker — overnight forecast（出力形式の例示）</span>
+        </div>
+        <div class="shell-body">
+<pre><span class="prompt"><span class="user">analyst</span>@tokyo:<span class="path">~/stock_hacker</span>$</span> <span class="cmd">python3 analysis/overnight_forecast.py run</span>
+<span class="c"># フォーキャスト答え合わせ（2026-07-24）  … 前回 pending の予想を実績終値で採点</span>
+<span class="c"># 翌営業日フォーキャスト（2026-07-24）    … 翌営業日の方向・確率・レンジを生成</span>
+<span class="c">レポート: reports/forecast-run-2026-07-24.md</span>
+<span class="c">台帳: forecasts/ledger.csv</span>
+<span class="g">RESULT graded=31 forecasts=31 universe=31/31 data=real</span>
+
+<span class="prompt"><span class="user">analyst</span>@tokyo:<span class="path">~/stock_hacker</span>$</span> <span class="caret" aria-hidden="true"></span></pre>
+        </div>
+        <p class="micro" style="padding:10px 16px;margin:0">上は出力形式の例示であり、特定の実行ログではありません。実際の実行結果は <code>forecasts/ledger.csv</code> と <code>reports/</code> に残ります。</p>
+      </div>
+
+      <div style="margin-top:32px">
+        <span class="micro">Overnight forecast · 予想 → 答え合わせ → 台帳</span>
+        <h1 class="page-title">予想を出しっぱなしにしない</h1>
+        <p class="lede">
+          夜間フォーキャストは、翌営業日の方向・上昇確率・予想レンジを<strong>固定ルールで機械的に</strong>出し、
+          翌日の実績終値で必ず採点し、結果を台帳に貯めていく仕組みです。
+          予想そのものより、<strong>予想が採点されて記録に残ること</strong>に価値を置いています。
+          ここで出る数字は将来の断定でも投資助言でもなく、手法を検証可能に保つための測定値です。
+        </p>
+      </div>
+
+      <nav class="toc" style="margin-top:26px" aria-label="このページの目次">
+        <span class="micro">On this page</span>
+        <ul>
+          <li><a href="#why">なぜ答え合わせなのか</a></li>
+          <li><a href="#loop">閉ループ</a></li>
+          <li><a href="#model">予想モデルの中身</a></li>
+          <li><a href="#grading">採点の仕方</a></li>
+          <li><a href="#ledger">台帳</a></li>
+          <li><a href="#metrics">評価指標の読み方</a></li>
+          <li><a href="#record">現在の記録</a></li>
+          <li><a href="#automation">自動運用</a></li>
+          <li><a href="#limits">限界</a></li>
+        </ul>
+      </nav>
+    </div>
+  </section>
+
+  <!-- なぜ答え合わせなのか -->
+  <section class="section" id="why">
+    <div class="col-wide">
+      <span class="micro">Why</span>
+      <h2>なぜ答え合わせなのか</h2>
+      <p>
+        予想の良し悪しは、出したときの説得力ではなく<strong>後から記録が決めます</strong>。
+        当たった予想だけを覚え、外した予想を忘れる限り、手法は永遠に評価されません。
+      </p>
+      <p>
+        そこでこの環境は、まず<strong>固定ルールの機械的ベースライン</strong>を置きます。
+        重みも閾値も過去データにフィットさせていないので、「よく当たるように調整された数字」ではありません。
+        そのぶん出発点として弱いかもしれませんが、当たり外れを同じ条件で積み上げられます。
+        台帳が貯まって初めて「どのシグナルが効くのか」「確率の付け方は適切か」を議論できます——
+        これが <code>stocklib/forecast.py</code> の言う<strong>データの醸成</strong>です。
+      </p>
+      <div class="callout green">
+        <span class="micro">設計の順序</span>
+        重みを過去にフィットさせてから予想を出すのではなく、<strong>固定重みで予想を出してから測る</strong>。
+        逆順にするとインサンプル最適化とルックアヘッドの罠に入り、良く見える成績が将来を保証しない。
+        実測に基づいて重みを見直す場合も、IS/OOS 分割で過剰適合を疑う手続きを必ず通す
+        （<a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/math/backtesting-and-statistics.md">backtesting-and-statistics.md</a>）。
+      </div>
+    </div>
+  </section>
+
+  <!-- 閉ループ -->
+  <section class="section" id="loop">
+    <div class="col-wide">
+      <span class="micro">Closed loop</span>
+      <h2>閉ループ</h2>
+      <div class="loop">
+        <div class="loop-step">
+          <span class="n">01</span><h3>予想</h3>
+          <p><code>forecast</code> がユニバース各銘柄の方向・上昇確率・予想レンジを固定ルールで生成する。</p>
+        </div>
+        <div class="loop-step">
+          <span class="n">02</span><h3>記録</h3>
+          <p><code>forecasts/ledger.csv</code> に <code>status=pending</code> の行として upsert される（git 管理対象）。</p>
+        </div>
+        <div class="loop-step">
+          <span class="n">03</span><h3>答え合わせ</h3>
+          <p><code>grade</code> が asof より後の最初の実データ日の終値で採点し、同じ行を <code>graded</code> に更新する。</p>
+        </div>
+        <div class="loop-step">
+          <span class="n">04</span><h3>測定</h3>
+          <p><code>calibration</code> が台帳から方向的中率・Brier・較正表・銘柄別成績を集計する。</p>
+        </div>
+        <div class="loop-step">
+          <span class="n">05</span><h3>改善</h3>
+          <p>測定に根拠がある場合だけ手法を直す。少数標本では動かさない。</p>
+        </div>
+      </div>
+      <p style="margin-top:16px">
+        <code>run</code> は 03（前回予想の答え合わせ）と 01（翌営業日の予想生成）を1コマンドで実行する夜間運用の本体です。
+        Claude Code からは <code>/overnight</code> で同じループを起動できます。
+      </p>
+    </div>
+  </section>
+
+  <!-- 予想モデル -->
+  <section class="section" id="model">
+    <div class="col-wide">
+      <span class="micro">Model</span>
+      <h2>予想モデルの中身</h2>
+      <p>
+        方向スコア <code>s</code> は、3つの正規化サブスコア（各 −1〜+1）を固定重みで合成しただけのものです。
+        実装は <a href="https://github.com/nigoh/stock_hacker/blob/main/analysis/stocklib/forecast.py">analysis/stocklib/forecast.py</a> の
+        <code>make_forecast</code>。以下は実装そのままの定義です（<code>C</code> は asof の終値、
+        <code>σ_d</code> は日次リターンの20日標準偏差）。
+      </p>
+
+      <dl class="manpage">
+        <dt>s_trend — トレンド（重み 0.40）</dt>
+        <dd>
+          終値と25日線の上下、および25/75日線の並びの符号を平均する。
+          <span class="note">2つの符号の平均なので、取りうる値は {−1, −0.5, 0, +0.5, +1} の5値のみ。</span>
+        </dd>
+        <dt>s_mom — モメンタム（重み 0.40）</dt>
+        <dd>
+          20営業日リターンを、その期間のボラティリティで割った z 値相当を −1〜+1 に切り詰める。
+          <span class="note">同じ +5% でも、静かな相場なら大きく、荒れた相場なら小さく評価される。</span>
+        </dd>
+        <dt>s_meanrev — 平均回帰（重み 0.20）</dt>
+        <dd>
+          RSI(14) が50から離れた分を逆符号で使う。売られすぎなら +、買われすぎなら −。
+          <span class="note">トレンド追随2項に対する逆張りの重しで、重みは最も軽い。</span>
+        </dd>
+      </dl>
+
+<pre style="margin-top:20px"><code><span class="c"># --- 3つのサブスコア（それぞれ -1 〜 +1）---</span>
+s_trend = 0.5 * ( sgn(C - SMA25) + sgn(SMA25 - SMA75) )     <span class="c"># ∈ {-1, -0.5, 0, +0.5, +1}</span>
+s_mom   = clip( m20 / (σ_d * sqrt(20)), -1, +1 )            <span class="c"># m20 = C / C[-20] - 1</span>
+s_rev   = (50 - RSI14) / 50
+
+<span class="c"># --- 合成 → 確率 → 方向ラベル ---</span>
+<span class="g">s</span>       = clip( 0.40*s_trend + 0.40*s_mom + 0.20*s_rev, -1, +1 )
+<span class="g">p</span>       = 1 / (1 + exp(-1.5 * s))                           <span class="c"># 上昇確率（ロジスティック変換）</span>
+direction = <span class="a">up</span>   if p &gt;= 0.55
+            <span class="a">down</span> if p &lt;= 0.45
+            <span class="a">flat</span> otherwise
+
+<span class="c"># --- 予想値 ---</span>
+r̂       = s * σ_d                                          <span class="c"># 予想リターン（1日ぶんの控えめな点推定）</span>
+range   = C * (1 + r̂) ± ATR14                              <span class="c"># 予想レンジ（終値ベース）</span>
+confidence = |s|                                            <span class="c"># 信頼度＝スコアの絶対値</span></code></pre>
+
+      <p>
+        パラメータはすべて <code>forecast.py</code> の定数です。変更すれば挙動は変わりますが、
+        <strong>変更した時点で、それ以前に貯めた台帳と同じモデルの成績ではなくなる</strong>点に注意してください。
+      </p>
+
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>定数</th><th class="num">値</th><th>意味</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>FAST_SMA</code></td><td class="num">25</td><td>短期移動平均（トレンド項）</td></tr>
+            <tr><td><code>SLOW_SMA</code></td><td class="num">75</td><td>長期移動平均（トレンド項）</td></tr>
+            <tr><td><code>MOMENTUM_WINDOW</code></td><td class="num">20</td><td>モメンタムの計測日数</td></tr>
+            <tr><td><code>VOL_WINDOW</code></td><td class="num">20</td><td>日次リターン標準偏差 σ_d の窓</td></tr>
+            <tr><td><code>RSI_WINDOW</code></td><td class="num">14</td><td>平均回帰項の RSI 期間</td></tr>
+            <tr><td><code>ATR_WINDOW</code></td><td class="num">14</td><td>予想レンジ幅に使う ATR 期間</td></tr>
+            <tr><td><code>WEIGHT_TREND</code></td><td class="num">0.40</td><td>トレンド項の重み</td></tr>
+            <tr><td><code>WEIGHT_MOMENTUM</code></td><td class="num">0.40</td><td>モメンタム項の重み</td></tr>
+            <tr><td><code>WEIGHT_MEANREV</code></td><td class="num">0.20</td><td>平均回帰項の重み（合計 1.0）</td></tr>
+            <tr><td><code>LOGISTIC_K</code></td><td class="num">1.5</td><td>スコア→確率のロジスティックの傾き</td></tr>
+            <tr><td><code>PROB_UP_THRESHOLD</code></td><td class="num">0.55</td><td>これ以上で <code>up</code> ラベル</td></tr>
+            <tr><td><code>PROB_DOWN_THRESHOLD</code></td><td class="num">0.45</td><td>これ以下で <code>down</code> ラベル</td></tr>
+            <tr><td><code>FLAT_BAND</code></td><td class="num">0.005</td><td>採点時、<code>flat</code> 的中とみなす実績リターンの幅（±0.5%）</td></tr>
+            <tr><td><code>MIN_HISTORY</code></td><td class="num">95</td><td>予想に必要な終値の最小本数（<code>SLOW_SMA + MOMENTUM_WINDOW</code>）</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout">
+        <span class="micro">重みは固定・未フィット</span>
+        重み（0.40 / 0.40 / 0.20）・傾き（1.5）・閾値（0.55 / 0.45）は<strong>すべて固定値で、
+        過去データに最適化していません</strong>。したがって「バックテストで良かったから選んだ数字」ではなく、
+        逆に言えば<strong>当たるという事前の根拠もありません</strong>。
+        効くかどうかは台帳を貯めて測って初めて分かる、というのがこの設計の前提です。
+      </div>
+    </div>
+  </section>
+
+  <!-- 採点 -->
+  <section class="section" id="grading">
+    <div class="col-wide">
+      <span class="micro">Grading</span>
+      <h2>採点の仕方</h2>
+      <p>
+        採点は <code>grade_forecast</code> が行います。実績として使うのは
+        <strong>asof 日より後の最初の実データ日の終値</strong>です（台帳の <code>target_date</code> は
+        土日だけをスキップした暦日ベースの目安で、祝日は考慮していません。実際に採点に使った日付は
+        <code>actual_date</code> に記録されます）。翌営業日の足がまだ無ければ採点せず <code>pending</code> のまま残します。
+      </p>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>項目</th><th>台帳の列</th><th>判定</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>実績リターン</td><td><code>actual_return</code></td>
+              <td><code>actual_close / asof_close − 1</code></td>
+            </tr>
+            <tr>
+              <td>方向的中</td><td><code>dir_hit</code></td>
+              <td><code>up</code> は実績リターン &gt; 0、<code>down</code> は &lt; 0、
+                  <code>flat</code> は |実績リターン| ≤ 0.5%（<code>FLAT_BAND</code>）</td>
+            </tr>
+            <tr>
+              <td>レンジ的中</td><td><code>in_range</code></td>
+              <td><code>pred_low ≤ actual_close ≤ pred_high</code></td>
+            </tr>
+            <tr>
+              <td>Brier スコア</td><td><code>brier</code></td>
+              <td><code>(prob_up − 1{実績リターン &gt; 0})²</code>。低いほど良い</td>
+            </tr>
+            <tr>
+              <td>予想リターン誤差</td><td><code>abs_error</code></td>
+              <td><code>|実績リターン − pred_return|</code>（集計時は平均して MAE）</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        方向的中率の集計では <code>flat</code> 予想を分母から除きます（方向を張っていないため）。
+        一方 Brier とレンジ的中率は <code>flat</code> を含む採点済み全件を母数にします。
+        なお実績リターンは終値→終値なので、<strong>オーバーナイトのギャップを含みます</strong>。
+        寄り付き約定を前提にした評価には別の設計が要ります。
+      </p>
+    </div>
+  </section>
+
+  <!-- 台帳 -->
+  <section class="section" id="ledger">
+    <div class="col-wide">
+      <span class="micro">Ledger</span>
+      <h2>台帳（forecasts/ledger.csv）</h2>
+      <p>
+        1行 = 1銘柄・1営業日ぶんの予想と採点結果。列の定義は <code>forecast.py</code> の
+        <code>LEDGER_COLUMNS</code>（全27列。前半18列が予想時に、後半9列が採点時に埋まる（うち <code>status</code> だけは予想時に <code>pending</code> として書かれ、採点時に <code>graded</code> へ更新される））が正です。
+        台帳は <strong>git 管理対象</strong>で、コミットのたびに track record が積み上がります。
+      </p>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>#</th><th>列</th><th>フェーズ</th><th>内容</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="num">1</td><td><code>forecast_id</code></td><td>予想</td><td><code>&lt;asof_date&gt;:&lt;code&gt;</code>。行の一意キー</td></tr>
+            <tr><td class="num">2</td><td><code>made_on</code></td><td>予想</td><td>予想を生成した日（ローカル日付）</td></tr>
+            <tr><td class="num">3</td><td><code>asof_date</code></td><td>予想</td><td>予想の基準にした最終終値の日付</td></tr>
+            <tr><td class="num">4</td><td><code>target_date</code></td><td>予想</td><td>予想対象の翌営業日（土日スキップの目安値）</td></tr>
+            <tr><td class="num">5</td><td><code>code</code></td><td>予想</td><td>銘柄コード</td></tr>
+            <tr><td class="num">6</td><td><code>name</code></td><td>予想</td><td>表示名（ユニバース CSV 由来）</td></tr>
+            <tr><td class="num">7</td><td><code>data</code></td><td>予想</td><td><code>real</code> / <code>synthetic</code></td></tr>
+            <tr><td class="num">8</td><td><code>direction</code></td><td>予想</td><td><code>up</code> / <code>down</code> / <code>flat</code></td></tr>
+            <tr><td class="num">9</td><td><code>prob_up</code></td><td>予想</td><td>上昇確率 0〜1（Brier 用）</td></tr>
+            <tr><td class="num">10</td><td><code>pred_return</code></td><td>予想</td><td>予想リターンの点推定</td></tr>
+            <tr><td class="num">11</td><td><code>asof_close</code></td><td>予想</td><td>基準終値</td></tr>
+            <tr><td class="num">12</td><td><code>pred_low</code></td><td>予想</td><td>予想レンジ下限（価格）</td></tr>
+            <tr><td class="num">13</td><td><code>pred_high</code></td><td>予想</td><td>予想レンジ上限（価格）</td></tr>
+            <tr><td class="num">14</td><td><code>confidence</code></td><td>予想</td><td>信頼度 = |score|</td></tr>
+            <tr><td class="num">15</td><td><code>s_trend</code></td><td>予想</td><td>トレンド分項（−1〜1）</td></tr>
+            <tr><td class="num">16</td><td><code>s_momentum</code></td><td>予想</td><td>モメンタム分項（−1〜1）</td></tr>
+            <tr><td class="num">17</td><td><code>s_meanrev</code></td><td>予想</td><td>平均回帰分項（−1〜1）</td></tr>
+            <tr><td class="num">18</td><td><code>score</code></td><td>予想</td><td>合成方向スコア（−1〜1）</td></tr>
+            <tr><td class="num">19</td><td><code>status</code></td><td>採点</td><td><code>pending</code> / <code>graded</code></td></tr>
+            <tr><td class="num">20</td><td><code>graded_on</code></td><td>採点</td><td>採点を実行した日</td></tr>
+            <tr><td class="num">21</td><td><code>actual_date</code></td><td>採点</td><td>採点に使った実データ日</td></tr>
+            <tr><td class="num">22</td><td><code>actual_close</code></td><td>採点</td><td>実績終値</td></tr>
+            <tr><td class="num">23</td><td><code>actual_return</code></td><td>採点</td><td>実績リターン</td></tr>
+            <tr><td class="num">24</td><td><code>dir_hit</code></td><td>採点</td><td>方向的中（真偽）</td></tr>
+            <tr><td class="num">25</td><td><code>in_range</code></td><td>採点</td><td>レンジ的中（真偽）</td></tr>
+            <tr><td class="num">26</td><td><code>abs_error</code></td><td>採点</td><td>予想リターンの絶対誤差</td></tr>
+            <tr><td class="num">27</td><td><code>brier</code></td><td>採点</td><td>Brier スコア</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="grid grid-2">
+        <div class="cell">
+          <span class="call">Upsert</span>
+          <h3>同じ日・同じ銘柄は上書き</h3>
+          <p>行のキーは <code>forecast_id = &lt;asof_date&gt;:&lt;code&gt;</code>。同じ営業日に <code>forecast</code> を何度回しても行は重複せず、再生成の意図とみなして上書きされます（採点済みの行でも同一 asof なら上書き）。</p>
+        </div>
+        <div class="cell">
+          <span class="call">Real / Synthetic</span>
+          <h3>合成予想は実データで採点しない</h3>
+          <p><code>--synthetic</code> で作った予想は <code>data=synthetic</code> と記録され、実データの実績とは採点されません。集計（<code>summarize</code> / <code>calibration_table</code>）も既定で <code>data=real</code> のみを対象にし、実績成績に合成が混ざらないようにしています。</p>
+        </div>
+      </div>
+      <div class="callout red">
+        <span class="micro">場中に実行しないこと（成績が痕跡なく書き換わる）</span>
+        <code>forecast</code> は取得系列の<strong>末尾の足</strong>を asof とするため、大引け前に回すと
+        <strong>未確定の当日バー</strong>を基準に予想を作り、暫定値のまま採点してしまいます。
+        さらに upsert は同一 asof の行を<strong>採点済みでも上書き</strong>するので、確定後に再実行すると
+        台帳の成績が痕跡を残さず書き換わります。実行は<strong>当日終値が確定してから</strong>
+        （15:30 以降。2024年11月の立会時間延長後、2026年時点）に限ってください。
+        暫定値で採点した集計を先に公開してしまった場合は、確定後に再採点した旨と差分を明記すること
+        （このページの「現在の記録」がまさにその例です）。
+      </div>
+      <p>
+        書式の詳細は <a href="https://github.com/nigoh/stock_hacker/blob/main/forecasts/README.md">forecasts/README.md</a>。
+        個人のウォッチリスト（<code>data/watchlist.csv</code>、git 管理外）を対象にすると、その銘柄コードが
+        git 管理対象の台帳に載る点に注意してください（<code>--ledger</code> で管理外のパスに逃がせます）。
+      </p>
+    </div>
+  </section>
+
+  <!-- 評価指標 -->
+  <section class="section" id="metrics">
+    <div class="col-wide">
+      <span class="micro">Metrics</span>
+      <h2>評価指標の読み方</h2>
+      <p>
+        理論は <a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/math/forecast-evaluation-and-calibration.md">knowledge/math/forecast-evaluation-and-calibration.md</a> に置いています。
+        要点は「的中率だけでは足りない」ことです。
+      </p>
+
+      <div class="grid grid-3">
+        <div class="cell">
+          <span class="call">Hit rate</span>
+          <h3>方向的中率</h3>
+          <p><strong>50%は予測力ゼロと同義</strong>です。コイン投げの水準を超えているかは標本数が十分になるまで判定できません。また上げ相場では「常に上昇」と言うだけで的中率は上がる（ベースレート問題）ため、単独では手法の証拠になりません。</p>
+        </div>
+        <div class="cell">
+          <span class="call">Brier score</span>
+          <h3>Brier スコア</h3>
+          <p>確率予想の二乗誤差の平均。低いほど良く、<strong>無情報予想（常に p = 0.5）の値は 0.25</strong>。0.25 を安定して下回れば確率がコイン投げより情報を持ち、上回れば無情報以下（確率の付け方が逆か、自信過剰）です。</p>
+        </div>
+        <div class="cell">
+          <span class="call">Calibration</span>
+          <h3>較正</h3>
+          <p>「70%と言った予想は本当に70%当たるか」。確率をビンに分け、平均予想確率と実際の上昇頻度を並べます。高確率側で実際の頻度が下回れば<strong>自信過剰</strong>。件数の少ないビンは偶然で大きく振れます。</p>
+        </div>
+      </div>
+
+      <div class="callout" style="margin-top:20px">
+        <span class="micro">レンジ的中率は指標として弱い</span>
+        予想レンジは中心 ± <strong>1 ATR</strong>（14日）という設計です。ATR は日々の値幅の平均なので、
+        レンジ幅はもともと1日の変動をおおむね覆う広さになります。したがって
+        <strong>レンジ的中率は設計上7割前後は出る</strong>のが普通で、高くても手法の優位性の証拠にはなりません。
+        見るべきは「レンジが広すぎ／狭すぎではないか」であり、予想リターンの MAE と併せて判断します。
+      </div>
+    </div>
+  </section>
+
+  <!-- 現在の記録 -->
+  <section class="section" id="record">
+    <div class="col-wide">
+      <span class="micro">Track record</span>
+      <h2>現在の記録</h2>
+      <p>
+        現時点で採点済みの実データは<strong>1営業日ぶんだけ</strong>です。
+        2026-07-23 の終値を基準（asof）に31銘柄の予想を生成し、2026-07-24 の確定終値で採点しました。
+        データ出所は yfinance、ユニバースは <strong>liquid30（30銘柄）に 4419 Finatext を加えた31銘柄</strong>
+        （<code>analysis/universe/forecast31.csv</code>）です。4419 だけは小型グロースで他30銘柄と性格が異なる点は、
+        少数標本の解釈時に留意してください。
+      </p>
+      <div class="callout green">
+        <span class="micro">再現できます</span>
+        以下の数値は <code>forecasts/ledger.csv</code> の asof=2026-07-23 の31行から、
+        <code>python3 analysis/overnight_forecast.py calibration</code> を実行して<strong>そのまま再現できます</strong>。
+        台帳・ユニバースともリポジトリにコミットしてあります。
+      </div>
+
+      <div class="stats" style="margin-bottom:22px">
+        <div class="stat"><span class="n">31</span><span class="k">採点済み件数（1営業日ぶん・結論不可）</span></div>
+        <div class="stat"><span class="n">50.0%</span><span class="k">方向的中率 14/28 ＝ コイン投げ水準</span></div>
+        <div class="stat"><span class="n">0.2953</span><span class="k">平均 Brier（低いほど良い）</span></div>
+        <div class="stat"><span class="n">0.25</span><span class="k">無情報基準 — これを上回った＝無情報以下</span></div>
+      </div>
+
+      <div class="callout red">
+        <span class="micro">この数字で結論を出さないこと</span>
+        <strong>1営業日・n = 31（方向予想は 28 件）の少数標本であり、モデルの優劣を結論づけるものではありません。</strong>
+        的中が独立なベルヌーイ試行だとしても、n = 28 の的中率の標準誤差はおよそ 9 ポイントあります。
+        良く見えても悪く見えても、それは1日の相場の当たり外れとほぼ区別がつきません。
+        統計的に意味を持つには、営業日をまたいだ継続測定が必要です。
+      </div>
+
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>指標</th><th class="num">値</th><th>読み方</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>採点済み件数</td><td class="num">31</td><td>うち方向予想（flat 除く）28 件</td></tr>
+            <tr><td>方向的中率</td><td class="num">50.0%（14/28）</td><td>コイン投げと同じ水準。予測力があった証拠にはならない</td></tr>
+            <tr><td>平均 Brier</td><td class="num">0.2953</td><td>無情報基準 0.25 を<strong>上回っており、この日は無情報以下</strong></td></tr>
+            <tr><td>無情報 Brier</td><td class="num">0.2500</td><td>常に p = 0.5 と答えた場合の値</td></tr>
+            <tr><td>レンジ的中率</td><td class="num">80.6%（25/31）</td><td>±1 ATR 設計上もともと高く出る。優位性の証拠ではない</td></tr>
+            <tr><td>平均予想リターン誤差 (MAE)</td><td class="num">2.06%</td><td>1日の予想リターンの点推定は大きく外れうる</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>予想方向別の内訳と、この日の相場</h3>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>予想方向</th><th class="num">件数</th><th class="num">的中</th><th class="num">的中率</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>上昇（up）</td><td class="num">21</td><td class="num">8</td><td class="num">38.1%</td></tr>
+            <tr><td>下落（down）</td><td class="num">7</td><td class="num">6</td><td class="num">85.7%</td></tr>
+            <tr><td>横ばい（flat）</td><td class="num">3</td><td class="num">1</td><td class="num">33.3%</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        この日は<strong>広く下げた相場</strong>で、31銘柄のうち実績が上昇したのは10、下落が21、平均は −0.86% でした。
+        一方モデルは31銘柄中<strong>21銘柄を上昇と予想</strong>しており、平均の上昇確率は 0.60。
+        トレンド追随2項（合計の重み 0.80）が上向きの地合いを引き継いだ結果の<strong>上方バイアス</strong>です。
+        しかも高確信の予想ほどまとまって外れました——上昇確率 0.60 以上のビン（19件）は、
+        平均予想確率 0.70 に対して実際の上昇頻度が 0.42 で、この日は明確な<strong>自信過剰</strong>でした。
+        下落予想が 6/7 当たったのは、地合いが下だったこの日にたまたま向きが合っただけと見るべきです。
+      </p>
+      <p>
+        これは弁護の余地なくモデルの弱点の観察です。ただし<strong>1日ぶんの観察から「上方バイアスがあるから重みを下げる」と結論するのも同じ誤り</strong>で、
+        重みを動かすのは台帳が積み上がってからです。現時点で言えるのは「そういう外れ方をした日があった」という事実だけです。
+      </p>
+      <div class="callout">
+        <span class="micro">数値の出所と、採点タイミングによる差</span>
+        上記は 2026-07-24 の<strong>確定終値</strong>で採点した結果です
+        （<code>forecasts/ledger.csv</code> の asof=2026-07-23 の31行、<code>calibration</code> と同じ定義）。
+        同日<strong>場中</strong>（13:20 JST 時点）の暫定値で採点した速報とは、
+        レンジ的中率 74.2%（23/31）→ <strong>80.6%（25/31）</strong>、平均 Brier 0.3067 → <strong>0.2953</strong>、
+        MAE 2.14% → 2.06%、当日の騰落銘柄数 12/19 → 10/21 と、<strong>指標の読みが変わりうる幅で動いています</strong>
+        （方向的中率 50.0% だけは変わりませんでした）。
+        1営業日・31件の標本では、採点に使う終値スナップショットの違いだけでこの程度動く——これもここから読み取れる事実です。
+        台帳は営業日ごとに積み上がるため、この数字は最新の集計出力と一致しないことがあります。
+      </div>
+    </div>
+  </section>
+
+  <!-- 自動運用 -->
+  <section class="section" id="automation">
+    <div class="col-wide">
+      <span class="micro">Automation</span>
+      <h2>自動運用</h2>
+      <p>
+        台帳は自動で回して初めて貯まります。東証の大引け後（当日終値が確定する 15:30 以降）に
+        <code>run</code> を平日ぶん回すのが素直な構成です。当日終値を asof に予想を作り、翌営業日に前日ぶんを採点します。
+      </p>
+<pre><code><span class="c"># crontab: 平日 16:30 JST に「前回の答え合わせ → 翌営業日の予想」</span>
+CRON_TZ=Asia/Tokyo
+30 16 * * 1-5 cd /path/to/stock_hacker &amp;&amp; python3 analysis/overnight_forecast.py <span class="a">run</span> &gt;&gt; ~/forecast.log 2&gt;&amp;1
+
+<span class="c"># 較正の確認は週次で十分</span>
+0 8 * * 6 cd /path/to/stock_hacker &amp;&amp; python3 analysis/overnight_forecast.py <span class="a">calibration</span> &gt;&gt; ~/forecast.log 2&gt;&amp;1</code></pre>
+
+      <h3>機械可読な契約</h3>
+      <p>各サブコマンドは stdout の<strong>最終行</strong>に <code>RESULT</code> 行を出します。通知の振り分けはこれと exit code で行います。</p>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>サブコマンド</th><th>RESULT 行</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>forecast</code></td><td><code>RESULT forecasts=&lt;件数&gt; universe=&lt;成功&gt;/&lt;総数&gt; data=&lt;real|synthetic|unavailable&gt;</code></td></tr>
+            <tr><td><code>grade</code></td><td><code>RESULT graded=&lt;採点数&gt; pending=&lt;残保留数&gt; data=&lt;real|synthetic|unavailable&gt;</code></td></tr>
+            <tr><td><code>run</code></td><td><code>RESULT graded=&lt;g&gt; forecasts=&lt;f&gt; universe=&lt;成功&gt;/&lt;総数&gt; data=&lt;...&gt;</code></td></tr>
+            <tr><td><code>calibration</code></td><td><code>RESULT graded=&lt;採点済み総数&gt; data=real</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th class="num">exit code</th><th>意味</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="num">0</td><td>正常終了（<code>data=real</code> または <code>data=synthetic</code>）</td></tr>
+            <tr><td class="num">2</td><td>実データ全滅（<code>data=unavailable</code>）。予想・採点・レポートは生成されず、stderr に対処が出る</td></tr>
+            <tr><td class="num">1</td><td>その他のエラー（ユニバース CSV の不正など。RESULT 行なし）</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        <code>grade</code> の <code>graded=0</code> は「翌営業日の実データがまだ揃っていない」＝正常（保留のまま）でも起こります。
+        監視は <code>pending</code> の残数が減り続けているかで見ます。通知の原則は
+        「外れが偏ったとき・データ取得不可・pending が減らないときに出す」で、
+        「毎日予想を出した」こと自体は台帳とレポートに残るため無条件通知はノイズです。
+      </p>
+
+      <div class="callout red">
+        <span class="micro">禁止事項</span>
+        <strong>実データが取れないときに <code>--synthetic</code> で代替して、予想や答え合わせを「本物の市況」のように見せることは禁止です。</strong>
+        取得不可なら <code>data=unavailable</code> / exit 2 を出して静かに終了するのが正しい挙動です。
+        合成データは手法デモ専用で、台帳では <code>data=synthetic</code> と隔離され、実データの成績には混ざりません。
+      </div>
+
+      <p>
+        cron / Routine のセットアップ、通知ラッパーの例、リモート環境でのネットワーク到達性の扱いは
+        <a href="https://github.com/nigoh/stock_hacker/blob/main/docs/overnight-forecast.md">docs/overnight-forecast.md</a> に詳しくあります。
+        CLI のオプション一覧は <a href="./cli.html">CLI リファレンス</a>、
+        Claude Code から起動する場合は <a href="./skills.html">/overnight スキル</a>を参照してください。
+      </p>
+    </div>
+  </section>
+
+  <!-- 限界 -->
+  <section class="section" id="limits">
+    <div class="col-wide">
+      <span class="micro">Limitations</span>
+      <h2>限界</h2>
+      <p>この仕組みが<strong>できないこと</strong>を、できることと同じ精度で書いておきます。</p>
+      <div class="grid grid-2">
+        <div class="cell">
+          <span class="call">Model</span>
+          <h3>洗練されたモデルではない</h3>
+          <p>3つのテクニカル指標を固定重みで足しただけのベースラインです。市場のマイクロストラクチャも、板情報も、需給も、ニュースも、決算も見ていません。「まず測れる基準点を置く」以上の主張はしていません。</p>
+        </div>
+        <div class="cell">
+          <span class="call">Horizon</span>
+          <h3>1日先の方向予測は本質的に難しい</h3>
+          <p>翌営業日のリターンはノイズが支配的で、シグナル対ノイズ比が極めて低い領域です。的中率がコイン投げから安定して離れること自体が難題であり、離れない結果も十分あり得ます。</p>
+        </div>
+        <div class="cell">
+          <span class="call">Sample size</span>
+          <h3>少数標本では何も言えない</h3>
+          <p>現在の記録は1営業日ぶんです。数十件の的中率や Brier から手法の優劣を語ることはできません。台帳が積み上がるまで、良い数字も悪い数字も保留します。</p>
+        </div>
+        <div class="cell">
+          <span class="call">Bias</span>
+          <h3>トレンド追随由来の上方バイアス</h3>
+          <p>重みの 0.80 がトレンドとモメンタムなので、上昇局面のあとは上昇方向に偏りやすい構造です。実際、直近の採点日は31銘柄中21を上昇と出し、下げ相場でまとまって外しました。</p>
+        </div>
+        <div class="cell">
+          <span class="call">Cost</span>
+          <h3>取引コストを考慮していない</h3>
+          <p>予想は方向・確率・レンジの当てっこであり、売買のシミュレーションではありません。手数料・スプレッド・スリッページ・約定価格（終値で建てられるとは限らない）はいずれも織り込んでいません。</p>
+        </div>
+        <div class="cell">
+          <span class="call">Data</span>
+          <h3>データ品質に依存する</h3>
+          <p>既定のデータソースは yfinance（非公式 API）で、日本株では分割・配当調整の不備が起こりえます。調整の誤りは実績リターンを歪め、答え合わせそのものを誤らせます。異常な騰落を見たらまずデータを疑ってください。</p>
+        </div>
+      </div>
+      <div class="callout red" style="margin-top:20px">
+        <span class="micro">最後に</span>
+        <strong>ここに出る予想・確率・的中率は、将来の騰落の断定でも投資助言でもありません。</strong>
+        機械的な条件合成の出力と、その事後測定の記録です。
+        たとえ将来の台帳で的中率が無情報基準を上回ったとしても、市場環境が変われば過去の成績は将来を保証しません。
+      </div>
+      <p>
+        関連: <a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/math/forecast-evaluation-and-calibration.md">予想の評価と較正</a>
+        ／ <a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/math/backtesting-and-statistics.md">バックテストと統計的検証の落とし穴</a>
+        ／ <a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/math/machine-learning-for-stock-prediction.md">機械学習による株価予測とその限界</a>
+        ／ <a href="./knowledge.html">ナレッジベース索引</a>
+      </p>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="col-wide">
+    <p class="disclaimer">
+      <strong>免責</strong>：本環境および本サイトの出力は<strong>投資助言ではなく分析支援</strong>です。
+      掲載する指標・予想・レポートは機械的な集計と再現可能なベースラインであり、
+      将来の騰落を断定するものではありません。投資判断はご自身の責任で行ってください。
+    </p>
+    <div class="foot-links">
+      <a href="https://github.com/nigoh/stock_hacker">GitHub リポジトリ ↗</a>
+      <a href="./cli.html">CLI リファレンス</a>
+      <a href="./knowledge.html">ナレッジベース</a>
+    </div>
+    <p style="margin-top:14px">
+      データソースは yfinance（非公式 API）および J-Quants（任意設定）。
+      価格データの分割・配当調整には不備が起こりうるため、異常な騰落を見たらまずデータ品質を疑うこと。
+    </p>
+  </div>
+</footer>
+
+<script src="./assets/site.js"></script>
+</body>
+</html>

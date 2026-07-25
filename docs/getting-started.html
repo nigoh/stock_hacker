@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Start — 導入と最初の分析 | stock_hacker</title>
+<meta name="description" content="stock_hacker の導入手順。clone から pip install、最初の分析レポート生成、自分の保有データの置き方、J-Quants / EDINET の任意設定、オフライン実行、つまずいたときの対処まで。">
+<link rel="stylesheet" href="./assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230B0E0C'/%3E%3Ctext x='2' y='12' font-family='monospace' font-size='11' fill='%236EE7A0'%3E%24%3C/text%3E%3C/svg%3E">
+<script>
+  /* テーマのちらつき防止: 描画前に保存済みテーマを適用する */
+  (function () {
+    try {
+      var t = localStorage.getItem("stock_hacker.theme");
+      if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+    } catch (e) {}
+  })();
+</script>
+</head>
+<body>
+<a class="skip" href="#main">本文へスキップ</a>
+
+<header class="topbar">
+  <div class="col-wide topbar-inner">
+    <div class="brand"><a href="./index.html">stock_hacker</a><span class="cursor">_</span></div>
+    <nav class="nav" aria-label="サイト">
+      <a href="./index.html">Home</a>
+      <a href="./getting-started.html" aria-current="page">Start</a>
+      <a href="./cli.html">CLI</a>
+      <a href="./knowledge.html">Knowledge</a>
+      <a href="./skills.html">Skills</a>
+      <a href="./forecast.html">Forecast</a>
+      <a href="https://github.com/nigoh/stock_hacker">GitHub ↗</a>
+    </nav>
+    <button class="toggle" type="button" data-theme-toggle>◐ light</button>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ヒーロー -->
+  <section class="hero">
+    <div class="col-wide">
+      <div class="shell">
+        <div class="shell-head">
+          <span class="shell-dot" aria-hidden="true"></span>
+          <span class="shell-dot" aria-hidden="true"></span>
+          <span class="shell-dot" aria-hidden="true"></span>
+          <span class="shell-title">~/stock_hacker — 導入から最初のレポートまで</span>
+        </div>
+        <div class="shell-body">
+<pre><span class="prompt"><span class="user">analyst</span>@tokyo:<span class="path">~</span>$</span> <span class="cmd">git clone https://github.com/nigoh/stock_hacker.git &amp;&amp; cd stock_hacker</span>
+
+<span class="prompt"><span class="user">analyst</span>@tokyo:<span class="path">~/stock_hacker</span>$</span> <span class="cmd">pip install -r requirements.txt</span>
+<span class="c">→ pandas / numpy / yfinance / requests / matplotlib / pytest</span>
+
+<span class="prompt"><span class="user">analyst</span>@tokyo:<span class="path">~/stock_hacker</span>$</span> <span class="cmd">python3 analysis/analyze_stock.py 7203</span>
+<span class="c">→ reports/analyze-7203-2026-07-24.md</span>
+
+<span class="prompt"><span class="user">analyst</span>@tokyo:<span class="path">~/stock_hacker</span>$</span> <span class="caret" aria-hidden="true"></span></pre>
+        </div>
+      </div>
+
+      <div style="margin-top:32px">
+        <span class="micro">Getting started · 所要 3〜5分</span>
+        <h1 class="page-title">clone して、依存を入れて、最初のレポートを出す。</h1>
+        <p class="lede">
+          このページを上から順にたどると、環境構築 → 最初の分析レポート生成 → 自分の保有データの登録 →
+          データソースの任意設定 → つまずいたときの対処まで、ひと通り動く状態になります。
+          ネットワークが使えない環境でも <code>--synthetic</code> で全機能を確認できます。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 必要なもの -->
+  <section class="section">
+    <div class="col-wide">
+      <nav class="toc" aria-label="このページの目次">
+        <span class="micro">On this page</span>
+        <ul>
+          <li><a href="#requirements">1. 必要なもの</a></li>
+          <li><a href="#install">2. インストール</a></li>
+          <li><a href="#first-analysis">3. 最初の分析</a></li>
+          <li><a href="#entrypoints">4. よく使う入り口</a></li>
+          <li><a href="#your-data">5. 自分のデータを置く</a></li>
+          <li><a href="#data-sources">6. データソース（任意）</a></li>
+          <li><a href="#offline">7. ネットワークが無いとき</a></li>
+          <li><a href="#troubleshooting">8. 困ったら</a></li>
+        </ul>
+      </nav>
+
+      <span class="micro">Step 01 · Requirements</span>
+      <h2 id="requirements">必要なもの</h2>
+      <p>
+        必要なのは <strong>Python 3.11 以上</strong>と、<code>requirements.txt</code> の依存パッケージだけです。
+        分析 CLI は素の Python スクリプトで、ノートブックもデータベースも要りません。
+        Claude Code から対話で使う場合はスキル / スラッシュコマンドの層も加わりますが、
+        <strong>CLI は Claude Code 無しでも単体で動きます</strong>。
+      </p>
+      <div class="grid grid-3">
+        <div class="cell">
+          <span class="call">Runtime</span>
+          <h3>Python 3.11+</h3>
+          <p><code>analysis/</code> 配下は型ヒント前提の Python 3.11+ で書かれています。<code>python3 --version</code> で確認してください。</p>
+        </div>
+        <div class="cell">
+          <span class="call">Data</span>
+          <h3>ネットワーク（任意）</h3>
+          <p>既定のデータソースは yfinance のため実データには外部接続が要ります。使えない場合は <code>--synthetic</code> で全 CLI が動きます。</p>
+        </div>
+        <div class="cell">
+          <span class="call">Optional</span>
+          <h3>API キー（任意）</h3>
+          <p>J-Quants（<code>JQUANTS_API_KEY</code>）と EDINET（<code>EDINET_API_KEY</code>）は任意設定。未設定でも基本機能は動きます。</p>
+        </div>
+      </div>
+
+      <h3>依存パッケージ（requirements.txt）</h3>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>パッケージ</th><th class="num">バージョン</th><th>用途</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>pandas</code></td><td class="num">&gt;=2.2</td><td>価格・財務データの表操作（全 CLI の土台）</td></tr>
+            <tr><td><code>numpy</code></td><td class="num">&gt;=1.26</td><td>指標・統計計算（ペア共和分検定なども numpy のみで実装）</td></tr>
+            <tr><td><code>yfinance</code></td><td class="num">&gt;=0.2.40</td><td>既定のデータソース。日足 OHLCV と PER/PBR 等の基本情報</td></tr>
+            <tr><td><code>requests</code></td><td class="num">&gt;=2.31</td><td>EDINET / J-Quants など HTTP 経由のデータ取得</td></tr>
+            <tr><td><code>matplotlib</code></td><td class="num">&gt;=3.8</td><td>チャート PNG の生成。<strong>未導入でも自動でチャートなしに縮退</strong>する任意依存</td></tr>
+            <tr><td><code>pytest</code></td><td class="num">&gt;=8.0</td><td>テスト（ネットワーク不要で実行できる）</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- インストール -->
+  <section class="section">
+    <div class="col-wide">
+      <span class="micro">Step 02 · Install</span>
+      <h2 id="install">インストール</h2>
+      <p>クローンして依存を入れ、テストで動作確認します。テストはネットワーク不要です。</p>
+<pre><code><span class="c"># 1. 取得する</span>
+<span class="g">$</span> git clone https://github.com/nigoh/stock_hacker.git
+<span class="g">$</span> cd stock_hacker
+
+<span class="c"># 2. 依存パッケージを入れる</span>
+<span class="g">$</span> pip install -r requirements.txt
+
+<span class="c"># 3. 動作確認（ネットワーク不要）</span>
+<span class="g">$</span> python3 -m pytest analysis/tests</code></pre>
+      <p>
+        CLI は<strong>リポジトリのルートから</strong>実行します。生成物の置き場所
+        （<code>reports/</code> と <code>data/cache/</code>）は初回実行時までに用意されていれば十分で、
+        Claude Code で開いた場合は SessionStart フック（<code>scripts/session_start.sh</code>）が
+        ディレクトリ作成・依存パッケージの確認・<code>stocklib</code> のインポート確認を自動で行い、
+        使えるコマンドの要点をセッションの文脈に注入します。
+      </p>
+      <div class="callout">
+        <span class="micro">Claude Code は必須ではない</span>
+        スキル・スラッシュコマンド（<code>/analyze</code> 等）は Claude Code 上の入り口ですが、
+        手順の実体は <code>analysis/*.py</code> の CLI です。CLI を直接叩けば同じレポートが得られます。
+        全オプションは各 CLI の <code>--help</code> で確認できます。
+      </div>
+    </div>
+  </section>
+
+  <!-- 最初の分析 -->
+  <section class="section">
+    <div class="col-wide">
+      <span class="micro">Step 03 · First report</span>
+      <h2 id="first-analysis">最初の分析</h2>
+      <p>個別銘柄の総合分析を1本走らせます。<code>7203</code> はトヨタ自動車です。</p>
+<pre><code><span class="c"># 個別銘柄の総合分析（既定の取得期間は 2y、既定のベンチマークは ^N225）</span>
+<span class="g">$</span> python3 analysis/analyze_stock.py <span class="a">7203</span> --period 2y --benchmark ^N225
+<span class="c">reports/analyze-7203-2026-07-24.md</span>
+
+<span class="c"># 時間軸フレームを指定すると「視点」節が加わり、ファイル名にも入る</span>
+<span class="g">$</span> python3 analysis/analyze_stock.py <span class="a">7203</span> --horizon mid
+<span class="c">reports/analyze-7203-mid-2026-07-24.md</span></code></pre>
+      <p>
+        実行するとレポートのパスが標準出力に出ます。中身は次の節で構成されます
+        （<code>--horizon short|mid|long</code> を付けた場合は該当時間軸の「視点」節が追加され、
+        <code>--period</code> 未指定時の取得期間が short=6mo / mid=2y / long=5y になります）。
+      </p>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>レポートの節</th><th>入るもの</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>基本情報</td><td>企業名・セクター・PER / PBR・配当利回りなど（yfinance の基本情報）</td></tr>
+            <tr><td>価格サマリー</td><td>直近終値と期間内の騰落・高安</td></tr>
+            <tr><td>チャート</td><td><code>reports/img/</code> に PNG を生成して埋め込む。上段=ローソク足+SMA+ボリンジャーバンド、中段=出来高、下段=RSI(14)</td></tr>
+            <tr><td>テクニカル指標</td><td>SMA(25/75/200) と終値の位置関係・RSI(14)・MACD(12,26,9) など</td></tr>
+            <tr><td>リスク・リターン指標</td><td>年率リターン・年率ボラティリティ・シャープレシオ・最大ドローダウン・ベンチマーク対比のβ</td></tr>
+            <tr><td>免責</td><td>投資助言ではなく分析支援である旨（<code>stocklib.report</code> が自動付与）</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>銘柄コードの渡し方</h3>
+      <p>
+        銘柄は<strong>4桁の数字</strong>で渡します（内部で yfinance の <code>7203.T</code> 形式に正規化されます）。
+        指数・為替のティッカーは正規化せずそのまま渡せます。
+      </p>
+      <div class="tags" style="margin-bottom:14px">
+        <span class="chip green">7203 → 7203.T</span>
+        <span class="chip">^N225 そのまま</span>
+        <span class="chip">USDJPY=X そのまま</span>
+        <span class="chip">1306.T そのまま</span>
+      </div>
+      <p>
+        取得した価格データは <code>data/cache/</code> に CSV でキャッシュされます（gitignore 済み）。
+        チャートが不要なら <code>--no-charts</code> で無効化できます。
+      </p>
+    </div>
+  </section>
+
+  <!-- よく使う入り口 -->
+  <section class="section">
+    <div class="col-wide">
+      <span class="micro">Step 04 · Entry points</span>
+      <h2 id="entrypoints">よく使う入り口</h2>
+      <p>
+        最初に覚えるとよい5本です。分析 CLI は全部で22本あり、
+        目的から引く索引と共通オプションの一覧は <a href="./cli.html">CLI リファレンス</a>にあります。
+      </p>
+      <dl class="manpage">
+        <dt>analyze_stock.py — 個別銘柄の総合分析</dt>
+        <dd>
+          <code>python3 analysis/analyze_stock.py 7203 --horizon mid</code>
+          <span class="note">1銘柄をテクニカル・ファンダ・リスクの三面から見る。対話なら <code>/analyze 7203</code>。<a href="./cli.html">オプション一覧 →</a></span>
+        </dd>
+        <dt>screen.py — 条件で銘柄を絞り込む</dt>
+        <dd>
+          <code>python3 analysis/screen.py --rsi-below 30 --price-above-sma 200</code>
+          <span class="note">既定のユニバースは <code>analysis/universe/liquid30.csv</code>（主要30銘柄）。<code>--universe</code> で差し替え可能。<a href="./cli.html">オプション一覧 →</a></span>
+        </dd>
+        <dt>compare.py — 複数銘柄の相対比較</dt>
+        <dd>
+          <code>python3 analysis/compare.py 7203 6758 9984 --period 1y</code>
+          <span class="note">期首=100 の相対パフォーマンスと日次リターンの相関行列。<a href="./cli.html">オプション一覧 →</a></span>
+        </dd>
+        <dt>portfolio_review.py — 保有ポートフォリオの評価</dt>
+        <dd>
+          <code>python3 analysis/portfolio_review.py --file data/portfolio.csv --period 1y</code>
+          <span class="note">損益・セクター配分・加重β・VaR・集中度（HHI）。<code>account</code> 列があれば NISA 枠の節も付く。<a href="./cli.html">オプション一覧 →</a></span>
+        </dd>
+        <dt>overnight_forecast.py — 夜間フォーキャスト</dt>
+        <dd>
+          <code>python3 analysis/overnight_forecast.py run</code>
+          <span class="note">前回予想の答え合わせ → 翌営業日の機械予想を <code>forecasts/ledger.csv</code> に蓄積。<a href="./forecast.html">設計と運用 →</a></span>
+        </dd>
+      </dl>
+    </div>
+  </section>
+
+  <!-- 自分のデータ -->
+  <section class="section">
+    <div class="col-wide">
+      <span class="micro">Step 05 · Your data</span>
+      <h2 id="your-data">自分のデータを置く</h2>
+      <p>
+        保有・ウォッチ・取引の CSV は <code>analysis/templates/</code> のテンプレートを <code>data/</code> にコピーして編集します。
+      </p>
+<pre><code><span class="g">$</span> cp analysis/templates/portfolio-example.csv    <span class="a">data/portfolio.csv</span>
+<span class="g">$</span> cp analysis/templates/watchlist-example.csv    <span class="a">data/watchlist.csv</span>
+<span class="g">$</span> cp analysis/templates/transactions-example.csv <span class="a">data/transactions.csv</span>
+<span class="c"># 中身を自分の保有・ウォッチ銘柄・取引履歴に書き換える</span></code></pre>
+      <div class="callout green">
+        <span class="micro">個人データはコミットされない設計</span>
+        <code>data/.gitignore</code> が <code>data/</code> 配下のファイルをすべて git 管理外にしています。
+        保有情報・ウォッチリスト・取引履歴・価格キャッシュが誤ってコミット・公開されることは原則ありません（<code>git add -f</code> で明示的に強制した場合を除く）。
+        逆に、git 管理対象である <code>journal/</code>（リサーチジャーナル）には保有情報を書かず、
+        検証可能な分析仮説だけを書きます。
+      </div>
+
+      <h3>data/portfolio.csv（portfolio_review / income_report / tax_report で使用）</h3>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>列</th><th>必須</th><th>内容</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>code</code></td><td>必須</td><td>銘柄コード4桁（例 <code>7203</code>）。投信・現金は任意の識別子でよい（例 <code>emaxis-slim-allcountry</code>、<code>cash</code>）</td></tr>
+            <tr><td><code>shares</code></td><td>必須</td><td>保有数量</td></tr>
+            <tr><td><code>avg_cost</code></td><td>必須</td><td>平均取得単価（円）</td></tr>
+            <tr><td><code>acquired_date</code></td><td>任意</td><td>取得日 <code>YYYY-MM-DD</code>。NISA 年間投資枠の暦年集計に使う</td></tr>
+            <tr><td><code>memo</code></td><td>任意</td><td>メモ</td></tr>
+            <tr><td><code>fx_at_cost</code></td><td>任意</td><td>取得時のクロス円レート。<code>--in-currency</code> 指定時に損益を株価要因と為替要因へ分解する</td></tr>
+            <tr><td><code>account</code></td><td>任意</td><td>口座区分 <code>nisa_tsumitate</code> / <code>nisa_growth</code> / <code>taxable</code>（空欄は課税口座扱い）。記入すると NISA 枠の節が有効になる</td></tr>
+            <tr><td><code>target_weight</code></td><td>任意</td><td>目標ウエイト（%）。目標配分からの乖離チェックに使う</td></tr>
+            <tr><td><code>manual_price</code></td><td>任意</td><td>yfinance で価格が取れない資産（投信等）の1口あたり現在価額を手入力。現金は <code>avg_cost=1</code> / <code>manual_price=1</code>。<strong>この行は配当集計の対象外</strong></td></tr>
+            <tr><td><code>proxy_ticker</code></td><td>任意</td><td>連動 ETF 等の代理ティッカー。指定するとリスク指標の計算に組み込む</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>data/watchlist.csv（daily_brief で使用）</h3>
+      <p><code>code</code> と <code>note</code> の2列。<code>^N225</code> のような指数ティッカーも書けます。</p>
+<pre><code>code,note
+7203,トヨタ自動車。為替感応度が高い輸出株の代表
+6758,ソニーグループ
+8306,三菱UFJ。金利上昇の恩恵を受けやすい銀行株</code></pre>
+
+      <h3>data/transactions.csv（performance_report で使用）</h3>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>列</th><th>内容</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>date</code></td><td>約定・入出金の日付 <code>YYYY-MM-DD</code></td></tr>
+            <tr><td><code>code</code></td><td>銘柄コード4桁。入出金行（<code>deposit</code> / <code>withdraw</code>）は空欄</td></tr>
+            <tr><td><code>side</code></td><td><code>buy</code> / <code>sell</code> / <code>dividend</code> / <code>deposit</code>（入金）/ <code>withdraw</code>（出金）</td></tr>
+            <tr><td><code>shares</code></td><td>株数（入出金行は <code>1</code>）</td></tr>
+            <tr><td><code>price</code></td><td>単価。配当行は1株あたり配当額、入出金行は金額</td></tr>
+            <tr><td><code>fee</code></td><td>手数料。配当行では源泉徴収税額を計上する</td></tr>
+            <tr><td><code>account</code></td><td>口座区分（<code>taxable</code> / <code>nisa_growth</code> 等）</td></tr>
+            <tr><td><code>memo</code></td><td>メモ</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        入出金行があれば口座モード（金額加重リターン XIRR）、約定のみならポジションモードに自動判定されます。
+      </p>
+    </div>
+  </section>
+
+  <!-- データソース -->
+  <section class="section">
+    <div class="col-wide">
+      <span class="micro">Step 06 · Data sources（optional）</span>
+      <h2 id="data-sources">データソース（任意）</h2>
+      <p>
+        既定のデータソースは <strong>yfinance</strong> で、特に設定しなければ全 CLI がこれで動きます。
+        以下はすべて任意設定です。
+      </p>
+      <div class="callout">
+        <span class="micro">yfinance の制約は先に知っておく</span>
+        yfinance は<strong>非公式 API</strong> です。日本株では分割・配当調整の不備や欠損が起きることが知られており、
+        <code>auto_adjust=True</code> は配当込み調整のため他ソースの系列と一致しません。
+        <strong>レポートで異常な騰落やギャップを見たら、まずデータ品質を疑う</strong>こと。
+        重要なレポートにはデータソースと取得日を明記します。
+      </div>
+
+      <h3>J-Quants（JPX 公式・全上場銘柄）</h3>
+      <p>
+        <a href="https://jpx-jquants.com/">jpx-jquants.com</a> の無料プラン登録後にダッシュボードで発行した API キーを
+        <code>JQUANTS_API_KEY</code> に設定すると、日足 OHLCV を J-Quants から取得できます
+        （<strong>V2・API キー方式・無期限</strong>。2025年12月の V2 移行でリフレッシュトークン方式は廃止、2026年時点）。
+      </p>
+<pre><code><span class="c"># ① コマンドごとに指定</span>
+<span class="g">$</span> python3 analysis/analyze_stock.py 7203 --source jquants
+
+<span class="c"># ② セッション全体で既定を切り替える（全 CLI に効く）</span>
+<span class="g">$</span> export STOCK_HACKER_SOURCE=jquants
+
+<span class="c"># ③ 全上場銘柄から screen.py 互換のユニバース CSV を作る</span>
+<span class="g">$</span> python3 analysis/build_universe.py</code></pre>
+      <p>優先順位は <code>--source</code> 引数 &gt; <code>STOCK_HACKER_SOURCE</code> &gt; 既定の <code>yfinance</code>。押さえておく点は次のとおりです。</p>
+      <ul>
+        <li><strong>無料プランは12週間遅延データ</strong>（2026年時点）。当日のブリーフや直近の相場観測には向かず、用途は学習・バックテスト・全銘柄ユニバース構築。</li>
+        <li><strong>日足のみ</strong>対応。<code>^N225</code> 等の指数と <code>USDJPY=X</code> 等の為替は J-Quants が扱わないため<strong>自動で yfinance にフォールバック</strong>します。</li>
+        <li>PER / PBR などの基本情報（<code>fetch_info</code>）は常に yfinance を使います。切り替わるのは OHLCV だけです。</li>
+        <li>銘柄コードは J-Quants 側が5桁、配当調整の扱いも yfinance と非互換です。系列をまたいで比較するときは注意します。</li>
+      </ul>
+
+      <h3>EDINET（法定開示書類）</h3>
+      <p>
+        有価証券報告書などの検索・取得には <code>EDINET_API_KEY</code> を設定します
+        （API v2 はキー必須、2024年時点）。<strong>未設定でも業績分析は yfinance の財務データで動作します</strong>。
+      </p>
+
+      <h3>.env で読み込む</h3>
+      <p>キーは <code>.env</code>（gitignore 済み。雛形は <code>.env.example</code>）に置き、シェルで読み込む運用を推奨します。</p>
+<pre><code><span class="g">$</span> cp .env.example .env       <span class="c"># JQUANTS_API_KEY=... を記入</span>
+<span class="g">$</span> set -a &amp;&amp; source .env &amp;&amp; set +a</code></pre>
+      <div class="callout red">
+        <span class="micro">キーを漏らさない</span>
+        <strong>API キーをコード・レポート・コミットに含めないこと。</strong>
+        <code>.env</code> は gitignore 済みですが、レポート本文やコマンド履歴の貼り付けから漏れることがあります。
+        キーが漏れた疑いがあればダッシュボードで再発行してください。
+      </div>
+    </div>
+  </section>
+
+  <!-- オフライン -->
+  <section class="section">
+    <div class="col-wide">
+      <span class="micro">Step 07 · Offline</span>
+      <h2 id="offline">ネットワークが無いとき</h2>
+      <p>
+        価格データを使う全 CLI 共通で <code>--synthetic</code> が使えます。
+        シード固定の合成データ（幾何ブラウン運動 + ボラティリティクラスタ）で全機能が動くため、
+        接続できない環境でも仕組みの確認・手法のデモができます。
+        <code>asset_plan.py</code> はそもそも価格データもネットワークも使わないため対象外です。
+      </p>
+<pre><code><span class="c"># yfinance への接続に失敗したら --synthetic を付けて再実行する</span>
+<span class="g">$</span> python3 analysis/analyze_stock.py <span class="a">7203</span> --synthetic
+<span class="g">$</span> python3 analysis/screen.py --rsi-below 30 --synthetic</code></pre>
+      <div class="callout red">
+        <span class="micro">合成データの扱い（厳守）</span>
+        <p>
+          合成データで作ったレポートには、<strong>「合成データによる手法デモであり実データではない」ことを必ず明記します</strong>
+          （CLI 経由ならレポートに自動で明記されます）。
+        </p>
+        <p>
+          そして<strong>自動実行で実データが取れないときに <code>--synthetic</code> で代替し、
+          「今日の市況」のように見せることは禁止</strong>です。デイリーブリーフや夜間フォーキャストは、
+          実データが全滅した場合はレポートを生成せず exit 2 で静かに終了する契約になっています。
+          合成データを実データの代替として使ってはいけません。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- トラブルシュート -->
+  <section class="section">
+    <div class="col-wide">
+      <span class="micro">Step 08 · Troubleshooting</span>
+      <h2 id="troubleshooting">困ったら</h2>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>症状</th><th>原因と対処</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>Connection reset</code> / <code>Failed to perform</code> で価格が取れない</td>
+              <td>データソースへネットワークが到達していない。手法を試すだけなら <code>--synthetic</code> を付ける。実データが要るなら実行環境のネットワーク許可設定を確認するか、J-Quants を設定する</td>
+            </tr>
+            <tr>
+              <td><code>JQuantsAuthError</code> が出る</td>
+              <td>API キーが未設定か無効。<a href="https://jpx-jquants.com/">jpx-jquants.com</a> のダッシュボードで発行し <code>.env</code> の <code>JQUANTS_API_KEY</code> を更新する。<strong>V2 移行でリフレッシュトークン方式は廃止</strong>されており、旧 <code>JQUANTS_REFRESH_TOKEN</code> は使えない</td>
+            </tr>
+            <tr>
+              <td><code>--source jquants</code> なのに価格が古い</td>
+              <td>仕様どおり。無料プランは12週間遅延データのため、当日ブリーフ用途には使えない。直近が要るなら既定の yfinance に戻す</td>
+            </tr>
+            <tr>
+              <td>レポートにチャートが埋め込まれない</td>
+              <td>matplotlib が未導入。標準エラーに警告を出したうえで<strong>チャートなしで続行する</strong>設計。必要なら <code>pip install matplotlib</code>、不要なら <code>--no-charts</code> で明示的に無効化する</td>
+            </tr>
+            <tr>
+              <td>レポートの書き込みが「免責文が無い」で止まる</td>
+              <td>PostToolUse フック（<code>scripts/check_report_disclaimer.py</code>）が正しく働いている。<code>stocklib.report</code> の保存関数を使えば免責が自動付与される（CLI 経由なら自動）</td>
+            </tr>
+            <tr>
+              <td><code>knowledge/</code> に文書を足したら書き込みがブロックされた</td>
+              <td>PostToolUse フック（<code>scripts/check_knowledge_index.py</code>）が索引未反映を検出している。<code>knowledge/00-index.md</code> にエントリを追加すれば通る（<code>/learn</code> は索引反映まで自動で行う）</td>
+            </tr>
+            <tr>
+              <td>レポートの騰落・ギャップが明らかにおかしい</td>
+              <td>まずデータ品質を疑う。yfinance は非公式 API で、日本株では分割・配当調整の不備が起きうる。重要な判断の前は他ソースと突き合わせる</td>
+            </tr>
+            <tr>
+              <td>環境が壊れていないか確かめたい</td>
+              <td><code>python3 -m pytest analysis/tests -q</code>（ネットワーク不要）。CLI 側は <code>--help</code> で全オプションを確認できる</td>
+            </tr>
+            <tr>
+              <td>どのコマンドを使うか迷う</td>
+              <td>目的別の索引は <a href="./cli.html">CLI リファレンス</a>、対話の入り口は <a href="./skills.html">Skills</a>。Claude Code 上なら「7203 を長期目線で見たい」のような自然文でも適切なスキルが選ばれる</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>次に読む</h3>
+      <dl class="manpage">
+        <dt><a href="./cli.html">CLI リファレンス</a></dt>
+        <dd>22本の分析 CLI と共通オプション。<span class="note">--period / --synthetic / --source / --in-currency / --horizon。</span></dd>
+        <dt><a href="./knowledge.html">ナレッジベース</a></dt>
+        <dd>90文書・10分野の索引。<span class="note">数値を解釈するための枠組みと理論。</span></dd>
+        <dt><a href="./forecast.html">夜間フォーキャスト</a></dt>
+        <dd>予想 → 答え合わせ → 台帳の閉ループ。<span class="note">予想モデル・採点・較正・自動実行の契約。</span></dd>
+      </dl>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="col-wide">
+    <p class="disclaimer">
+      <strong>免責</strong>：本環境および本サイトの出力は<strong>投資助言ではなく分析支援</strong>です。
+      掲載する指標・予想・レポートは機械的な集計と再現可能なベースラインであり、
+      将来の騰落を断定するものではありません。投資判断はご自身の責任で行ってください。
+    </p>
+    <div class="foot-links">
+      <a href="https://github.com/nigoh/stock_hacker">GitHub リポジトリ ↗</a>
+      <a href="./cli.html">CLI リファレンス</a>
+      <a href="./knowledge.html">ナレッジベース</a>
+    </div>
+    <p style="margin-top:14px">
+      データソースは yfinance（非公式 API）および J-Quants（任意設定）。
+      価格データの分割・配当調整には不備が起こりうるため、異常な騰落を見たらまずデータ品質を疑うこと。
+    </p>
+  </div>
+</footer>
+
+<script src="./assets/site.js"></script>
+</body>
+</html>

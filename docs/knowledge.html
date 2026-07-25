@@ -1,0 +1,786 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Knowledge — stock_hacker</title>
+<meta name="description" content="日本株の判断枠組みを収めた90文書のナレッジベース索引。市場制度・歴史・クオンツ数学・ファンダメンタル・テクニカル・マクロ・デリバティブ・規制税制・データソース・投資戦略の10分野を分野別・全文検索で引ける。">
+<link rel="stylesheet" href="./assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230B0E0C'/%3E%3Ctext x='2' y='12' font-family='monospace' font-size='11' fill='%236EE7A0'%3E%24%3C/text%3E%3C/svg%3E">
+<script>
+  /* テーマのちらつき防止: 描画前に保存済みテーマを適用する */
+  (function () {
+    try {
+      var t = localStorage.getItem("stock_hacker.theme");
+      if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+    } catch (e) {}
+  })();
+</script>
+</head>
+<body>
+<a class="skip" href="#main">本文へスキップ</a>
+
+<header class="topbar">
+  <div class="col-wide topbar-inner">
+    <div class="brand"><a href="./index.html">stock_hacker</a><span class="cursor">_</span></div>
+    <nav class="nav" aria-label="サイト">
+      <a href="./index.html">Home</a>
+      <a href="./getting-started.html">Start</a>
+      <a href="./cli.html">CLI</a>
+      <a href="./knowledge.html" aria-current="page">Knowledge</a>
+      <a href="./skills.html">Skills</a>
+      <a href="./forecast.html">Forecast</a>
+      <a href="https://github.com/nigoh/stock_hacker">GitHub ↗</a>
+    </nav>
+    <button class="toggle" type="button" data-theme-toggle>◐ light</button>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ヒーロー -->
+  <section class="hero">
+    <div class="col-wide">
+      <div class="shell">
+        <div class="shell-head">
+          <span class="shell-dot" aria-hidden="true"></span>
+          <span class="shell-dot" aria-hidden="true"></span>
+          <span class="shell-dot" aria-hidden="true"></span>
+          <span class="shell-title">~/stock_hacker/knowledge — ナレッジベース</span>
+        </div>
+        <div class="shell-body">
+<pre><span class="prompt"><span class="user">analyst</span>@tokyo:<span class="path">~/stock_hacker</span>$</span> <span class="cmd">ls knowledge/</span>
+<span class="c">00-index.md   fundamental/  market-structure/  strategies/</span>
+<span class="c">data-sources/ history/      math/              technical/</span>
+<span class="c">derivatives/  macro/        regulation-tax/</span>
+
+<span class="prompt"><span class="user">analyst</span>@tokyo:<span class="path">~/stock_hacker</span>$</span> <span class="cmd">find knowledge -name '*.md' | wc -l</span>
+<span class="c">91</span>   <span class="c"># 90文書 + 00-index.md</span>
+
+<span class="prompt"><span class="user">analyst</span>@tokyo:<span class="path">~/stock_hacker</span>$</span> <span class="cmd">grep -rl 'PBR' knowledge/ | head -3</span>
+<span class="c">knowledge/fundamental/valuation-metrics.md</span>
+<span class="c">knowledge/regulation-tax/corporate-governance.md</span>
+<span class="c">knowledge/fundamental/intrinsic-value-models.md</span>
+
+<span class="prompt"><span class="user">analyst</span>@tokyo:<span class="path">~/stock_hacker</span>$</span> <span class="caret" aria-hidden="true"></span></pre>
+        </div>
+      </div>
+
+      <div style="margin-top:32px">
+        <span class="micro">Layer 01 · knowledge base</span>
+        <h1 class="page-title">90文書のナレッジベース</h1>
+        <p class="lede">
+          なぜ知識をコードの外に置くのか。指標の計算はコードにできますが、
+          <strong>その数字をどう読むかの枠組み</strong>はコードになりません。
+          PBR 1倍割れが何を意味するのか、モメンタムが日本で効きにくいのはなぜか、
+          バックテストのどこが嘘をつくのか——判断の前提を Markdown で明示しておくことで、
+          レポートの解釈が属人的な勘ではなく、参照可能な出典を持つようになります。
+          断定的な将来予測ではなく、制度・数理・実証の<strong>整理</strong>として保つのが規約です。
+        </p>
+      </div>
+
+      <div class="stats" style="margin-top:26px">
+        <div class="stat"><span class="n">90</span><span class="k">文書</span></div>
+        <div class="stat"><span class="n">10</span><span class="k">分野</span></div>
+        <div class="stat"><span class="n">1</span><span class="k">索引 (00-index.md)</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 分野の地図 -->
+  <section class="section">
+    <div class="col-wide">
+      <span class="micro">Map</span>
+      <h2>10の分野</h2>
+      <div class="grid grid-3">
+        <div class="cell">
+          <span class="call">market-structure · 13</span>
+          <h3>市場制度・取引の仕組み</h3>
+          <p>東証の売買制度と板、市場区分再編、日経平均とTOPIXの算出、信用取引と空売り、清算決済と貸株、IPO・増資、PTS、ETF/J-REIT、投資部門別の需給構造。</p>
+        </div>
+        <div class="cell">
+          <span class="call">history · 6</span>
+          <h3>日本株市場の歴史</h3>
+          <p>戦前の取引所開設から高度成長、1980年代バブルと崩壊、失われた30年、金融ビッグバン、証券不祥事史、アベノミクスと2024年の史上最高値更新まで。</p>
+        </div>
+        <div class="cell">
+          <span class="call">math · 11</span>
+          <h3>数学・統計・クオンツ</h3>
+          <p>リターンの分布とファットテール、時系列モデル、ポートフォリオ理論とCAPM、確率過程とオプション価格理論、バックテストの統計的落とし穴、予想の較正評価。</p>
+        </div>
+        <div class="cell">
+          <span class="call">fundamental · 10</span>
+          <h3>ファンダメンタル分析</h3>
+          <p>バリュエーション指標、決算短信・有報の読み方、DCF・残余利益などの本源的価値、会計品質と粉飾検出、業績ガイダンス、セクター構造、金融株の特殊分析。</p>
+        </div>
+        <div class="cell">
+          <span class="call">technical · 5</span>
+          <h3>テクニカル分析</h3>
+          <p>移動平均・RSI・MACD・一目均衡表の計算式と数理的限界、ダウ理論とチャートパターン、ローソク足と酒田五法、エリオット波動への批判的評価、出来高と市場内部指標。</p>
+        </div>
+        <div class="cell">
+          <span class="call">macro · 9</span>
+          <h3>マクロ経済・金融政策</h3>
+          <p>日銀の政策枠組みと株式市場、為替と企業収益、金利・JGBとセクター感応度、マクロ指標の読み方、海外市場との連動、コモディティ、人口動態、災害・地政学リスク。</p>
+        </div>
+        <div class="cell">
+          <span class="call">derivatives · 3</span>
+          <h3>先物・オプション</h3>
+          <p>日経225先物の理論価格・裁定残・SQ、オプション戦略とデルタヘッジ・ヘッジ比率の実務、転換社債と日経平均VI・レバレッジ型ETFの減価。</p>
+        </div>
+        <div class="cell">
+          <span class="call">regulation-tax · 10</span>
+          <h3>規制・税制・ガバナンス</h3>
+          <p>株式税制と新NISA、その実務戦略、iDeCo・企業型DC、開示制度とインサイダー規制、ガバナンス改革、株主総会と議決権行使、M&amp;Aと買収防衛、外資規制、非居住者課税。</p>
+        </div>
+        <div class="cell">
+          <span class="call">data-sources · 4</span>
+          <h3>データソース・ツール</h3>
+          <p>J-Quants・EDINET・yfinance 等の使い分けと落とし穴、取得APIの徹底カタログ、証券会社の発注APIと自動売買、オルタナティブデータとテキスト分析。</p>
+        </div>
+        <div class="cell">
+          <span class="call">strategies · 19</span>
+          <h3>投資戦略</h3>
+          <p>最大の分野。ファクター投資、イベントドリブン、カレンダーアノマリー、ペアトレード、リスク管理とサイジング、長期資産形成と出口戦略、配当インカム、行動ファイナンス、優待、中小型株、海外投資家の視点。</p>
+        </div>
+      </div>
+      <p class="micro" style="margin-top:12px">数字は各ディレクトリ配下の Markdown 文書数（合計90）。</p>
+    </div>
+  </section>
+
+  <!-- 文書索引 -->
+  <section class="section">
+    <div class="col-wide">
+      <span class="micro">Index</span>
+      <h2>文書索引（90件）</h2>
+      <p class="lede" style="margin-bottom:18px">
+        分野タブと検索で絞り込めます。タイトルをクリックすると GitHub 上の Markdown 本文が開きます。
+        リポジトリでは <code>knowledge/00-index.md</code> が正の索引で、文書を追加・更新したら必ずそこに反映する規約です。
+      </p>
+
+      <div class="filter-bar">
+        <input class="field" type="search" data-filter-input="kb" placeholder="タイトル・ファイル名・キーワードで絞り込む" aria-label="ナレッジ文書を絞り込む">
+        <div class="tabs">
+          <button class="tab" type="button" data-filter-tab="kb" data-value="all" aria-pressed="true">ALL</button>
+          <button class="tab" type="button" data-filter-tab="kb" data-value="market-structure">市場制度</button>
+          <button class="tab" type="button" data-filter-tab="kb" data-value="history">歴史</button>
+          <button class="tab" type="button" data-filter-tab="kb" data-value="math">数学</button>
+          <button class="tab" type="button" data-filter-tab="kb" data-value="fundamental">ファンダ</button>
+          <button class="tab" type="button" data-filter-tab="kb" data-value="technical">テクニカル</button>
+          <button class="tab" type="button" data-filter-tab="kb" data-value="macro">マクロ</button>
+          <button class="tab" type="button" data-filter-tab="kb" data-value="derivatives">デリバティブ</button>
+          <button class="tab" type="button" data-filter-tab="kb" data-value="regulation-tax">規制税制</button>
+          <button class="tab" type="button" data-filter-tab="kb" data-value="data-sources">データ</button>
+          <button class="tab" type="button" data-filter-tab="kb" data-value="strategies">戦略</button>
+        </div>
+        <span class="micro"><span data-filter-count="kb">90</span> 件</span>
+      </div>
+
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>分野</th><th>文書</th><th>概要</th></tr>
+          </thead>
+          <tbody>
+
+            <!-- market-structure (13) -->
+            <tr data-filter-item="kb" data-cat="market-structure" data-text="清算 決済 貸株 レンディング clearing-settlement-and-stock-lending T+2 JSCC ほふり 逆日歩 議決権">
+              <td><span class="chip">市場制度</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/market-structure/clearing-settlement-and-stock-lending.md">清算・決済制度と貸株市場</a><br><span class="micro">clearing-settlement-and-stock-lending.md</span></td>
+              <td>T+2決済とT+1化の議論、JSCC の CCP 清算とネッティング、ほふりと株券電子化、フェイルのルール。貸株市場の貸株料が空売りコスト・逆日歩・議決権に及ぼす影響まで。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="market-structure" data-text="コーポレートアクション 株式分割 併合 単元株 corporate-actions 権利落ち 遡及調整">
+              <td><span class="chip">市場制度</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/market-structure/corporate-actions.md">コーポレートアクション：株式分割・併合・単元株制度</a><br><span class="micro">corporate-actions.md</span></td>
+              <td>単元株制度と東証の投資単位政策、分割・併合・無償割当の株価/流動性効果、権利落ち日の理論価格調整式、日経平均の株価換算係数とチャートの遡及調整。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="market-structure" data-text="ETF J-REIT 上場ファンド etf-reit-and-listed-funds 乖離率 レバレッジ インバース NAV LTV">
+              <td><span class="chip">市場制度</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/market-structure/etf-reit-and-listed-funds.md">ETF・J-REIT・上場ファンドの市場</a><br><span class="micro">etf-reit-and-listed-funds.md</span></td>
+              <td>ETF の設定・交換による裁定と乖離率、レバレッジ/インバース型のリバランスが生む順張りフローと減価の数理、J-REIT の NAV 倍率・LTV・金利感応度。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="market-structure" data-text="海外投資家 アクセス ADR EWJ DXJ CME foreign-investor-access-channels カストディ 常任代理人">
+              <td><span class="chip">市場制度</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/market-structure/foreign-investor-access-channels.md">海外から日本株に投資する手段：現地株・ADR・ETF</a><br><span class="micro">foreign-investor-access-channels.md</span></td>
+              <td>東証現地株・米国ADR・海外上場ETF・CME日経先物という4経路の制度とコスト。ADRパリティと裁定、東京閉場後の価格発見。<code>adr_parity.py</code> の背景。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="market-structure" data-text="日経平均 TOPIX 指数 indices-nikkei-topix 除数 株価換算係数 浮動株 NT倍率">
+              <td><span class="chip">市場制度</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/market-structure/indices-nikkei-topix.md">日経平均とTOPIXの算出方法と特性</a><br><span class="micro">indices-nikkei-topix.md</span></td>
+              <td>株価平均型（除数調整・株価換算係数・値がさ株の影響）と浮動株調整時価総額加重の設計差を数式で整理し、乖離を示す NT 倍率の意味を解説。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="market-structure" data-text="投資信託 資産運用業界 investment-trusts-and-asset-management 基準価額 毎月分配型 オルカン ファンドラップ">
+              <td><span class="chip">市場制度</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/market-structure/investment-trusts-and-asset-management.md">投資信託と日本の資産運用業界</a><br><span class="micro">investment-trusts-and-asset-management.md</span></td>
+              <td>非上場公募投信の三者構造とコスト、毎月分配型・回転売買という歴史的問題から、つみたてNISA以降の低コストインデックス革命と投信フローの需給影響まで。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="market-structure" data-text="投資家構成 投資部門別売買動向 investor-composition-and-flows 持ち合い解消 海外投資家 GPIF 日銀ETF">
+              <td><span class="chip">市場制度</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/market-structure/investor-composition-and-flows.md">投資家構成と投資部門別売買動向</a><br><span class="micro">investor-composition-and-flows.md</span></td>
+              <td>持ち合い解消と海外投資家シェア拡大という保有構造の変遷、東証「投資部門別売買状況」による需給分析。海外＝順張り／個人＝逆張りといった行動特性。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="market-structure" data-text="IPO 公募増資 エクイティファイナンス ipo-and-equity-financing ブックビルディング ロックアップ 希薄化 CB">
+              <td><span class="chip">市場制度</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/market-structure/ipo-and-equity-financing.md">IPO・公募増資の制度とエクイティファイナンス</a><br><span class="micro">ipo-and-equity-financing.md</span></td>
+              <td>上場審査基準、ブックビルディングによる公開価格決定、ロックアップとオーバーアロットメント。公募増資・第三者割当・CB の希薄化計算と有利発行規制。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="market-structure" data-text="MSCI FTSE グローバル指数 msci-ftse-global-indices-and-japan パッシブフロー foreign room GICS">
+              <td><span class="chip">市場制度</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/market-structure/msci-ftse-global-indices-and-japan.md">MSCI・FTSEグローバル指数と日本株</a><br><span class="micro">msci-ftse-global-indices-and-japan.md</span></td>
+              <td>海外投資家のベンチマークの構成ルールと四半期リビューでクロージング・オークションに集中するパッシブフロー。TOPIX・日経225 とのカバレッジ差。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="market-structure" data-text="PTS 夜間取引 ダークプール 市場分断 pts-night-trading-and-fragmentation ジャパンネクスト SOR 最良執行">
+              <td><span class="chip">市場制度</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/market-structure/pts-night-trading-and-fragmentation.md">PTS・夜間取引・ダークプールと市場分断</a><br><span class="micro">pts-night-trading-and-fragmentation.md</span></td>
+              <td>私設取引システムの制度と歴史、夜間セッションでの決算後価格発見、ダークプールと ToSTNeT、SOR 規制。市場分断が流動性と価格形成に与える影響。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="market-structure" data-text="信用取引 空売り short-selling-margin-trading 制度信用 一般信用 逆日歩 追証 信用倍率 貸借倍率">
+              <td><span class="chip">市場制度</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/market-structure/short-selling-margin-trading.md">信用取引と空売りの制度</a><br><span class="micro">short-selling-margin-trading.md</span></td>
+              <td>制度信用と一般信用の違い、委託保証金と追証の計算、逆日歩の発生メカニズム、空売り価格規制と残高報告制度、信用倍率・貸借倍率の読み方。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="market-structure" data-text="東証 売買制度 板 trading-mechanics 板寄せ ザラバ 呼値 制限値幅 ストップ高 特別気配 ToSTNeT arrowhead">
+              <td><span class="chip">市場制度</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/market-structure/trading-mechanics.md">東証の売買制度と板の仕組み</a><br><span class="micro">trading-mechanics.md</span></td>
+              <td>arrowhead 上の板寄せとザラバの約定原理、立会時間（2024年11月の15:30延長とクロージング・オークション導入）、呼値、制限値幅、特別気配、注文タイプ。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="market-structure" data-text="市場区分 市場再編 tse-market-segments プライム スタンダード グロース 上場維持基準 経過措置">
+              <td><span class="chip">市場制度</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/market-structure/tse-market-segments.md">東証の市場区分と2022年市場再編</a><br><span class="micro">tse-market-segments.md</span></td>
+              <td>2022年4月の4市場5区分からプライム・スタンダード・グロースへの再編。各市場のコンセプトと上場維持基準、経過措置、TOPIX 構成銘柄見直しへの影響。</td>
+            </tr>
+
+            <!-- history (6) -->
+            <tr data-filter-item="kb" data-cat="history" data-text="アベノミクス 史上最高値 abenomics-to-new-highs 異次元緩和 日銀ETF ガバナンス改革 新NISA 2024">
+              <td><span class="chip">歴史</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/history/abenomics-to-new-highs.md">アベノミクスから史上最高値更新まで</a><br><span class="micro">abenomics-to-new-highs.md</span></td>
+              <td>2012年末の三本の矢と異次元緩和から、ガバナンス改革・東証の資本コスト経営要請・新NISA を経て2024年に34年ぶりの最高値を更新するまでの政策と構造変化。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="history" data-text="バブル 崩壊 bubble-economy-and-collapse プラザ合意 財テク 特金 38915円 総量規制 PKO">
+              <td><span class="chip">歴史</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/history/bubble-economy-and-collapse.md">1980年代バブルとその崩壊</a><br><span class="micro">bubble-economy-and-collapse.md</span></td>
+              <td>プラザ合意後の超金融緩和から財テク・特金の膨張、1989年12月の日経平均38,915円、総量規制による崩壊まで。PER60〜70倍という当時の異常さを定量検証する。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="history" data-text="金融ビッグバン 証券業界 取引所 制度史 financial-big-bang-and-securities-industry 手数料自由化 ネット証券 JPX">
+              <td><span class="chip">歴史</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/history/financial-big-bang-and-securities-industry.md">金融ビッグバンと証券業界・取引所の制度史</a><br><span class="micro">financial-big-bang-and-securities-industry.md</span></td>
+              <td>1996〜2001年の手数料完全自由化・市場集中原則撤廃から、ネット証券の勃興と手数料ゼロ化競争、東証の株式会社化・arrowhead 導入・JPX 発足まで。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="history" data-text="失われた30年 金融危機 lost-decades 不良債権 山一 拓銀 りそなショック リーマン 震災">
+              <td><span class="chip">歴史</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/history/lost-decades.md">失われた30年と金融危機</a><br><span class="micro">lost-decades.md</span></td>
+              <td>不良債権問題から1997-98年金融危機、デフレ定着、2003年りそなショックの大底、リーマン、2011年震災まで。38,915円から7,054円への長期低迷を時系列で整理。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="history" data-text="相場操縦 証券不祥事 不公正取引規制 market-scandals-and-manipulation-history 仕手 損失補填 飛ばし ライブドア 見せ玉 SESC">
+              <td><span class="chip">歴史</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/history/market-scandals-and-manipulation-history.md">相場操縦・証券不祥事の歴史と不公正取引規制</a><br><span class="micro">market-scandals-and-manipulation-history.md</span></td>
+              <td>仕手筋から損失補填、山一の飛ばし、ライブドア事件、SMBC日興の相場操縦（2022年）までの不祥事史と、金商法157〜159条・課徴金制度・SESC の監視体制。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="history" data-text="戦前 高度成長期 市場史 prewar-to-highgrowth-history 東京株式取引所 清算取引 財閥解体 証券不況 利回り革命">
+              <td><span class="chip">歴史</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/history/prewar-to-highgrowth-history.md">戦前から高度成長期までの日本株市場史</a><br><span class="micro">prewar-to-highgrowth-history.md</span></td>
+              <td>1878年の東京株式取引所設立から、戦前の清算取引中心の市場構造、1945年の閉鎖と1949年の東証再開、財閥解体による株式民主化、証券不況（1965年）まで。</td>
+            </tr>
+
+            <!-- math (11) -->
+            <tr data-filter-item="kb" data-cat="math" data-text="バックテスト 統計的検証 落とし穴 backtesting-and-statistics t検定 多重検定 データスヌーピング ルックアヘッド 生存者バイアス ウォークフォワード">
+              <td><span class="chip">数学</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/math/backtesting-and-statistics.md">バックテストと統計的検証の落とし穴</a><br><span class="micro">backtesting-and-statistics.md</span></td>
+              <td>シャープレシオの t 検定と必要標本数、多重検定・データスヌーピングの補正（ボンフェローニ、Deflated SR）、ルックアヘッド・生存者バイアス、ウォークフォワード検証。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="math" data-text="予想の評価 較正 キャリブレーション forecast-evaluation-and-calibration Brier 的中率 信頼区間 overnight">
+              <td><span class="chip">数学</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/math/forecast-evaluation-and-calibration.md">予想の評価と較正（キャリブレーション）</a><br><span class="micro">forecast-evaluation-and-calibration.md</span></td>
+              <td>方向的中率・Brier スコア・較正曲線を整理し、無情報予想（p=0.5, Brier=0.25）を基準に「予想が役立っているか」を判定する。夜間フォーキャストの理論的土台。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="math" data-text="機械学習 株価予測 限界 machine-learning-for-stock-prediction 勾配ブースティング Purged K-Fold NLP 決算短信">
+              <td><span class="chip">数学</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/math/machine-learning-for-stock-prediction.md">機械学習による株価予測とその限界</a><br><span class="micro">machine-learning-for-stock-prediction.md</span></td>
+              <td>教師あり学習によるリターン予測の定式化と特徴量設計、クロスセクション予測。低S/N比・非定常性への対処、Purged K-Fold 等のリーク防止、日本語開示テキストへの NLP。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="math" data-text="マーケットマイクロストラクチャー 高頻度データ market-microstructure-and-hft-data Kyle Glosten-Milgrom Roll 実現ボラティリティ 板 マイクロプライス FLEX">
+              <td><span class="chip">数学</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/math/market-microstructure-and-hft-data.md">マーケットマイクロストラクチャー理論と高頻度データ分析</a><br><span class="micro">market-microstructure-and-hft-data.md</span></td>
+              <td>Kyle・Glosten-Milgrom・Roll の価格形成モデルとスプレッド分解、実現ボラとマイクロストラクチャーノイズ、東証の日中W字季節性、板情報分析の実際。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="math" data-text="オプション価格理論 option-pricing ブラックショールズ リスク中立 グリークス インプライドボラティリティ スキュー 日経VI">
+              <td><span class="chip">数学</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/math/option-pricing.md">オプション価格理論</a><br><span class="micro">option-pricing.md</span></td>
+              <td>幾何ブラウン運動とリスク中立評価によるブラック・ショールズ式の導出、グリークス、IV とスキューの解釈。日経225オプションの仕様・証拠金・税制の実務文脈も。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="math" data-text="運用パフォーマンス 評価 リターン要因分解 performance-measurement-and-attribution 時間加重 金額加重 XIRR 情報比率 ブリンソン GIPS">
+              <td><span class="chip">数学</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/math/performance-measurement-and-attribution.md">運用パフォーマンスの評価とリターン要因分解</a><br><span class="micro">performance-measurement-and-attribution.md</span></td>
+              <td>時間加重と金額加重（IRR）の使い分け、リスク調整後指標とその限界、ブリンソン型の要因分解、スキルと運を区別する統計的検定。<code>performance_report.py</code> の土台。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="math" data-text="実務 ポートフォリオ構築 portfolio-construction-in-practice Ledoit-Wolf 縮小推定 Barra Black-Litterman リスクパリティ 制約付き最適化">
+              <td><span class="chip">数学</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/math/portfolio-construction-in-practice.md">実務のポートフォリオ構築技術</a><br><span class="micro">portfolio-construction-in-practice.md</span></td>
+              <td>平均分散の推定誤差問題を克服する実務手法——Ledoit-Wolf 縮小推定、Barra 型ファクターモデル、Black-Litterman、リスクパリティ、制約付き最適化とリバランス設計。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="math" data-text="ポートフォリオ理論 CAPM portfolio-theory 平均分散最適化 効率的フロンティア シャープレシオ ベータ Dimson Blume">
+              <td><span class="chip">数学</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/math/portfolio-theory.md">ポートフォリオ理論とCAPM</a><br><span class="micro">portfolio-theory.md</span></td>
+              <td>平均分散最適化のラグランジュ導出から効率的フロンティア・シャープレシオ・CAPM まで。TOPIX ベータ推定の実務（Dimson 補正・Blume 調整）と推定誤差問題。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="math" data-text="リターンの数理 分布 returns-and-distributions 対数リターン 年率化 ボラティリティドラッグ ファットテール 歪度 クラスタリング">
+              <td><span class="chip">数学</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/math/returns-and-distributions.md">リターンの数理と分布の性質</a><br><span class="micro">returns-and-distributions.md</span></td>
+              <td>単純リターンと対数リターンの使い分け、複利・年率化（√Tルール、ボラティリティ・ドラッグ）、ファットテール・歪度・ボラティリティクラスタリングの経験的事実。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="math" data-text="確率過程 伊藤計算 stochastic-processes-and-ito-calculus ブラウン運動 伊藤の補題 SDE GBM OU ギルサノフ ジャンプ拡散 モンテカルロ">
+              <td><span class="chip">数学</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/math/stochastic-processes-and-ito-calculus.md">確率過程と伊藤計算の基礎</a><br><span class="micro">stochastic-processes-and-ito-calculus.md</span></td>
+              <td>ブラウン運動・伊藤の補題・GBM や OU 過程・ギルサノフの定理・ジャンプ拡散まで。オイラー丸山法によるモンテカルロの Python 例つき。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="math" data-text="時系列モデル time-series-models ランダムウォーク 効率的市場仮説 ADF検定 ARIMA GARCH 分散比検定 平均回帰">
+              <td><span class="chip">数学</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/math/time-series-models.md">株価の時系列モデル</a><br><span class="micro">time-series-models.md</span></td>
+              <td>ランダムウォークと効率的市場仮説、ADF 検定による単位根、ARIMA、GARCH 族によるボラクラスタリングとレバレッジ効果、分散比検定による平均回帰の検出。</td>
+            </tr>
+
+            <!-- fundamental (10) -->
+            <tr data-filter-item="kb" data-cat="fundamental" data-text="銀行 保険 証券 金融株 analyzing-financial-sector-stocks 利ざや 与信費用 バーゼル EV ソルベンシー 政策保有株">
+              <td><span class="chip">ファンダ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/fundamental/analyzing-financial-sector-stocks.md">銀行・保険・証券株の特殊な財務分析</a><br><span class="micro">analyzing-financial-sector-stocks.md</span></td>
+              <td>銀行の預貸金利ざや・業務純益・与信費用・バーゼル規制、生損保の EV とソルベンシー、証券の市況連動型収益。利上げ局面での位置づけとメガバンク／地銀の構造差。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="fundamental" data-text="信用リスク 倒産予測 上場廃止 credit-risk-and-delisting Altman Zスコア SAF2002 Merton GC注記 監理 整理銘柄 100%減資">
+              <td><span class="chip">ファンダ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/fundamental/credit-risk-and-delisting.md">信用リスク分析・倒産予測と上場廃止制度</a><br><span class="micro">credit-risk-and-delisting.md</span></td>
+              <td>Altman Z スコア・SAF2002・Merton 型 DD などの倒産予測モデルと危険シグナル。東証の上場廃止基準、監理・整理銘柄、法的整理での株式価値ゼロ化の事例。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="fundamental" data-text="配当政策 自社株買い dividend-policy-and-buybacks MM無関連命題 シグナリング DOE 累進配当 分配可能額 ToSTNeT-3 Elton-Gruber">
+              <td><span class="chip">ファンダ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/fundamental/dividend-policy-and-buybacks.md">配当政策・自社株買いの制度と分析</a><br><span class="micro">dividend-policy-and-buybacks.md</span></td>
+              <td>MM 無関連命題・シグナリング等の理論と、安定配当・DOE・累進配当という日本企業の還元設計。分配可能額規制、ToSTNeT-3、権利落ちの理論値と高配当の罠。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="fundamental" data-text="会社業績予想 アナリストコンセンサス リビジョン earnings-guidance-and-consensus 会社予想 上方修正 QUICK 四季報 SUE サプライズ">
+              <td><span class="chip">ファンダ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/fundamental/earnings-guidance-and-consensus.md">会社業績予想・アナリストコンセンサスとリビジョン分析</a><br><span class="micro">earnings-guidance-and-consensus.md</span></td>
+              <td>日本特有の会社ガイダンス開示慣行（保守的期初予想と期中上方修正のバイアス）、コンセンサスの使い分け、リビジョン指数と SUE による決算サプライズの測定。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="fundamental" data-text="会計品質 粉飾決算 検出 earnings-quality-and-accounting-fraud アクルーアル Beneish M-Score オリンパス 東芝 J-SOX 継続企業の前提">
+              <td><span class="chip">ファンダ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/fundamental/earnings-quality-and-accounting-fraud.md">会計品質の分析と粉飾決算の検出</a><br><span class="micro">earnings-quality-and-accounting-fraud.md</span></td>
+              <td>アクルーアル分析と Beneish M-Score による利益の質の定量評価、日本の代表的会計不正の手口の類型、監査意見・GC 注記・内部統制報告書の読み方。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="fundamental" data-text="本源的価値 バリュエーションモデル intrinsic-value-models DCF WACC ターミナルバリュー 配当割引モデル 残余利益 RIM 伊藤レポート PBR改善要請">
+              <td><span class="chip">ファンダ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/fundamental/intrinsic-value-models.md">本源的価値評価モデル</a><br><span class="micro">intrinsic-value-models.md</span></td>
+              <td>DCF 法（WACC・ターミナルバリュー・感応度）、配当割引モデル、残余利益モデルの理論と使い分け。低金利下の株主資本コスト認識、ネットキャッシュ調整、PBR 要請との関係。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="fundamental" data-text="定性分析 ビジネスモデル 競争優位 経営の質 qualitative-analysis-and-moats moat ROIC WACC ファイブフォース 中期経営計画 親子上場 統合報告書">
+              <td><span class="chip">ファンダ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/fundamental/qualitative-analysis-and-moats.md">定性分析：ビジネスモデル・競争優位・経営の質の評価</a><br><span class="micro">qualitative-analysis-and-moats.md</span></td>
+              <td>経済的堀（moat）の5類型と ROIC-WACC スプレッドによる検証、ファイブフォース、資本配分能力の評価。中期経営計画の達成率、系列・親子上場、FD ルール下の IR 取材実務。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="fundamental" data-text="決算書 開示資料 読み方 reading-japanese-financials 決算短信 有価証券報告書 IFRS 経常利益 のれん セグメント情報 会社予想">
+              <td><span class="chip">ファンダ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/fundamental/reading-japanese-financials.md">日本企業の決算書と開示資料の読み方</a><br><span class="micro">reading-japanese-financials.md</span></td>
+              <td>決算短信・有報・半期報告書という二本立ての開示体系、日本基準と IFRS の差異（経常利益・のれん償却）、連結と単体、セグメント情報、会社予想の文化と修正開示ルール。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="fundamental" data-text="セクター構造 業種分析 sector-structure-japan 東証33業種 TOPIX-17 景気敏感 ディフェンシブ 外需 内需 セクターローテーション">
+              <td><span class="chip">ファンダ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/fundamental/sector-structure-japan.md">日本株のセクター構造と業種分析</a><br><span class="micro">sector-structure-japan.md</span></td>
+              <td>東証33業種と TOPIX-17 の分類体系、時価総額構成の変遷、主要セクターの収益特性。景気敏感vsディフェンシブ・外需vs内需の二軸と相対強度によるローテーション把握。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="fundamental" data-text="バリュエーション指標 valuation-metrics PER PBR ROE 配当利回り EV/EBITDA デュポン分解 PBR1倍割れ 政策保有株">
+              <td><span class="chip">ファンダ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/fundamental/valuation-metrics.md">バリュエーション指標と日本株特有の論点</a><br><span class="micro">valuation-metrics.md</span></td>
+              <td>PER・PBR・ROE・配当利回り・EV/EBITDA の定義と使い分け、PBR＝PER×ROE の恒等式とデュポン分解。PBR1倍割れ問題と東証の2023年要請、政策保有株が生む歪み。</td>
+            </tr>
+
+            <!-- technical (5) -->
+            <tr data-filter-item="kb" data-cat="technical" data-text="ローソク足 酒田五法 candlestick-and-sakata 本間宗久 堂島 三山 三川 三空 三兵 三法 データスヌーピング">
+              <td><span class="chip">テクニカル</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/technical/candlestick-and-sakata.md">ローソク足と酒田五法</a><br><span class="micro">candlestick-and-sakata.md</span></td>
+              <td>堂島米市場と本間宗久に遡る起源、基本パターンの読み方、酒田五法（三山・三川・三空・三兵・三法）。実証研究での予測力の限定的な評価と方法論的注意も併記。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="technical" data-text="ダウ理論 チャートパターン dow-theory-and-chart-patterns 支持線 抵抗線 ダブルトップ 三尊 エリオット批判 グランビル 値幅制限">
+              <td><span class="chip">テクニカル</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/technical/dow-theory-and-chart-patterns.md">ダウ理論とチャートパターン分析</a><br><span class="micro">dow-theory-and-chart-patterns.md</span></td>
+              <td>ダウ理論の6原則、支持線・抵抗線の引き方、ダブルトップや三尊などのパターンと統計的有効性、グランビルの法則。値幅制限や決算ギャップという日本株特有の注意点。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="technical" data-text="エリオット波動 フィボナッチ サイクル elliott-wave-fibonacci-cycles リトレースメント 一目均衡表 値幅観測論 ギャン 日柄 反証可能性">
+              <td><span class="chip">テクニカル</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/technical/elliott-wave-fibonacci-cycles.md">エリオット波動・フィボナッチ・サイクル分析</a><br><span class="micro">elliott-wave-fibonacci-cycles.md</span></td>
+              <td>エリオット波動の5-3波構造、フィボナッチと一目均衡表の値幅観測論の対比、ギャン理論、日本独自の日柄分析。反証可能性・主観性の観点から批判的に評価する。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="technical" data-text="テクニカル指標 一目均衡表 indicators-and-ichimoku 移動平均 RSI MACD ボリンジャーバンド ストキャスティクス 三役好転 ラグ">
+              <td><span class="chip">テクニカル</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/technical/indicators-and-ichimoku.md">テクニカル指標と一目均衡表</a><br><span class="micro">indicators-and-ichimoku.md</span></td>
+              <td>移動平均・RSI・MACD・ボリンジャー・ストキャスティクスの計算式と解釈、一目均衡表の5線と三役好転。ローパスフィルタとしてのラグなど数理的限界も明示。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="technical" data-text="出来高分析 市場内部指標 volume-and-market-internals VWAP 騰落レシオ 新高値 新安値 信用残 裁定残 投資部門別">
+              <td><span class="chip">テクニカル</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/technical/volume-and-market-internals.md">出来高分析と市場内部指標</a><br><span class="micro">volume-and-market-internals.md</span></td>
+              <td>出来高と価格の関係、VWAP、騰落レシオ、新高値・新安値、信用残・裁定残、投資部門別売買動向の読み方。<code>market_breadth.py</code> が測る内部状態の背景理論。</td>
+            </tr>
+
+            <!-- macro (9) -->
+            <tr data-filter-item="kb" data-cat="macro" data-text="日銀 金融政策 株式市場 boj-and-equities ゼロ金利 QQE マイナス金利 YCC 正常化 日銀ETF 出口 ゴードン成長モデル">
+              <td><span class="chip">マクロ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/macro/boj-and-equities.md">日銀の金融政策と株式市場</a><br><span class="micro">boj-and-equities.md</span></td>
+              <td>ゼロ金利から QQE・マイナス金利・YCC を経て2024年正常化に至る枠組みの変遷と、金利・為替・需給・期待の各経路。日銀 ETF の出口問題と利上げ局面のセクター感応度。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="macro" data-text="コモディティ 商品市況 commodities-and-japan-equities 原油 交易条件 商社 海運 鉄鋼 電力ガス 金価格">
+              <td><span class="chip">マクロ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/macro/commodities-and-japan-equities.md">コモディティ価格と日本株</a><br><span class="micro">commodities-and-japan-equities.md</span></td>
+              <td>資源輸入国・日本での原油高の二面性（交易条件悪化 vs 商社・石油開発株の恩恵）、海運・鉄鋼・電力ガス等のセクター別感応度、金価格と円の関係。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="macro" data-text="人口動態 財政 長期構造要因 demographics-fiscal-and-longterm-structure 人口減少 高齢化 政府債務 JGB 新NISA 貯蓄から投資へ 所得収支">
+              <td><span class="chip">マクロ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/macro/demographics-fiscal-and-longterm-structure.md">人口動態・財政と日本株の長期構造要因</a><br><span class="micro">demographics-fiscal-and-longterm-structure.md</span></td>
+              <td>人口減少・高齢化が潜在成長率とセクター構成に与える影響、政府債務から株式への波及経路、海外生産シフトと所得収支大国化。悲観論と楽観論を対照表で対置する。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="macro" data-text="災害 地政学リスク disasters-geopolitics-and-japan-equities 東日本大震災 阪神大震災 有事の円買い 復興需要 南海トラフ 経済安全保障 防衛関連">
+              <td><span class="chip">マクロ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/macro/disasters-geopolitics-and-japan-equities.md">災害・地政学リスクと日本株</a><br><span class="micro">disasters-geopolitics-and-japan-equities.md</span></td>
+              <td>震災時の市場急落と取引所・日銀の対応、有事の円買いの変質、復興需要の物色パターン、地震保険の官民スキーム。日本株固有のテールリスクを体系化する。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="macro" data-text="為替 円安 円高 fx-and-japanese-stocks 想定為替レート 感応度 ドル建て日経平均 購買力平価 実質実効為替レート 金利平価 ヘッジ">
+              <td><span class="chip">マクロ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/macro/fx-and-japanese-stocks.md">為替と日本株</a><br><span class="micro">fx-and-japanese-stocks.md</span></td>
+              <td>円安・円高が輸出採算・換算効果・輸入コストを通じて企業収益に効くメカニズム、想定為替レートと感応度の読み方、セクター別感応度、購買力平価とヘッジの実務。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="macro" data-text="海外市場 連動 グローバル要因 global-markets-and-japan-linkage 米国株 米金利 VIX 夜間先物 CME ADR 寄付きギャップ リスクオフ">
+              <td><span class="chip">マクロ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/macro/global-markets-and-japan-linkage.md">海外市場との連動と日本株のグローバル要因</a><br><span class="micro">global-markets-and-japan-linkage.md</span></td>
+              <td>米国株・米金利・VIX と日本株の連動、夜間先物・CME 日経先物・ADR を通じた24時間の価格発見と寄付きギャップ。リスクオフ時の円高と株安の同時進行。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="macro" data-text="金利 国債 JGB 感応度 interest-rates-jgb-and-equities 株式デュレーション イールドカーブ 銀行株 グロース株 株債相関">
+              <td><span class="chip">マクロ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/macro/interest-rates-jgb-and-equities.md">金利・国債市場と日本株の感応度分析</a><br><span class="micro">interest-rates-jgb-and-equities.md</span></td>
+              <td>JGB 市場の構造を踏まえ、株式デュレーション $1/(r-g)$ による金利感応度の定量化、銀行・保険・不動産・グロース株の金利敏感性、株債相関のレジーム変化。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="macro" data-text="マクロ経済指標 japan-macro-indicators 日銀短観 GDP 機械受注 鉱工業生産 CPI 毎月勤労統計 貿易統計 FOMC 米雇用統計">
+              <td><span class="chip">マクロ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/macro/japan-macro-indicators.md">日本のマクロ経済指標と株式市場</a><br><span class="micro">japan-macro-indicators.md</span></td>
+              <td>短観・GDP・機械受注・鉱工業生産・CPI・毎月勤労統計・貿易統計の読み方と公表スケジュール、サプライズ反応の原則。米国指標が日本株に波及する3経路も。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="macro" data-text="ドル建て リターン 為替ヘッジ usd-based-returns-and-currency-hedging 分解式 ヘッジコスト 金利差キャリー DXJ アンヘッジ リスクオフ">
+              <td><span class="chip">マクロ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/macro/usd-based-returns-and-currency-hedging.md">ドル建て日本株リターンと為替ヘッジの実務</a><br><span class="micro">usd-based-returns-and-currency-hedging.md</span></td>
+              <td>円建て・ドル建てリターンの分解式と「円建て最高値でもドル建てでは凡庸」の定量例、金利平価に基づくヘッジコスト。各 CLI の <code>--in-currency</code> の理論背景。</td>
+            </tr>
+
+            <!-- derivatives (3) -->
+            <tr data-filter-item="kb" data-cat="derivatives" data-text="転換社債 CB 個別株オプション ボラティリティ指数 cb-equity-derivatives-and-vix CBアービトラージ MSワラント 希薄化 日経平均VI コンタンゴ 減価">
+              <td><span class="chip">デリバティブ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/derivatives/cb-equity-derivatives-and-vix.md">転換社債・個別株オプション・ボラティリティ指数</a><br><span class="micro">cb-equity-derivatives-and-vix.md</span></td>
+              <td>CB の価格構造と CB アービトラージ、MS ワラントの希薄化スパイラル、有価証券オプション市場の現状、日経平均VI の算出式、日経VI 先物のコンタンゴと減価問題。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="derivatives" data-text="日経225先物 オプション SQ nikkei-futures-options 理論価格 裁定残 限月 ロールオーバー メジャーSQ プットスキュー ガンマヘッジ">
+              <td><span class="chip">デリバティブ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/derivatives/nikkei-futures-options.md">日経225先物・オプションとSQ</a><br><span class="micro">nikkei-futures-options.md</span></td>
+              <td>先物の理論価格（キャリーコスト・モデル）と現物との裁定・裁定残、限月とロールオーバー、メジャー/マイナーSQ の算出と株価への影響、プット・スキューとガンマヘッジ。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="derivatives" data-text="オプション戦略 ヘッジ実務 option-strategies-and-hedging-practice カバードコール プロテクティブプット カラー ストラドル デルタヘッジ ベーシスリスク オーバーレイ">
+              <td><span class="chip">デリバティブ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/derivatives/option-strategies-and-hedging-practice.md">オプション戦略とデリバティブによるヘッジの実務</a><br><span class="micro">option-strategies-and-hedging-practice.md</span></td>
+              <td>カバードコール・プロテクティブプット・カラー等のヘッジ、ストラドルやスプレッドによる方向性／ボラティリティ取引、グリークスによるデルタヘッジ、先物ヘッジ比率とベーシスリスク。</td>
+            </tr>
+
+            <!-- regulation-tax (10) -->
+            <tr data-filter-item="kb" data-cat="regulation-tax" data-text="コーポレートガバナンス 株主還元 corporate-governance CGコード スチュワードシップ 持ち合い解消 社外取締役 資本コスト 東証要請 アクティビスト">
+              <td><span class="chip">規制税制</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/regulation-tax/corporate-governance.md">コーポレートガバナンス改革と株主還元</a><br><span class="micro">corporate-governance.md</span></td>
+              <td>CG コード・スチュワードシップコードの制定と改訂史、持ち合い解消と社外取締役の拡充、2023年の東証「資本コストや株価を意識した経営」要請と PBR・ROE の理論的関係。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="regulation-tax" data-text="開示制度 インサイダー取引規制 disclosure-and-insider-rules EDINET TDnet 大量保有報告 5%ルール TOB規制 重要事実 フェアディスクロージャー">
+              <td><span class="chip">規制税制</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/regulation-tax/disclosure-and-insider-rules.md">開示制度とインサイダー取引規制</a><br><span class="micro">disclosure-and-insider-rules.md</span></td>
+              <td>法定開示（EDINET）と適時開示（TDnet）の二層構造、大量保有報告（5%ルール）、TOB 規制、インサイダー取引規制の成立要件・重要事実4類型・公表要件、FD ルール。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="regulation-tax" data-text="英文開示 グローバルIR english-disclosure-and-global-ir プライム 英文同時開示 義務化 外国人保有比率 認知プレミアム Merton">
+              <td><span class="chip">規制税制</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/regulation-tax/english-disclosure-and-global-ir.md">英文開示とグローバルIR</a><br><span class="micro">english-disclosure-and-global-ir.md</span></td>
+              <td>東証プライムの英文同時開示義務化（2025年4月〜）、有報英文化の遅れ、入手経路。英文開示と外国人保有比率・認知プレミアム（Merton 1987）・バリュエーションの関係。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="regulation-tax" data-text="外資規制 対内直接投資審査 外為法 foreign-ownership-restrictions 放送法 航空法 NTT法 コア業種 名義書換拒否 foreign room">
+              <td><span class="chip">規制税制</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/regulation-tax/foreign-ownership-restrictions.md">外資規制と対内直接投資審査（外為法）</a><br><span class="micro">foreign-ownership-restrictions.md</span></td>
+              <td>放送法20%・航空法・NTT法など業法上の外国人保有制限と名義書換拒否の仕組み、外為法の事前届出制度（2020年改正の1%閾値・コア業種・免除制度）。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="regulation-tax" data-text="iDeCo 企業型DC 確定拠出年金 ideco-and-corporate-dc 所得控除 退職所得控除 EET TEE 拠出限度額 流動性ロック">
+              <td><span class="chip">規制税制</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/regulation-tax/ideco-and-corporate-dc.md">iDeCo・企業型DCの税制と新NISAとの使い分け</a><br><span class="micro">ideco-and-corporate-dc.md</span></td>
+              <td>三段階税制（拠出時の全額所得控除・運用時非課税・受取時の控除）を数式付きで整理し、職業区分別の拠出限度額を一覧化。EET 型と TEE 型という新NISAとの違いから使い分けを解説。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="regulation-tax" data-text="M&amp;A 組織再編 買収防衛 ma-reorganization-and-takeover-defense 株式交換 会社分割 スクイーズアウト MBO指針 行動指針 ブルドックソース 親子上場解消">
+              <td><span class="chip">規制税制</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/regulation-tax/ma-reorganization-and-takeover-defense.md">M&amp;A・組織再編の制度と買収防衛</a><br><span class="micro">ma-reorganization-and-takeover-defense.md</span></td>
+              <td>会社法の組織再編スキームとスクイーズアウト手法、価格決定申立てによる少数株主保護、2023年「企業買収における行動指針」以降の同意なき買収の増加と防衛策判例。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="regulation-tax" data-text="新NISA 実務戦略 nisa-practical-strategies つみたて枠 成長投資枠 生涯枠 1800万円 非課税価値 損失切り捨て 簿価方式 枠復活 出口戦略">
+              <td><span class="chip">規制税制</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/regulation-tax/nisa-practical-strategies.md">新NISA実務戦略：枠の使い方と出口</a><br><span class="micro">nisa-practical-strategies.md</span></td>
+              <td>制度詳細は別文書に譲り実務判断に集中。枠の使い分け、生涯枠1,800万円を埋めるペース設計、非課税価値の定量化、損失切り捨ての構造、簿価方式の枠復活と出口戦略（2025年時点）。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="regulation-tax" data-text="非居住者 課税 租税条約 nonresident-taxation-and-treaties 源泉徴収 20.42% 15.315% 譲渡益非課税 外国税額控除 居住者要件">
+              <td><span class="chip">規制税制</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/regulation-tax/nonresident-taxation-and-treaties.md">非居住者の日本株課税と租税条約</a><br><span class="micro">nonresident-taxation-and-treaties.md</span></td>
+              <td>海外投資家の配当への源泉徴収（租税条約による軽減、2025年時点）と譲渡益の原則国内非課税、届出・還付の実務。日本居住者の米国株投資における外国税額控除との対比も。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="regulation-tax" data-text="株主総会 議決権行使 shareholder-meetings-and-proxy-voting 基準日 6月集中日 電子提供 バーチャル総会 特別決議 ISS グラスルイス 株主提案 プロキシファイト">
+              <td><span class="chip">規制税制</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/regulation-tax/shareholder-meetings-and-proxy-voting.md">株主総会と議決権行使の実務</a><br><span class="micro">shareholder-meetings-and-proxy-voting.md</span></td>
+              <td>基準日・権利確定と6月集中日問題、招集通知の電子提供、普通決議・特別決議の要件。ISS・グラスルイスの ROE 基準が賛否率と株価に与える影響、株主提案権の急増。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="regulation-tax" data-text="株式税制 新NISA taxation-and-nisa 譲渡益 配当課税 20.315% 特定口座 損益通算 繰越控除 生涯投資枠 枠の再利用">
+              <td><span class="chip">規制税制</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/regulation-tax/taxation-and-nisa.md">株式税制と新NISA</a><br><span class="micro">taxation-and-nisa.md</span></td>
+              <td>譲渡益・配当課税（20.315%、2025年時点）の仕組み、特定口座・損益通算・繰越控除、配当の課税方式選択。2024年開始の新NISA の制度設計と旧NISA との違い。</td>
+            </tr>
+
+            <!-- data-sources (4) -->
+            <tr data-filter-item="kb" data-cat="data-sources" data-text="オルタナティブデータ テキスト分析 alternative-data-and-text-analysis TDnet 有報 テキストマイニング 極性辞書 LLM センチメント POS 衛星画像">
+              <td><span class="chip">データ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/data-sources/alternative-data-and-text-analysis.md">オルタナティブデータとテキスト分析</a><br><span class="micro">alternative-data-and-text-analysis.md</span></td>
+              <td>TDnet・有報・決算説明会のテキストマイニング（日本語NLPの課題、極性辞書、LLM活用）から、ニュース・SNS センチメント、POS・衛星画像・求人等の消費データまで。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="data-sources" data-text="証券会社 発注API 自動売買 brokerage-apis-and-automated-trading kabuステーション 立花証券 IB TWS プリトレードチェック 相場操縦 レイテンシ">
+              <td><span class="chip">データ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/data-sources/brokerage-apis-and-automated-trading.md">証券会社の発注APIと自動売買システム構築</a><br><span class="micro">brokerage-apis-and-automated-trading.md</span></td>
+              <td>個人が使える発注経路（kabuステーションAPI、立花証券e支店API、IB TWS API 等、2025年時点）の比較と実装アーキテクチャ。相場操縦リスク回避と個人が戦える土俵の見極め。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="data-sources" data-text="データソース API data-apis-and-tools J-Quants EDINET TDnet e-Stat yfinance 株探 IRバンク 5桁コード 調整後株価 生存者バイアス">
+              <td><span class="chip">データ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/data-sources/data-apis-and-tools.md">日本株データソースとAPI</a><br><span class="micro">data-apis-and-tools.md</span></td>
+              <td>主要データソースの無料/有料の使い分けと取得実務。5桁銘柄コード、分割調整と配当調整の違い、生存者バイアス、鮮度×機械処理×無料のトリレンマ。本リポジトリの接続モジュールの使い方も。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="data-sources" data-text="データ取得API カタログ market-data-apis-catalog J-Quants V2 e-Stat 日銀 JPX統計 QUICK LSEG Bloomberg Twelve Data EODHD Stooq moomoo futu">
+              <td><span class="chip">データ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/data-sources/market-data-apis-catalog.md">日本株データ取得APIの徹底カタログ</a><br><span class="micro">market-data-apis-catalog.md</span></td>
+              <td>公式/公的・証券会社・データベンダー・海外サードパーティ・Python ライブラリを横断比較。鮮度/コスト/カバレッジ/認証/機械可読性/規約の6軸と用途別の第一候補（2026年時点）。</td>
+            </tr>
+
+            <!-- strategies (19) -->
+            <tr data-filter-item="kb" data-cat="strategies" data-text="アクティビスト 株主エンゲージメント activist-investing-japan 村上ファンド スティール エリオット オアシス 低PBR ネットキャッシュ 大量保有報告 コバンザメ">
+              <td><span class="chip">戦略</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/strategies/activist-investing-japan.md">アクティビスト投資と株主エンゲージメント</a><br><span class="micro">activist-investing-japan.md</span></td>
+              <td>第一波から第二波までのアクティビズム史と戦術のエスカレーション・ラダー、ターゲット企業の特徴（低PBR・ネットキャッシュ・親子上場）、大量保有報告によるイベント検出と追随投資の実証。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="strategies" data-text="行動ファイナンス 投資家心理 behavioral-finance-japan プロスペクト理論 処分効果 自信過剰 ハーディング アンカリング 逆張り 塩漬け">
+              <td><span class="chip">戦略</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/strategies/behavioral-finance-japan.md">行動ファイナンスと日本の投資家心理</a><br><span class="micro">behavioral-finance-japan.md</span></td>
+              <td>プロスペクト理論・処分効果・自信過剰・ハーディングの理論と日本市場での実証（個人の逆張り傾向、塩漬け株行動）。バイアスを構造的に抑える実践的対処法まで。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="strategies" data-text="出口戦略 取り崩し シークエンスリスク decumulation-and-exit 定額 定率 4%ルール Trinity Study 枯渇条件 現金クッション グライドパス">
+              <td><span class="chip">戦略</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/strategies/decumulation-and-exit.md">出口戦略：取り崩しとシークエンス・リスク</a><br><span class="micro">decumulation-and-exit.md</span></td>
+              <td>定額・定率取り崩しの数理と枯渇条件、4%ルールの由来と日本適用の限界、同じ平均リターンでも順序で結果が変わるシークエンス・リスク。<code>asset_plan.py decumulate</code> の背景。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="strategies" data-text="配当インカム投資 dividend-income-investing 高利回りの罠 減配リスク 配当性向 増配余力 Yield on Cost YOC 連続増配 配当貴族 権利落ち 配当取り">
+              <td><span class="chip">戦略</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/strategies/dividend-income-investing.md">配当インカム投資の実務</a><br><span class="micro">dividend-income-investing.md</span></td>
+              <td>高利回りが減配シグナルとなる罠の構造、配当性向×ROE による増配余力、YOC の複利効果と批判、日本の連続増配銘柄と米国配当貴族の差。<code>income_report.py</code> の解釈枠組み。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="strategies" data-text="ESG投資 esg-investing-japan GPIF ESG指数 スチュワードシップ エンゲージメント TCFD SSBJ 人的資本 スコア不一致 グリーンウォッシュ">
+              <td><span class="chip">戦略</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/strategies/esg-investing-japan.md">ESG投資と日本株</a><br><span class="micro">esg-investing-japan.md</span></td>
+              <td>GPIF の ESG 指数採用、プライム市場の TCFD/SSBJ 開示、人的資本開示という制度インフラ。ESG スコアとリターンの実証（期待リターンと実現リターンの区別）と評価機関間の不一致。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="strategies" data-text="イベントドリブン event-driven-japan PEAD 決算発表後ドリフト 指数入替 TOB MBO リスクアービトラージ 株主優待 IPOアノマリー カレンダー効果 SUE">
+              <td><span class="chip">戦略</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/strategies/event-driven-japan.md">日本株のイベントドリブン戦略</a><br><span class="micro">event-driven-japan.md</span></td>
+              <td>PEAD、日経225入替・TOPIX調整などの指数イベント、TOB・MBO のリスクアービトラージ、優待と権利落ち、カレンダー効果。<code>catalyst_radar.py</code> が拾うイベントの背景。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="strategies" data-text="執行アルゴリズム 取引コスト分析 execution-algorithms-and-transaction-costs マーケットインパクト 平方根則 Almgren-Chriss VWAP TWAP PoV TCA HFT SOR スリッページ">
+              <td><span class="chip">戦略</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/strategies/execution-algorithms-and-transaction-costs.md">執行アルゴリズムと取引コスト分析</a><br><span class="micro">execution-algorithms-and-transaction-costs.md</span></td>
+              <td>マーケットインパクトの理論（平方根則、Almgren-Chriss 最適執行）と VWAP・TWAP・PoV・IS 等の執行アルゴリズム、TCA の実務。スリッページがバックテストと実運用を乖離させる構造。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="strategies" data-text="ファクター投資 factor-investing-japan バリュー サイズ モメンタム クオリティ 低ボラ 実証結果 Asness 決算ラグ 生存バイアス">
+              <td><span class="chip">戦略</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/strategies/factor-investing-japan.md">日本株のファクター投資</a><br><span class="micro">factor-investing-japan.md</span></td>
+              <td>バリュー・サイズ・モメンタム・クオリティ・低ボラの定義と計算、日本市場の実証（バリューが強くモメンタムが効かない有名な例外と Asness の解釈）、実装上の注意点。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="strategies" data-text="海外投資家 投資テーマ史 Japan is back foreign-investor-themes-history 日本異質論 リップルウッド 小泉相場 アベノミクス買い バフェット商社 順張り">
+              <td><span class="chip">戦略</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/strategies/foreign-investor-themes-history.md">海外投資家の日本株投資テーマ史：Japan is back の反復</a><br><span class="micro">foreign-investor-themes-history.md</span></td>
+              <td>バブル期の日本異質論から90年代の外資参入、小泉相場、アベノミクス買い、2023年以降の東証改革・バフェット商社投資まで。「期待→集中買い→失望→撤退」の反復パターン。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="strategies" data-text="家計 リスク許容度 資産配分 household-risk-capacity-and-allocation リスク受容力 人的資本 ライフサイクル 生活防衛資金 現預金偏重 コアサテライト リバランス">
+              <td><span class="chip">戦略</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/strategies/household-risk-capacity-and-allocation.md">家計から見たリスク許容度と資産配分</a><br><span class="micro">household-risk-capacity-and-allocation.md</span></td>
+              <td>リスク許容度（心理）とリスク受容力（財務）の区別、人的資本を含めた総資産視点、生活防衛資金の目安、日本の家計の現預金偏重。「銘柄選択の前に決めるべき配分」を体系化。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="strategies" data-text="投資の時間軸 短期 中期 長期 investment-horizons-framework シグナルノイズ比 Grinold 基本法則 損切り 期日管理 塩漬け 新NISA">
+              <td><span class="chip">戦略</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/strategies/investment-horizons-framework.md">投資の時間軸：短期・中期・長期の分析枠組み</a><br><span class="micro">investment-horizons-framework.md</span></td>
+              <td>保有期間ごとにエッジの源泉が変わることを S/N 比と Grinold の基本法則で示し、各時間軸の対比表と規律を整理。<code>analyze_stock.py --horizon</code> の設計思想。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="strategies" data-text="グローバルポートフォリオ 日本株 japan-in-global-portfolio ACWI EAFE 中立比 相関 CAPE 国際比較 オーバーウエイト ホームバイアス">
+              <td><span class="chip">戦略</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/strategies/japan-in-global-portfolio.md">グローバル・ポートフォリオの中の日本株</a><br><span class="micro">japan-in-global-portfolio.md</span></td>
+              <td>ACWI 約5%・EAFE 約2割という日本のウエイトと中立比からの乖離として行う配分判断、米国株との相関と円の逆相関、CAPE・PBR の国際比較。「外国株としての日本株」の含意。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="strategies" data-text="長期資産形成 複利 積立 時間分散 long-term-wealth-building 終価公式 72の法則 リスクプレミアム DCA ドルコスト平均法 Samuelson批判 新NISA">
+              <td><span class="chip">戦略</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/strategies/long-term-wealth-building.md">長期資産形成の原理：複利・積立・時間分散</a><br><span class="micro">long-term-wealth-building.md</span></td>
+              <td>複利の数理（終価公式の導出、72の法則、コストの複利影響）、積立 vs 一括の実証、時間分散の効果と限界。「長期でリスクが消える」という誤解への注意も明記。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="strategies" data-text="カレンダーアノマリー 季節性 market-anomalies-and-seasonality 月次効果 曜日効果 月末月初 祝日前 Sell in May 節分天井彼岸底 SQ週 ドレッシング 多重検定">
+              <td><span class="chip">戦略</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/strategies/market-anomalies-and-seasonality.md">日本株のカレンダーアノマリーと季節性</a><br><span class="micro">market-anomalies-and-seasonality.md</span></td>
+              <td>月次・曜日・月末月初・祝日前効果の実証、Sell in May や節分天井彼岸底の検証、3月期末の需給カレンダー。<code>seasonality_report.py</code> が測る対象と多重検定の注意。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="strategies" data-text="ペアトレード 裁定取引 市場中立 pairs-trading-and-arbitrage 共和分 スプレッド 貸株調達 逆日歩 指数裁定 裁定残高 NT倍率 マーケットニュートラル">
+              <td><span class="chip">戦略</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/strategies/pairs-trading-and-arbitrage.md">ペアトレード・裁定取引と市場中立戦略</a><br><span class="micro">pairs-trading-and-arbitrage.md</span></td>
+              <td>共和分に基づく銘柄選択・スプレッド構築・エントリー/エグジット設計と、貸株調達・逆日歩・空売り規制という日本株での実装制約。<code>pairs_screen.py</code> の理論的土台。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="strategies" data-text="個人投資家 短期売買 デイトレード スイングトレード retail-short-term-trading 差金決済規制 一日信用 寄付ギャップ ストップ高 IPOセカンダリー 板読み 歩み値 BNF cis">
+              <td><span class="chip">戦略</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/strategies/retail-short-term-trading.md">個人投資家の短期売買（デイトレード・スイングトレード）の実務</a><br><span class="micro">retail-short-term-trading.md</span></td>
+              <td>差金決済規制と一日信用などの制度環境、寄付ギャッププレー、ストップ高張り付き、テーマ株の資金循環、板読みの実践。短期売買の統計的な勝率の低さと生存者バイアスにも言及。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="strategies" data-text="リスク管理 ポジションサイジング risk-management-and-position-sizing ケリー基準 フラクショナルケリー ボラティリティターゲティング 最大ドローダウン 破産確率 VaR 期待ショートフォール 損切り 追証">
+              <td><span class="chip">戦略</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/strategies/risk-management-and-position-sizing.md">リスク管理とポジションサイジング</a><br><span class="micro">risk-management-and-position-sizing.md</span></td>
+              <td>ケリー基準とフラクショナルケリー、ボラティリティターゲティング、最大DDと破産確率の数理、VaR/ES の計測と限界。<code>risk_report.py</code> が出す指標の読み方の土台。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="strategies" data-text="株主優待 優待投資 shareholder-perks-and-yutai-investing 総合利回り 権利落ち 優待新設 廃止 優待クロス つなぎ売り 逆日歩 長期保有優遇">
+              <td><span class="chip">戦略</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/strategies/shareholder-perks-and-yutai-investing.md">株主優待制度と優待投資</a><br><span class="micro">shareholder-perks-and-yutai-investing.md</span></td>
+              <td>日本固有の株主優待制度の仕組みと歴史、優待利回りを含む総合利回りの評価式、権利落ち・新設/廃止の株価効果。優待クロスの実務とコスト、優待廃止・配当一本化のトレンド。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="strategies" data-text="中小型株 グロース株 small-cap-growth-investing アナリストカバレッジ 流動性の壁 ミスプライシング テンバガー EPS PER分解 キャパシティ 時価総額の壁 上場ゴール">
+              <td><span class="chip">戦略</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/strategies/small-cap-growth-investing.md">中小型株・グロース株投資の実務</a><br><span class="micro">small-cap-growth-investing.md</span></td>
+              <td>カバレッジ不在・流動性の壁が生むミスプライシング構造、成長株のスクリーニング、テンバガーの EPS×PER 分解。希薄化・上場ゴール・流動性枯渇という小型株特有のリスクも。</td>
+            </tr>
+
+          </tbody>
+        </table>
+      </div>
+      <p class="empty" data-filter-empty="kb" hidden>該当する文書がありません。検索語を変えるか ALL タブに戻してください。</p>
+    </div>
+  </section>
+
+  <!-- 書き方の規約 -->
+  <section class="section">
+    <div class="col-wide">
+      <span class="micro">Conventions</span>
+      <h2>書き方の規約</h2>
+      <p class="lede" style="margin-bottom:20px">
+        90文書が索引として機能し続けるのは、書式が揃っているからです。規約は <code>CLAUDE.md</code> の
+        「ナレッジベースの規約」節にあり、<code>/learn</code>（knowledge-doc スキル）から文書を追加するときも同じ規約が適用されます。
+      </p>
+      <dl class="manpage">
+        <dt>1ファイル = 1トピック</dt>
+        <dd>ひとつの Markdown にひとつの主題。<span class="note">大きくなりすぎたら分割し、相互リンクで繋ぐ。関連文書は本文冒頭で参照する。</span></dd>
+        <dt>ファイル名は英語ケバブケース</dt>
+        <dd>例: <code>nikkei-225-mechanics.md</code>、<code>valuation-metrics.md</code>。<span class="note">grep しやすく、ディレクトリ一覧が索引として読める。</span></dd>
+        <dt>本文は日本語</dt>
+        <dd>制度・実務の一次情報が日本語であるため、訳し戻しによる劣化を避ける。<span class="note">用語は英語併記でよい（例: 経済的堀 / moat）。</span></dd>
+        <dt>冒頭に <code># タイトル</code> と3行以内の要約</dt>
+        <dd>最初の数行だけで「この文書が何を扱い、何を扱わないか」が分かること。<span class="note">索引 <code>00-index.md</code> の1行紹介はこの要約から作る。</span></dd>
+        <dt>数式は LaTeX 記法</dt>
+        <dd>インラインは <code>$...$</code>、ブロックは <code>$$...$$</code>。<span class="note">例: 株式デュレーション $1/(r-g)$、シャープレシオの t 統計量。言葉での説明と数式を必ずセットにする。</span></dd>
+        <dt>追加・更新したら必ず <code>00-index.md</code> に反映</dt>
+        <dd>索引が正であり、本文と乖離させない。<span class="note">リポジトリでは PostToolUse フック（<code>scripts/check_knowledge_index.py</code>）が索引未反映の文書を検出してブロックする。人手の規律ではなく機械のガードレールにしてある。</span></dd>
+        <dt>具体的な数値には「〜年時点」を付記</dt>
+        <dd>税率・制度の閾値・API の料金プランは変わる。<span class="note">例:「譲渡益課税20.315%（2025年時点）」「無料プランは12週間遅延（2026年時点）」。時点を書かない数値は、いずれ静かに嘘になる。</span></dd>
+      </dl>
+      <div class="callout" style="margin-top:22px">
+        <span class="micro">最も重要な規約</span>
+        <strong>投資助言ではなく知識の整理である</strong>ことを意識し、<strong>断定的な将来予測は書かない</strong>。
+        ナレッジベースが扱うのは、制度がどう決まっているか・数式が何を仮定しているか・実証研究が何を報告したかであって、
+        「この銘柄は上がる」ではありません。アノマリーの記述には多重検定と減衰の注意を、
+        実証結果には期待リターンと実現リターンの区別を必ず添えます。
+        この姿勢は生成されるレポートの免責（<code>stocklib.report.DISCLAIMER</code>）まで一貫しています。
+      </div>
+    </div>
+  </section>
+
+  <!-- 分析との接続 -->
+  <section class="section">
+    <div class="col-wide">
+      <span class="micro">Wiring</span>
+      <h2>分析との接続</h2>
+      <p class="lede" style="margin-bottom:18px">
+        ナレッジベースは飾りではなく、CLI とスキルが参照する解釈の出典です。
+        以下はリポジトリ内で実際に参照関係のある代表例です。
+      </p>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>分析</th><th>依拠するナレッジ</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>overnight_forecast.py</code><br><span class="micro">夜間フォーキャスト</span></td>
+              <td>math/forecast-evaluation-and-calibration — 的中率・Brier・較正曲線の判定基準そのもの。</td>
+            </tr>
+            <tr>
+              <td><code>analyze_stock.py</code><br><span class="micro">個別銘柄の総合分析</span></td>
+              <td>technical/indicators-and-ichimoku（指標の解釈と限界）＋ fundamental/valuation-metrics（PER・PBR・ROE）＋ strategies/investment-horizons-framework（<code>--horizon</code> の枠組み）。</td>
+            </tr>
+            <tr>
+              <td><code>run_backtest.py</code><br><span class="micro">戦略バックテスト</span></td>
+              <td>math/backtesting-and-statistics — t 統計量・多重検定・ルックアヘッド／生存者バイアスのチェックリスト。</td>
+            </tr>
+            <tr>
+              <td><code>portfolio_review.py</code><br><span class="micro">ポートフォリオ評価</span></td>
+              <td>math/portfolio-theory（β・分散効果）＋ strategies/risk-management-and-position-sizing（VaR・集中度）＋ regulation-tax/taxation-and-nisa（口座区分と非課税枠）。</td>
+            </tr>
+            <tr>
+              <td><code>income_report.py</code> / <code>tax_report.py</code><br><span class="micro">配当と税務</span></td>
+              <td>strategies/dividend-income-investing ＋ regulation-tax/taxation-and-nisa ＋ strategies/behavioral-finance-japan（損出し判断の行動バイアス）。</td>
+            </tr>
+            <tr>
+              <td><code>performance_report.py</code><br><span class="micro">実運用パフォーマンス</span></td>
+              <td>math/performance-measurement-and-attribution — 時間加重と金額加重（XIRR）の使い分けとベンチマーク選択。</td>
+            </tr>
+            <tr>
+              <td><code>seasonality_report.py</code> / <code>pairs_screen.py</code><br><span class="micro">季節性・ペア</span></td>
+              <td>strategies/market-anomalies-and-seasonality ＋ strategies/pairs-trading-and-arbitrage — アノマリーの減衰と共和分の実装制約。</td>
+            </tr>
+            <tr>
+              <td><code>market_breadth.py</code> / <code>daily_brief.py</code><br><span class="micro">市場内部・定点観測</span></td>
+              <td>technical/volume-and-market-internals（騰落レシオ・新高値安値）＋ macro/（市況の文脈づけ）。</td>
+            </tr>
+            <tr>
+              <td><code>asset_plan.py</code><br><span class="micro">資産形成プランニング</span></td>
+              <td>strategies/long-term-wealth-building ＋ strategies/household-risk-capacity-and-allocation ＋ strategies/decumulation-and-exit ＋ regulation-tax/nisa-practical-strategies。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin-top:16px">
+        <a href="./cli.html">CLI リファレンスで各コマンドの使い方を見る →</a>
+      </p>
+      <p>
+        Claude Code から使う場合は <code>/kb PERとPBRの関係</code> でナレッジベースを検索し出典パス付きで回答させ、
+        <code>/learn 空売り規制</code> で新規文書の追加（索引反映まで）を行えます。詳細は <a href="./skills.html">Skills</a> を参照してください。
+      </p>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="col-wide">
+    <p class="disclaimer">
+      <strong>免責</strong>：本環境および本サイトの出力は<strong>投資助言ではなく分析支援</strong>です。
+      掲載する指標・予想・レポートは機械的な集計と再現可能なベースラインであり、
+      将来の騰落を断定するものではありません。投資判断はご自身の責任で行ってください。
+    </p>
+    <div class="foot-links">
+      <a href="https://github.com/nigoh/stock_hacker">GitHub リポジトリ ↗</a>
+      <a href="./cli.html">CLI リファレンス</a>
+      <a href="./knowledge.html">ナレッジベース</a>
+    </div>
+    <p style="margin-top:14px">
+      データソースは yfinance（非公式 API）および J-Quants（任意設定）。
+      価格データの分割・配当調整には不備が起こりうるため、異常な騰落を見たらまずデータ品質を疑うこと。
+    </p>
+  </div>
+</footer>
+
+<script src="./assets/site.js"></script>
+</body>
+</html>
