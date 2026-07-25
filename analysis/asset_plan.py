@@ -113,11 +113,8 @@ def _plot_fan_chart(
         plt.FuncFormatter(lambda v, _pos: f"{v:,.0f}")
     )
 
-    path = Path(out_path).resolve()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(path, dpi=charts.DPI)
-    plt.close(fig)
-    return path
+    # 保存は charts.save_figure に委譲する（出力先の検証を一箇所に集約するため）
+    return charts.save_figure(fig, out_path)
 
 
 def _fan_chart_lines(
@@ -138,7 +135,7 @@ def _fan_chart_lines(
     try:
         path = _plot_fan_chart(
             months, percentiles, deterministic,
-            charts.IMG_DIR / f"{img_stem}.png", title, contributions=contributions,
+            charts.img_path(f"{img_stem}.png"), title, contributions=contributions,
         )
     except Exception as exc:  # チャートは補助情報。失敗してもレポート生成は続行する
         print(f"警告: チャート生成に失敗しました（チャートなしで続行します）: {exc}", file=sys.stderr)

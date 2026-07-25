@@ -185,7 +185,10 @@ def cmd_forecast(args: argparse.Namespace) -> int:
     made_on = dt.date.today()
     ledger = forecast.load_ledger(args.ledger)
     for fc in forecasts:
-        ledger = forecast.upsert_forecast(ledger, fc, made_on)
+        ledger = forecast.upsert_forecast(
+            ledger, fc, made_on,
+            overwrite_graded=getattr(args, "overwrite_graded", False),
+        )
     forecast.save_ledger(ledger, args.ledger)
 
     content = _forecast_report(forecasts, errors, universe_path, args.synthetic)
@@ -357,7 +360,10 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     made_on = dt.date.today()
     for fc in forecasts:
-        ledger = forecast.upsert_forecast(ledger, fc, made_on)
+        ledger = forecast.upsert_forecast(
+            ledger, fc, made_on,
+            overwrite_graded=getattr(args, "overwrite_graded", False),
+        )
     forecast.save_ledger(ledger, args.ledger)
 
     # レポート（答え合わせ + 新規予想を1本にまとめる）
@@ -489,6 +495,12 @@ def build_parser() -> argparse.ArgumentParser:
                        help="合成データで実行（ネットワーク不要。台帳に data=synthetic と記録）")
         add_source_argument(p)
         if with_universe:
+            p.add_argument(
+                "--overwrite-graded", action="store_true",
+                help="採点済みの行を上書きして予想を再生成する（既定は拒否）。"
+                     "大引け前の実行で未確定バーを asof にしてしまった場合に、"
+                     "確定終値で意図的に採り直すときだけ使う。蓄積した成績が変わる点に注意",
+            )
             p.add_argument("--universe", type=Path, default=None,
                            help="対象ユニバース CSV（code 列必須。既定: data/watchlist.csv"
                                 "→無ければ liquid30.csv）")

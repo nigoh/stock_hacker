@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Iterable, Mapping
 
 from stocklib.data import REPO_ROOT, fetch_prices
+from stocklib.safepath import contained_path, safe_name
 
 JOURNAL_DIR: Path = REPO_ROOT / "journal"
 
@@ -373,11 +374,28 @@ def load_entry(path: Path) -> JournalEntry:
 def save_entry(entry: JournalEntry, journal_dir: Path = JOURNAL_DIR) -> Path:
     """エントリを ``<journal_dir>/<YYYY>/<id>.md`` に保存し、パスを返す。
 
-    ``entry.path`` が設定済みならそのパスに上書き保存する。
+    ``entry.path`` が設定済みならそのパスに上書き保存する（``verify`` のように
+    ユーザーが指定した既存ファイルへ書き戻す経路があるため、出力先ディレクトリは
+    呼び出し側の指定に従う）。ただし **``entry.id`` にはユーザー入力の
+    ``--slug`` が入り**、``--slug ../../../etc/x`` のような値ではファイル名に
+    ディレクトリ成分が紛れ込むため、パスを組み立てる際は
+    :func:`stocklib.safepath.contained_path` で ``<journal_dir>/<YYYY>/`` の中に
+    封じ込め、既存パスに書き戻す場合もファイル名の健全性を検査する
+    （:mod:`stocklib.safepath` の説明を参照）。
+
+    Raises:
+        ValueError: ファイル名が不正、または年ディレクトリの外を指す場合。
     """
     entry.validate()
     if entry.path is None:
-        entry.path = journal_dir / f"{entry.date.year}" / f"{entry.id}.md"
+        entry.path = contained_path(
+            journal_dir / f"{entry.date.year}",
+            f"{entry.id}.md",
+            what="ジャーナルのファイル名",
+            where=f"journal/{entry.date.year}/",
+        )
+    else:
+        safe_name(entry.path.name, what="ジャーナルのファイル名")
     entry.path.parent.mkdir(parents=True, exist_ok=True)
     entry.path.write_text(entry_to_markdown(entry), encoding="utf-8")
     return entry.path
@@ -463,6 +481,14 @@ def new_entry(
     benchmark_entry = round(_last_close(benchmark, synthetic=synthetic), 4)
 
     slug = slug or make_slug(title, codes)
+    # ``--slug`` はユーザー入力がそのままエントリ ID とファイル名になる。
+    # ディレクトリ成分（``/``・``..``・絶対パス）が混ざると journal/<YYYY>/ の
+    # 外にエントリを書けてしまうため、ここで拒否する（:mod:`stocklib.safepath`）。
+    # frontmatter の id とファイル名を一致させたいので、無害化ではなく拒否する。
+    if slug.strip() in ("", ".", "..") or slug != Path(slug).name or "\x00" in slug:
+        raise JournalError(
+            f"不正な slug: {slug!r}（ディレクトリ成分を含まない名前を指定してください）"
+        )
     entry_id = f"{today.isoformat()}-{slug}"
     body_lines = [
         # journal/ は git 管理対象で GitHub 上に公開される。銘柄コード + 方向 +
@@ -503,7 +529,12 @@ def new_entry(
         benchmark_entry=benchmark_entry,
         body="\n".join(body_lines),
     )
-    path = entry.path = journal_dir / f"{today.year}" / f"{entry_id}.md"
+    path = entry.path = contained_path(
+        journal_dir / f"{today.year}",
+        f"{entry_id}.md",
+        what="ジャーナルのファイル名",
+        where=f"journal/{today.year}/",
+    )
     if path.exists():
         raise JournalError(f"同名のエントリが既に存在します: {path}（--slug で別名を指定してください）")
     save_entry(entry, journal_dir)

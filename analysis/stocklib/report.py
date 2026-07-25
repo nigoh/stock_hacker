@@ -14,6 +14,7 @@ from typing import Sequence
 import pandas as pd
 
 from stocklib.data import REPO_ROOT
+from stocklib.safepath import contained_path
 
 REPORTS_DIR: Path = REPO_ROOT / "reports"
 
@@ -103,12 +104,9 @@ def save_report(content: str, filename: str) -> Path:
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     content = with_disclaimer(content)
     # ユーザー入力（銘柄コード・slug 等）がファイル名に混ざる経路があるため、
-    # ディレクトリ成分を捨てて reports/ 内に封じ込める。
-    name = Path(filename).name
-    if not name or name in (".", "..") or name.startswith(".") or "\x00" in name:
-        raise ValueError(f"不正なレポートファイル名: {filename!r}")
-    path = (REPORTS_DIR / name).resolve()
-    if not path.is_relative_to(REPORTS_DIR.resolve()):
-        raise ValueError(f"reports/ の外には書き込めません: {filename!r}")
+    # ディレクトリ成分を捨てて reports/ 内に封じ込める（stocklib.safepath 参照）。
+    path = contained_path(
+        REPORTS_DIR, filename, what="レポートファイル名", where="reports/"
+    )
     path.write_text(content, encoding="utf-8")
     return path

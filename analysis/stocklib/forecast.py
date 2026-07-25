@@ -33,6 +33,7 @@ import pandas as pd
 
 from stocklib import indicators
 from stocklib.data import REPO_ROOT
+from stocklib.safepath import safe_name
 
 # --- 台帳の場所 ---
 FORECASTS_DIR: Path = REPO_ROOT / "forecasts"
@@ -389,12 +390,47 @@ def _forecast_row(fc: Forecast, made_on: dt.date) -> dict[str, object]:
     }
 
 
-def upsert_forecast(ledger: pd.DataFrame, fc: Forecast, made_on: dt.date) -> pd.DataFrame:
+def upsert_forecast(
+    ledger: pd.DataFrame,
+    fc: Forecast,
+    made_on: dt.date,
+    *,
+    overwrite_graded: bool = False,
+) -> pd.DataFrame:
     """予想を台帳に追加する（同一 ``forecast_id`` があれば置き換え）。
 
     同じ営業日に複数回 forecast を回しても行が重複しないよう upsert する。
-    既存行が採点済みでも、同一 asof の予想は上書きする（再生成の意図とみなす）。
+
+    **採点済み（``status=graded``）の行は既定で上書きしない。**
+    以前はどんな行でも黙って置き換えていたため、次の事故が起きた——大引け前に
+    ``forecast`` を回すと未確定の当日バーが asof になり、その暫定値で採点される。
+    確定後に回し直すと、採点済みの行が痕跡を残さず書き換わり、**track record が
+    静かに変わる**（実際にレンジ的中率 74.2%→80.6%、Brier 0.3067→0.2953 が
+    入れ替わった）。成績を記録して検証することが目的の台帳で、その記録が
+    黙って変わるのは最も避けたい挙動なので、明示的な意思表示を要求する。
+
+    Args:
+        ledger: 台帳 DataFrame。
+        fc: 追加する予想。
+        made_on: 予想を生成した日。
+        overwrite_graded: ``True`` のとき採点済み行の上書きを許可する
+            （確定終値での採り直しなど、意図的な再採点の場合に指定する）。
+
+    Raises:
+        ForecastError: 採点済み行を ``overwrite_graded=False`` で上書きしようとした場合。
     """
+    existing = ledger[ledger["forecast_id"] == fc.forecast_id]
+    if not overwrite_graded and not existing.empty:
+        statuses = {str(s) for s in existing["status"].tolist()}
+        if "graded" in statuses:
+            raise ForecastError(
+                f"forecast_id={fc.forecast_id} は既に採点済みです。"
+                "上書きすると蓄積した成績が痕跡を残さず変わります。\n"
+                "大引け前に実行して未確定の当日バーを asof にしていないか確認してください"
+                "（当日終値の確定後に実行するのが正しい運用です）。\n"
+                "確定終値で意図的に採り直す場合は overwrite_graded=True "
+                "（CLI では --overwrite-graded）を指定してください。"
+            )
     row = _forecast_row(fc, made_on)
     ledger = ledger[ledger["forecast_id"] != fc.forecast_id]
     return pd.concat([ledger, pd.DataFrame([row])], ignore_index=True)
@@ -426,11 +462,51 @@ def apply_grade(ledger: pd.DataFrame, grade: GradeResult, graded_on: dt.date) ->
     return ledger
 
 
+# CSV の数式インジェクション対策で先頭を中和する文字（Excel/LibreOffice の数式開始記号）。
+_CSV_FORMULA_PREFIXES: tuple[str, ...] = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _neutralize_csv_formula(value: object) -> object:
+    """表計算ソフトが数式として実行しうる文字列の先頭を中和する。
+
+    台帳の ``name`` はユニバース CSV や J-Quants の社名に由来する外部文字列で、
+    ``=HYPERLINK(...)`` のような値が入ると **Excel で台帳を開いた瞬間に実行**される
+    （CSV インジェクション）。値の意味を変えずに済むよう、先頭にシングルクォートを
+    付けて文字列であることを明示する。数値・NA はそのまま返す。
+    """
+    if not isinstance(value, str) or not value:
+        return value
+    if value.startswith(_CSV_FORMULA_PREFIXES):
+        return "'" + value
+    return value
+
+
 def save_ledger(ledger: pd.DataFrame, path: Path = DEFAULT_LEDGER) -> Path:
-    """台帳 CSV を保存する（列順を固定、asof_date→code で安定ソート）。"""
+    """台帳 CSV を保存する（列順を固定、asof_date→code で安定ソート）。
+
+    **出力先ディレクトリは封じ込めない**——``--ledger`` で任意のパスを指定できる
+    のは正当な機能（複数台帳の使い分け・検証用の別ファイル）だからである。
+    代わりに親ディレクトリを作成し、ファイル名の健全性だけを検査する:
+    空文字・``.``・``..``・先頭ドット・NUL 文字は :class:`ValueError` で拒否する
+    （ディレクトリを CSV として開こうとする事故と、意図しない隠しファイル生成を防ぐ。
+    パス封じ込めの考え方は :mod:`stocklib.safepath` を参照）。
+
+    Raises:
+        ValueError: 台帳のファイル名が不正な場合。
+    """
+    path = Path(path)
+    safe_name(path.name, what="台帳ファイル名")
+    # ``--ledger forecasts/`` のようにディレクトリを渡された場合、pandas の
+    # IsADirectoryError まで進んでしまい原因が分かりにくい。ここで弾く。
+    if path.is_dir():
+        raise ValueError(f"台帳の保存先がディレクトリです（CSV ファイル名を指定してください）: {path}")
     path.parent.mkdir(parents=True, exist_ok=True)
     ordered = ledger.reindex(columns=list(LEDGER_COLUMNS))
     ordered = ordered.sort_values(["asof_date", "code"], kind="stable").reset_index(drop=True)
+    # 外部由来の文字列（社名等）が表計算ソフトで数式として実行されるのを防ぐ。
+    for col in ("name", "code", "forecast_id"):
+        if col in ordered.columns:
+            ordered[col] = ordered[col].map(_neutralize_csv_formula)
     ordered.to_csv(path, index=False)
     return path
 

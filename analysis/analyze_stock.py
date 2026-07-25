@@ -51,7 +51,7 @@ def _chart_lines(df: pd.DataFrame, code: str, img_stem: str) -> list[str]:
         print("警告: matplotlib が利用できないため、チャートなしで続行します", file=sys.stderr)
         return []
     try:
-        path = charts.plot_price_chart(df, code, charts.IMG_DIR / f"{img_stem}-price.png")
+        path = charts.plot_price_chart(df, code, charts.img_path(f"{img_stem}-price.png"))
     except Exception as exc:  # チャートは補助情報。失敗してもレポート生成は続行する
         print(f"警告: チャート生成に失敗しました（チャートなしで続行します）: {exc}", file=sys.stderr)
         return []

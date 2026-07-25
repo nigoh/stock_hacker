@@ -28,7 +28,7 @@ stock_hacker/
 │   ├── data-sources/      # データソース・API・ツール
 │   └── strategies/        # 投資戦略・ファクター・イベントドリブン
 ├── analysis/              # 分析コード（Python 3.11+）
-│   ├── stocklib/          # 共通ライブラリ（data/indicators/metrics/backtest/report/portfolio/signals/charts/edinet/fundamentals/jquants/journal/adr/currency/planning/income/performance/forecast/breadth/relative/sector/pairs/events/risk/seasonality）
+│   ├── stocklib/          # 共通ライブラリ（data/indicators/metrics/backtest/report/portfolio/signals/charts/edinet/fundamentals/jquants/journal/adr/currency/planning/income/performance/forecast/breadth/relative/sector/pairs/events/risk/seasonality/safepath）
 │   ├── analyze_stock.py   # CLI: 個別銘柄の総合分析
 │   ├── screen.py          # CLI: 銘柄スクリーニング
 │   ├── compare.py         # CLI: 複数銘柄の相対比較・相関
