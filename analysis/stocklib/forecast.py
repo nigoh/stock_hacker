@@ -417,6 +417,11 @@ def apply_grade(ledger: pd.DataFrame, grade: GradeResult, graded_on: dt.date) ->
         "brier": round(grade.brier, 6),
     }
     for col, val in updates.items():
+        # 採点列が全て空（＝全行 pending）の台帳を CSV から読み直すと、pandas は
+        # その列を float64 と推論する。そこへ日付文字列や真偽値を代入すると
+        # TypeError になるため、代入前に object へ昇格しておく。
+        if isinstance(val, (str, bool)) and ledger[col].dtype != object:
+            ledger[col] = ledger[col].astype(object)
         ledger.loc[mask, col] = val
     return ledger
 
