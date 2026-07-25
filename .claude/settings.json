@@ -1,8 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python3:*)",
-      "Bash(pip install:*)",
+      "Bash(pip install -r requirements.txt)",
+      "Bash(python3 scripts/:*)",
+      "Bash(python3 -m pytest:*)",
+      "Bash(python3 analysis/:*)",
       "Bash(ls:*)",
       "Bash(mkdir:*)",
       "Bash(git status)",

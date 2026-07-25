@@ -162,7 +162,7 @@ def main(argv: list[str] | None = None) -> int:
     n_mr = sum(1 for r in results if r.is_mean_reverting())
     content = build_report(results, args.universe, len(prices), args.top,
                            args.same_sector, args.synthetic)
-    print(content)
+    print(report.with_disclaimer(content))
     path = report.save_report(content, f"pairs-{dt.date.today().isoformat()}.md")
     print(f"レポート: {path}")
     print(f"RESULT pairs={len(results)} mean_reverting={n_mr} "

@@ -157,7 +157,7 @@ def main(argv: list[str] | None = None) -> int:
     result = risk.compute_risk(close, vol_window=args.vol_window)
 
     content = build_report(args.code, result, args.period, args.synthetic)
-    print(content)
+    print(report.with_disclaimer(content))
     path = report.save_report(content, f"risk-{args.code}-{dt.date.today().isoformat()}.md")
     print(f"レポート: {path}")
     var95 = f"{result.var95:.4f}" if pd.notna(result.var95) else "na"

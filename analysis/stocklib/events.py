@@ -110,6 +110,7 @@ def _fetch_calendar_http(code: str, name: str) -> CalendarEvents:
     for host in data_mod._YAHOO_HOSTS:
         url = f"https://{host}/v10/finance/quoteSummary/{ticker}"
         try:
+            data_mod.yahoo_throttle()
             resp = session.get(url, params=params, timeout=20)  # type: ignore[attr-defined]
         except Exception:  # noqa: BLE001
             continue

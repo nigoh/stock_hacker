@@ -391,7 +391,7 @@ def main(argv: list[str] | None = None) -> int:
 
     for notice in notices:
         print(f"注意: {notice}")
-    print(content)
+    print(report.with_disclaimer(content))
     filename = f"brief-{dt.date.today().isoformat()}.md"
     path = report.save_report(content, filename)
     print(f"レポート: {path}")

@@ -164,6 +164,7 @@ def _fetch_history_http(code: str, years: int) -> pd.DataFrame | None:
     for host in data_mod._YAHOO_HOSTS:
         url = f"https://{host}/ws/fundamentals-timeseries/v1/finance/timeseries/{ticker}"
         try:
+            data_mod.yahoo_throttle()
             resp = session.get(url, params=params, timeout=25)  # type: ignore[attr-defined]
         except Exception:  # noqa: BLE001
             continue
