@@ -711,7 +711,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"エラー: {exc}", file=sys.stderr)
         return 1
 
-    print(content)
+    print(report.with_disclaimer(content))
     path = report.save_report(content, filename)
     print(f"レポート: {path}")
     return 0

@@ -16,6 +16,8 @@ from __future__ import annotations
 import datetime as dt
 import os
 import re
+import threading
+import time
 import zlib
 from pathlib import Path
 from typing import Sequence
@@ -252,10 +254,49 @@ def _save_cache(path: Path, df: pd.DataFrame) -> None:
 # エージェントプロキシ環境では接続が reset されることがある（curl error 35）。
 # 素の requests + ブラウザ UA なら chart API に到達できるため、こちらを第一手段にする。
 _YAHOO_HOSTS: tuple[str, ...] = ("query1.finance.yahoo.com", "query2.finance.yahoo.com")
+# User-Agent は「自ツールを名乗る」形にする。ブラウザを完全に騙る文字列は、
+# ボット判定という技術的措置の回避と評価される余地があり、本リポジトリ自身が
+# knowledge/data-sources/ で説く「User-Agent を明示する」作法とも矛盾する。
+# Mozilla/5.0 トークンだけは、多くのサーバの UA パーサ互換のために残す。
 _YAHOO_UA: str = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    "Mozilla/5.0 (compatible; stock-hacker/1.0; "
+    "+https://github.com/nigoh/stock_hacker) python-requests"
 )
+
+# --- Yahoo への負荷を抑えるスロットル -------------------------------------
+# 非公式エンドポイントに対し、ユニバース一括取得（large70 なら69銘柄）が
+# 無待機で連射されるのを防ぐ。0 にすれば無効化できるが推奨しない。
+_YAHOO_MIN_INTERVAL: float = max(
+    0.0, float(os.environ.get("STOCK_HACKER_YAHOO_MIN_INTERVAL", "0.5") or 0.5)
+)
+_YAHOO_LOCK = threading.Lock()
+_YAHOO_LAST_CALL: float = 0.0
+
+
+def yahoo_throttle() -> None:
+    """Yahoo へのリクエスト間隔を :data:`_YAHOO_MIN_INTERVAL` 秒以上に保つ。"""
+    global _YAHOO_LAST_CALL
+    if _YAHOO_MIN_INTERVAL <= 0:
+        return
+    with _YAHOO_LOCK:
+        wait = _YAHOO_MIN_INTERVAL - (time.monotonic() - _YAHOO_LAST_CALL)
+        if wait > 0:
+            time.sleep(wait)
+        _YAHOO_LAST_CALL = time.monotonic()
+
+
+def ensure_yahoo_allowed() -> None:
+    """``STOCK_HACKER_DISABLE_YAHOO`` が設定されていれば Yahoo 経路を拒否する。
+
+    Yahoo は非公式エンドポイントであり、自動取得の規約適合性は利用者の責任で
+    判断する必要がある。厳密に運用したい利用者が自衛できるようスイッチを設ける。
+    """
+    flag = os.environ.get("STOCK_HACKER_DISABLE_YAHOO", "").strip()
+    if flag and flag != "0":
+        raise DataFetchError(
+            "STOCK_HACKER_DISABLE_YAHOO により Yahoo 経路は無効化されています。"
+            "--source jquants（要 JQUANTS_API_KEY）または --synthetic を使ってください。"
+        )
 # chart API の range= がそのまま受け付ける期間トークン。これ以外は period1/period2 に落とす。
 _YAHOO_RANGES: frozenset[str] = frozenset(
     {"1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"}
@@ -294,6 +335,8 @@ def _fetch_one_yahoo_http(ticker: str, period: str, interval: str) -> pd.DataFra
     for host in _YAHOO_HOSTS:
         url = f"https://{host}/v8/finance/chart/{ticker}"
         try:
+            ensure_yahoo_allowed()
+            yahoo_throttle()
             resp = requests.get(url, params=params, headers={"User-Agent": _YAHOO_UA}, timeout=20)
         except Exception as exc:  # noqa: BLE001 - ネットワーク例外は次ホストで再試行
             last_err = f"{type(exc).__name__}: {exc}"
@@ -575,6 +618,8 @@ def _yahoo_session_and_crumb() -> tuple[object, str]:
     session = requests.Session()
     session.headers.update({"User-Agent": _YAHOO_UA})
     try:
+        ensure_yahoo_allowed()
+        yahoo_throttle()
         session.get("https://fc.yahoo.com", timeout=15)  # cookie 取得（404 でも Set-Cookie は返る）
     except Exception:  # noqa: BLE001 - cookie 取得失敗でも crumb 取得を試みる
         pass

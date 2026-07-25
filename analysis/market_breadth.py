@@ -165,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
 
     result = breadth.compute_breadth(prices)
     content = build_report(result, args.universe, n_total, errors, args.synthetic)
-    print(content)
+    print(report.with_disclaimer(content))
     path = report.save_report(content, f"breadth-{dt.date.today().isoformat()}.md")
     print(f"レポート: {path}")
     ad = f"{result.ad_ratio_25:.1f}" if result.ad_ratio_25 is not None else "na"

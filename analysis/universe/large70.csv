@@ -1,5 +1,6 @@
 # 主要大型株ユニバース（東証プライム大型、2026年時点。全69銘柄。code は Yahoo Finance で実在・社名を検証済み）
 # screen.py / market_breadth.py / relative_strength.py / pairs_screen.py / overnight_forecast.py の --universe に渡せる（列: code,name,sector）。
+# sector 列は JPX（日本取引所グループ）の33業種分類の名称に基づく（分類体系の権利は JPX に帰属）。銘柄コード・社名は公開情報。
 code,name,sector
 7203,トヨタ自動車,輸送用機器
 7267,本田技研工業,輸送用機器

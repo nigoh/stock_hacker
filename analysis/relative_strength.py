@@ -203,7 +203,7 @@ def main(argv: list[str] | None = None) -> int:
         lines.append("")
 
     content = "\n".join(lines)
-    print(content)
+    print(report.with_disclaimer(content))
     path = report.save_report(content, f"relative-{today}.md")
     print(f"レポート: {path}")
     print(f"RESULT rs={len(rs_rows)}/{n_total} valuation={n_valuation} "

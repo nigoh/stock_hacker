@@ -173,7 +173,7 @@ def main(argv: list[str] | None = None) -> int:
     rows = sector.compute_sector_rotation(prices, sectors)
     n_covered = len(prices)
     content = build_report(rows, args.universe, n_covered, n_total, errors, args.synthetic)
-    print(content)
+    print(report.with_disclaimer(content))
     path = report.save_report(content, f"sector-{dt.date.today().isoformat()}.md")
     print(f"レポート: {path}")
     print(f"RESULT sectors={len(rows)} covered={n_covered}/{n_total} "
