@@ -37,6 +37,11 @@ jobs:
       - name: ナレッジ索引の整合チェック
         run: python3 scripts/check_knowledge_index.py --all
 
+      # README・CLAUDE.md・00-index.md・docs/ 配下（*.html / *.md）の件数表記（「N文書」「スキルN種」
+      # 「分析CLI N本」等）が、リポジトリ実体とずれていないかを検出する。
+      - name: ドキュメント件数表記の整合チェック
+        run: python3 scripts/check_doc_counts.py
+
       # 4本のCLIを合成データ（--synthetic）でスモーク実行する。
       # ネットワーク非依存で成功することが環境の生命線。
       - name: CLI スモーク — analyze_stock.py

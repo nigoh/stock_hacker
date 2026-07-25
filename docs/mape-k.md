@@ -19,7 +19,7 @@ GitHub イシューのチェックボックスとして挟む**。読み取り�
 
 1. **K（共有ナレッジ）** を `mape/knowledge/`（人が読める Markdown）に置く: `BACKLOG.md` / `PROGRESS.md` /
    `POLICY.md` / `HEALTH.md`。全フェーズがここを読み書きし、周回ごとに判断が良くなる「記憶」とする。
-   これは日本株ナレッジベース `knowledge/`（`00-index.md` で索引される90文書）とは**別物**。
+   これは日本株ナレッジベース `knowledge/`（`00-index.md` で索引される100文書）とは**別物**。
 2. **M / A / P は決定論的な Bash スクリプト**（`mape/monitor.sh` / `analyze.sh` / `plan.sh`、統合 `mape/run.sh`）。
    読み取り専用・低コストで、夜通し何度でも回してよい。出力は `mape/state/` の中間成果物と `mape/knowledge/` の更新。
 3. **P は GitHub イシューにリスク3分類のチェックリスト**を掲示する（`mape/plan.sh` が本文を生成し、

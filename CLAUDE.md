@@ -54,9 +54,11 @@ stock_hacker/
 │   ├── universe/          # ユニバース定義（liquid30.csv: 主要30銘柄、large70.csv: 主要大型株69銘柄（Yahoo実在検証済）、いずれも code,name,sector。adr_map.csv: ADR対応表）
 │   ├── templates/         # portfolio/watchlist/transactions の CSV テンプレート
 │   └── tests/             # pytest（python3 -m pytest analysis/tests）
-├── scripts/               # hooks 用スクリプト
+├── scripts/               # hooks 用スクリプト・保守用スクリプト
 │   ├── session_start.sh   # SessionStart: 依存導入・ディレクトリ作成・環境文脈の注入
-│   └── check_knowledge_index.py  # PostToolUse: knowledge 文書の索引未反映を検出
+│   ├── check_knowledge_index.py  # PostToolUse: knowledge 文書の索引未反映を検出
+│   ├── check_doc_counts.py  # CI: README/CLAUDE.md/00-index.md/docs 配下の件数表記（「N文書」「スキルN種」「分析CLI N本」等）とリポジトリ実体の突き合わせ（--verbose で検出箇所を全件表示）
+│   └── smoke_realdata.py  # 実データ経路のスモークテスト（要ネットワーク・CI 対象外。データ層を変更したら実行。下記「実データ経路のスモークテスト」参照）
 ├── mape/                  # MAPE-K 夜間セルフ改善の決定論スクリプト（Monitor/Analyze/Plan＋サーキットブレーカー。docs/mape-k.md）
 │   ├── analysis_signals.py # 分析ドメインのシグナル抽出（予測精度=ledger/journal、カバレッジ=universe/knowledge。stdlib のみ・ネットワーク不使用）
 │   ├── knowledge/         # MAPE-K 共有ナレッジ K（BACKLOG/PROGRESS/POLICY/HEALTH。knowledge/ とは別物）
@@ -116,6 +118,17 @@ stock_hacker/
 ### `--synthetic` フラグ
 
 価格データを使う全 CLI 共通のオプション（`asset_plan.py` はそもそも価格データ・ネットワークを使わないため対象外）。ネットワーク不要の合成データ（シード固定の幾何ブラウン運動 + ボラティリティクラスタ）で全機能が動く。yfinance への接続に失敗したら `--synthetic` を付けて再実行すること。ただし合成データで作ったレポートには**「合成データによる手法デモであり実データではない」ことを必ず明記する**。
+
+### 実データ経路のスモークテスト（データ層を触ったら必ず実行）
+
+**`analysis/stocklib/` の外部通信に関わる実装（`data.py` / `events.py` / `fundamentals.py` / `jquants.py` / `edinet.py` など）を変更したら、pytest が緑でも必ず `python3 scripts/smoke_realdata.py` を実行して実疎通を確認すること。**
+
+理由: **`analysis/tests` は全て `--synthetic` かモックで動くため、外部サービスの実挙動を一切見ていない。** pytest が緑でも「壊していないこと」は保証されない。実例として、`stocklib.data` の User-Agent をブラウザ偽装から自ツール名（`stock-hacker/1.0`）に変更したところ Yahoo が HTTP 429 を返して実データ取得が完全に壊れたが、**pytest 682件は全て緑のままでマージ後まで気付かなかった**（対照実験で旧UA=200 / 新UA=429 / 旧UA再試行=200 を確認済み。UA の経緯は `data.py` の `_YAHOO_UA` 付近のコメント参照）。
+
+- 検査する経路: 価格（Yahoo chart API）・**基本情報（quoteSummary。cookie + crumb を経由する別経路で、ヘッダ変更で最初に壊れるのはここ）**・指数ティッカー（`^N225`）・為替ティッカー（`USDJPY=X`）の4つ。取得できたことだけでなく**値が実データであること**（`--synthetic` の合成値と一致しない・直近営業日に近い日付を含む・基本情報が合成ダミーでない）まで検証する。
+- **ネットワーク必須のため CI には入れない**（手元・リモート環境で明示的に実行する）。`data/cache/` は `use_cache=False` で迂回するのでキャッシュ済みでも実疎通を検証できる。所要は成功時で数秒。
+- 契約は他 CLI に倣う: stdout 最終行に `RESULT ok=<成功経路数>/<総経路数> data=<real|unavailable>`、exit code は全経路成功=0 / 一部失敗=1 / 全滅=2。失敗時は種別（`http_429` / `dns` / `conn_reset` / `timeout` / `tls` / `proxy` / `yahoo_disabled` / `not_real`）と Yahoo 各エンドポイントの生 HTTP ステータスを表示するので、429（UA・レート制限）とネットワーク不達を取り違えずに済む。
+- スクリプト自体の健全性（例外分類・実データ検証・RESULT 行・exit code 分岐）は `analysis/tests/test_smoke_realdata.py` がネットワーク無しで検証しており、こちらは CI で回る。
 
 ### J-Quants 接続（オプション、実データ全銘柄対応）
 

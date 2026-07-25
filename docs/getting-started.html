@@ -430,7 +430,11 @@
           <tbody>
             <tr>
               <td><code>Connection reset</code> / <code>Failed to perform</code> で価格が取れない</td>
-              <td>データソースへネットワークが到達していない。手法を試すだけなら <code>--synthetic</code> を付ける。実データが要るなら実行環境のネットワーク許可設定を確認するか、J-Quants を設定する</td>
+              <td>まず <code>python3 scripts/smoke_realdata.py</code> で切り分ける。価格・基本情報・指数・為替の4経路を個別に判定し、<code>http_429</code>（UA・レート制限）か <code>dns</code> / <code>conn_reset</code>（ネットワーク不達）かを種別で表示する。不達なら実行環境のネットワーク許可設定を確認するか J-Quants を設定する。手法を試すだけなら <code>--synthetic</code> を付ける</td>
+            </tr>
+            <tr>
+              <td>データ層（<code>stocklib/data.py</code> 等）を直したが壊していないか不安</td>
+              <td><strong>pytest は全て合成データ・モックで、実データ経路の健全性を保証しない。</strong> <code>python3 scripts/smoke_realdata.py</code> で実疎通を確認する（過去に User-Agent の変更で実データ取得が壊れたのに、テスト682件は全て緑だった）。ネットワーク必須のため CI には含めていない</td>
             </tr>
             <tr>
               <td><code>JQuantsAuthError</code> が出る</td>

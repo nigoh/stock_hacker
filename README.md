@@ -75,9 +75,9 @@ flowchart TD
 
 | レイヤー | 役割 | 実体 |
 |---|---|---|
-| 対話 | あなたの意図を受け取る入口 | スラッシュコマンド17種（`/analyze` 等） |
-| 手順 | 分析の「正しいやり方」を定義 | スキル15種（`.claude/skills/*/SKILL.md`） |
-| 計算 | 数値を実際に計算する | 分析CLI 14本 + 共通ライブラリ `stocklib` |
+| 対話 | あなたの意図を受け取る入口 | スラッシュコマンド20種（`/analyze` 等） |
+| 手順 | 分析の「正しいやり方」を定義 | スキル18種（`.claude/skills/*/SKILL.md`） |
+| 計算 | 数値を実際に計算する | 分析CLI 22本 + 共通ライブラリ `stocklib` |
 | 知識 | 数値を解釈するための枠組み | ナレッジベース100文書（`knowledge/`） |
 | 記録 | 仮説と検証を蓄積する | リサーチジャーナル（`journal/`） |
 | 品質 | 免責・索引の抜けを機械的に防ぐ | hooks（SessionStart / PostToolUse） |
@@ -377,7 +377,8 @@ python3 analysis/analyze_stock.py 7203 --synthetic
 
 | 症状 | 原因と対処 |
 |---|---|
-| `Connection reset` / `Failed to perform` で価格が取れない | データソース（Yahoo Finance 等）へネットワークが到達していない。**手法を試すだけなら `--synthetic`** を付ける。実データが要るなら実行環境のネットワーク許可設定を確認、または J-Quants トークンを設定 |
+| `Connection reset` / `Failed to perform` で価格が取れない | まず **`python3 scripts/smoke_realdata.py`** で実データ経路の切り分けをする（価格・基本情報・指数・為替の4経路を個別に判定し、`http_429`（UA・レート制限）か `dns` / `conn_reset`（ネットワーク不達）かを種別で表示する）。ネットワーク不達なら実行環境の許可設定を確認、または J-Quants を設定。**手法を試すだけなら `--synthetic`** を付ける |
+| データ層（`stocklib/data.py` 等）を直したが壊していないか不安 | **pytest は全て合成データ・モックで、実データ経路の健全性を保証しない。** `python3 scripts/smoke_realdata.py` で実疎通を確認する（過去に UA 変更で実データ取得が壊れたのにテスト682件が全て緑だった実例がある）。ネットワーク必須のため CI には入れていない |
 | レポート生成が「免責文が無い」で止まる | PostToolUse hook が正しく働いている。`stocklib.report.save_report()` を使えば免責文が自動付与される（CLI 経由なら自動） |
 | `knowledge/` に文書を足したら書き込みがブロックされた | `knowledge/00-index.md` に索引エントリを追加すれば通る（`/learn` スキルは索引反映まで自動でやる） |
 | `JQuantsAuthError` が出る | API キー未設定か無効。https://jpx-jquants.com/ のダッシュボードで発行して `.env`（`JQUANTS_API_KEY=...`）を更新。**2025年12月の V2 移行でリフレッシュトークン方式は廃止**（旧 `JQUANTS_REFRESH_TOKEN` は使えない） |
@@ -450,6 +451,7 @@ python3 analysis/analyze_stock.py 7203 --synthetic
 - **User-Agent はブラウザ相当の文字列を送っている**（事実として明記する）。一度「自ツール名を名乗る UA」に変更したが、同一条件の対照実験で Yahoo は自ツール名の UA にのみ HTTP 429 を返した（ブラウザ UA では 200、再現性も確認）。**Yahoo は自動アクセスを識別して拒否しており、ブラウザを名乗ることはその意思を迂回している**——実用性のためにその選択をしている、というのが正確な説明。この点を受け入れられない場合は下記のスイッチで無効化すること。
 - **負荷への配慮**: リクエスト間隔を既定 **0.5 秒**に絞っている（`STOCK_HACKER_YAHOO_MIN_INTERVAL` で調整可）。大きなユニバースを渡すとリクエスト数は銘柄数に比例するため、必要以上に短い間隔での自動実行は避けること。
 - **Yahoo 経路を使いたくない場合**: `STOCK_HACKER_DISABLE_YAHOO=1` で無効化できる。実データが必要なら JPX 公式の **J-Quants**（`--source jquants`）、手法確認だけなら `--synthetic` を使う。
+- **経路が生きているかの確認**: `python3 scripts/smoke_realdata.py` が価格（chart）・基本情報（quoteSummary の cookie + crumb）・指数・為替の4経路を実データで叩き、成否と HTTP ステータスを種別付きで報告する（`RESULT ok=<n>/<総数> data=<real|unavailable>`、exit 0/1/2）。**上記の UA のようにヘッダ・トランスポートを変更したら、pytest が緑でも必ずこれを回すこと**——`analysis/tests` は全て合成データ・モックで、Yahoo の実挙動を見ていない。ネットワーク必須のため CI には含めない。
 - **取得データの再配布**: 取得結果は `data/`（git 管理外）に留まる。**Yahoo 由来の価格・企業情報を公開リポジトリにコミットしないこと**（`forecasts/ledger.csv` と `journal/` は git 管理対象なので特に注意）。
 
 > 📌 **長期に保存・共有する分析には J-Quants（JPX 公式・正規ルート）を推奨する。** 無料プランは12週間遅延だが、規約上の位置づけが明確でバックテスト・研究用途には十分。
@@ -521,7 +523,7 @@ python3 analysis/screen.py --rsi-below 30
 | ディレクトリ | 内容 |
 |---|---|
 | `knowledge/` | 日本株ナレッジベース（100文書）。市場制度・歴史・数学/クオンツ・ファンダ/テクニカル分析・マクロ・デリバティブ・規制税制・データソース・投資戦略。入口は [`knowledge/00-index.md`](knowledge/00-index.md)。索引の整合は hooks が自動チェックし、重複統合・陳腐化検出は knowledge-curator エージェントが担う |
-| `analysis/` | 分析コード（Python 3.11+）。共通ライブラリ `stocklib`、14本の CLI、ユニバース定義、pytest テスト |
+| `analysis/` | 分析コード（Python 3.11+）。共通ライブラリ `stocklib`、22本の CLI、ユニバース定義、pytest テスト |
 | `journal/` | リサーチジャーナル（分析仮説の記録と事後検証。git 管理対象。入口は [`journal/README.md`](journal/README.md)） |
 | `docs/` | ドキュメントサイト（https://nigoh.github.io/stock_hacker/ として GitHub Pages で公開。`index.html` ほかの HTML と `assets/`）＋ 運用ガイド（[`docs/getting-started.md`](docs/getting-started.md): ゼロから始める資産形成の通し順路、[`docs/data-sources.md`](docs/data-sources.md): 無料でデータを見る/取る実践ガイド、[`docs/automation.md`](docs/automation.md): デイリーブリーフの自動実行、[`docs/overnight-forecast.md`](docs/overnight-forecast.md): 夜間フォーキャストの自動運用、[`docs/mape-k.md`](docs/mape-k.md): MAPE-K 夜間セルフ改善の設計と運用） |
 | `mape/` | MAPE-K 夜間セルフ改善の決定論スクリプト（Monitor/Analyze/Plan＋サーキットブレーカー）と共有ナレッジ K（`mape/knowledge/`、日本株ナレッジベース `knowledge/` とは別物）。入口は [`mape/README.md`](mape/README.md) |
