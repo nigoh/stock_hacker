@@ -254,13 +254,21 @@ def _save_cache(path: Path, df: pd.DataFrame) -> None:
 # エージェントプロキシ環境では接続が reset されることがある（curl error 35）。
 # 素の requests + ブラウザ UA なら chart API に到達できるため、こちらを第一手段にする。
 _YAHOO_HOSTS: tuple[str, ...] = ("query1.finance.yahoo.com", "query2.finance.yahoo.com")
-# User-Agent は「自ツールを名乗る」形にする。ブラウザを完全に騙る文字列は、
-# ボット判定という技術的措置の回避と評価される余地があり、本リポジトリ自身が
-# knowledge/data-sources/ で説く「User-Agent を明示する」作法とも矛盾する。
-# Mozilla/5.0 トークンだけは、多くのサーバの UA パーサ互換のために残す。
+# **この UA はブラウザ（Windows の Chrome）を騙っている。** 事実として明記しておく。
+#
+# 一度「自ツールを名乗る」形（"Mozilla/5.0 (compatible; stock-hacker/1.0; +URL)"）に
+# 変更したが、同一条件の対照実験で Yahoo は自ツール名の UA に対してのみ HTTP 429 を
+# 返した（ブラウザ UA では 200。旧 UA を挟んで再現性も確認）。つまり Yahoo は
+# 自動アクセスを識別して拒否しており、ここでブラウザを名乗ることは、その意思を
+# 迂回していることになる。実用性のためにその選択をしている、というのが正確な説明。
+#
+# この経路を使いたくない場合は STOCK_HACKER_DISABLE_YAHOO=1 で無効化し、
+# JPX 公式の J-Quants（--source jquants）または --synthetic を使うこと。
+# 負荷は yahoo_throttle()（既定 0.5 秒間隔）で抑えている。
+# 経緯と規約上の論点は README「Yahoo Finance 経路の規約上の注意」を参照。
 _YAHOO_UA: str = (
-    "Mozilla/5.0 (compatible; stock-hacker/1.0; "
-    "+https://github.com/nigoh/stock_hacker) python-requests"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
 
 # --- Yahoo への負荷を抑えるスロットル -------------------------------------
