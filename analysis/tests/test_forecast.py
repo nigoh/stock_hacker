@@ -204,6 +204,29 @@ def test_apply_grade_updates_row(tmp_path: Path) -> None:
     assert restored.code == "7203"
 
 
+def test_apply_grade_on_csv_roundtripped_all_pending(tmp_path: Path) -> None:
+    """全行 pending の台帳を CSV 往復してから採点しても落ちない（回帰）。
+
+    採点列が空だと load_ledger が float64 と推論するため、日付文字列や真偽値の
+    採点値を代入すると TypeError になっていた。初めて grade を回す利用者が
+    必ず通る経路なので、CSV 往復を挟んで検証する。
+    """
+    path = tmp_path / "l.csv"
+    fc = _forecast()
+    ledger = forecast.upsert_forecast(forecast.load_ledger(path), fc, dt.date(2026, 6, 30))
+    forecast.save_ledger(ledger, path)
+    ledger = forecast.load_ledger(path)  # 採点列は空 → float64 に推論される
+    assert ledger["actual_date"].dtype != object  # 前提（この推論が不具合の起点）
+    g = forecast.grade_forecast(fc, _future({"2026-06-30": 1000.0, "2026-07-01": 1010.0}))
+    assert g is not None
+    ledger = forecast.apply_grade(ledger, g, dt.date(2026, 7, 1))
+    row = ledger.iloc[0]
+    assert row["status"] == "graded"
+    assert row["actual_date"] == "2026-07-01"
+    assert row["graded_on"] == "2026-07-01"
+    assert bool(row["dir_hit"]) is True
+
+
 # --------------------------------------------------------------------------
 # 集計・較正
 # --------------------------------------------------------------------------
