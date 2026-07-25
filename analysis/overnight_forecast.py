@@ -189,7 +189,7 @@ def cmd_forecast(args: argparse.Namespace) -> int:
     forecast.save_ledger(ledger, args.ledger)
 
     content = _forecast_report(forecasts, errors, universe_path, args.synthetic)
-    print(content)
+    print(report.with_disclaimer(content))
     path = report.save_report(content, f"forecast-{made_on.isoformat()}.md")
     print(f"レポート: {path}")
     print(f"台帳: {args.ledger}")
@@ -319,7 +319,7 @@ def cmd_grade(args: argparse.Namespace) -> int:
 
     forecast.save_ledger(ledger, args.ledger)
     content = _grade_report(ledger, graded, errors, args.synthetic)
-    print(content)
+    print(report.with_disclaimer(content))
     path = report.save_report(content, f"forecast-grade-{dt.date.today().isoformat()}.md")
     print(f"レポート: {path}")
     print(f"RESULT graded={len(graded)} pending={remaining} data={data}")
@@ -364,7 +364,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     grade_content = _grade_report(ledger, graded, grade_errors, args.synthetic)
     fc_content = _forecast_report(forecasts, fc_errors, universe_path, args.synthetic)
     content = grade_content + "\n\n---\n\n" + fc_content
-    print(content)
+    print(report.with_disclaimer(content))
     path = report.save_report(content, f"forecast-run-{made_on.isoformat()}.md")
     print(f"レポート: {path}")
     print(f"台帳: {args.ledger}")
@@ -402,7 +402,7 @@ def cmd_calibration(args: argparse.Namespace) -> int:
     if summary.n_graded == 0:
         lines.append("採点済みの予想がまだありません。forecast → （翌日）grade を回して蓄積してください。")
         content = "\n".join(lines)
-        print(content)
+        print(report.with_disclaimer(content))
         path = report.save_report(content, f"forecast-calibration-{today}.md")
         print(f"レポート: {path}")
         print("RESULT graded=0 data=real")
@@ -461,7 +461,7 @@ def cmd_calibration(args: argparse.Namespace) -> int:
     )
     lines.append("")
     content = "\n".join(lines)
-    print(content)
+    print(report.with_disclaimer(content))
     path = report.save_report(content, f"forecast-calibration-{today}.md")
     print(f"レポート: {path}")
     print(f"RESULT graded={summary.n_graded} data=real")

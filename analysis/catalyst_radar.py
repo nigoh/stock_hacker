@@ -152,7 +152,7 @@ def main(argv: list[str] | None = None) -> int:
 
     hits.sort(key=lambda t: t[2])
     content = build_report(hits, universe_path, n_ok, len(items), args.within, errors, args.synthetic)
-    print(content)
+    print(report.with_disclaimer(content))
     path = report.save_report(content, f"catalyst-{today.isoformat()}.md")
     print(f"レポート: {path}")
     print(f"RESULT events={len(hits)} covered={n_ok}/{len(items)} "

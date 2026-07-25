@@ -118,6 +118,17 @@ def normalize_sec_code(code: str) -> str:
     raise ValueError(f"EDINET の証券コードとして解釈できません: {code!r}（例: '7203', '72030'）")
 
 
+def _redact(text: str, secret: str) -> str:
+    """``text`` に含まれる ``secret``（API キー）を伏字化する。
+
+    EDINET はキーをクエリで渡す仕様のため、応答本文にリクエスト URL が
+    エコーバックされるとキーが露出しうる。外部へ出す文字列は必ずこれを通す。
+    """
+    if secret and secret in text:
+        return text.replace(secret, "<REDACTED>")
+    return text
+
+
 def _http_get(url: str, params: dict[str, str]) -> Any:
     """requests.get の薄いラッパー。テストではこの関数をモックする。
 
@@ -129,9 +140,14 @@ def _http_get(url: str, params: dict[str, str]) -> Any:
     try:
         return requests.get(url, params=params, timeout=_REQUEST_TIMEOUT)
     except requests.RequestException as exc:
+        # requests の例外文字列にはリクエスト URL 全体が含まれる。EDINET は API キーを
+        # クエリ（Subscription-Key）で渡す仕様のため、例外をそのまま埋め込むと
+        # キーがレポート・ログ・stderr に漏れる。例外の型名だけを出し、
+        # 元例外も連鎖させない（from None）。
         raise EdinetError(
-            f"EDINET API に接続できませんでした（ネットワークを確認してください）: {exc}"
-        ) from exc
+            "EDINET API に接続できませんでした（ネットワークを確認してください）: "
+            f"{type(exc).__name__}"
+        ) from None
 
 
 def _api_get(path: str, params: dict[str, str], api_key: str | None = None) -> Any:
@@ -146,11 +162,12 @@ def _api_get(path: str, params: dict[str, str], api_key: str | None = None) -> A
         raise EdinetAuthError(
             f"EDINET API の認証に失敗しました（HTTP {resp.status_code}）。"
             f"APIキーが無効か失効している可能性があります。{SIGNUP_URL} で確認・再発行し、"
-            f"環境変数 {API_KEY_ENV} を更新してください。応答: {resp.text[:300]}"
+            f"環境変数 {API_KEY_ENV} を更新してください。応答: {_redact(resp.text[:300], key)}"
         )
     if resp.status_code != 200:
         raise EdinetError(
-            f"EDINET API 呼び出しに失敗しました（HTTP {resp.status_code}）: {resp.text[:300]}"
+            "EDINET API 呼び出しに失敗しました"
+            f"（HTTP {resp.status_code}）: {_redact(resp.text[:300], key)}"
         )
     return resp
 

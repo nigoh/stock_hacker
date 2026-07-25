@@ -286,3 +286,51 @@ def test_fetch_document_csv_missing_key_raises(monkeypatch: pytest.MonkeyPatch) 
     _install_http_get(monkeypatch, lambda url, params: pytest.fail("ネットワークに出てはいけない"))
     with pytest.raises(EdinetAuthError):
         fetch_document_csv("S100TEST")
+
+
+# --------------------------------------------------------------------------
+# API キーの漏洩防止（セキュリティ回帰）
+# --------------------------------------------------------------------------
+
+def test_connection_error_does_not_leak_api_key(monkeypatch) -> None:
+    """接続エラー時、例外メッセージに API キーが含まれない（回帰）。
+
+    EDINET はキーをクエリ（Subscription-Key）で渡す仕様のため、requests の
+    例外文字列（URL 全体を含む）をそのまま埋め込むとキーが漏れる。
+    その文字列は fundamentals_report がレポート本文に書くため実害が大きい。
+    """
+    import requests
+    secret = "SUPERSECRETKEY123456"
+    monkeypatch.setenv(edinet.API_KEY_ENV, secret)
+
+    def _boom(url, params=None, timeout=None):
+        # requests が実際に出す形（URL とクエリを含む）を模す
+        raise requests.ConnectionError(
+            f"HTTPSConnectionPool(host='api.edinet-fsa.go.jp', port=443): "
+            f"Max retries exceeded with url: /api/v2/documents.json"
+            f"?date=2026-01-01&Subscription-Key={secret}"
+        )
+
+    monkeypatch.setattr(requests, "get", _boom)
+    with pytest.raises(edinet.EdinetError) as ei:
+        edinet._api_get("/documents.json", {"date": "2026-01-01"})
+    msg = str(ei.value)
+    assert secret not in msg, f"API キーが例外メッセージに漏れている: {msg}"
+    # 例外連鎖からも漏れないこと（__cause__ を辿ってもキーが出ない）
+    assert ei.value.__cause__ is None
+
+
+def test_error_response_body_redacts_api_key(monkeypatch) -> None:
+    """応答本文にキーがエコーバックされても伏字化される（回帰）。"""
+    secret = "SUPERSECRETKEY123456"
+    monkeypatch.setenv(edinet.API_KEY_ENV, secret)
+
+    class _Resp:
+        status_code = 500
+        text = f"error for url ?Subscription-Key={secret}"
+
+    monkeypatch.setattr(edinet, "_http_get", lambda url, params: _Resp())
+    with pytest.raises(edinet.EdinetError) as ei:
+        edinet._api_get("/documents.json", {"date": "2026-01-01"})
+    assert secret not in str(ei.value)
+    assert "<REDACTED>" in str(ei.value)

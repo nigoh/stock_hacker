@@ -170,7 +170,7 @@ def main(argv: list[str] | None = None) -> int:
 
     result = seasonality.compute_seasonality(prices, args.first_days, args.last_days)
     content = build_report(args.code, result, args.period, args.synthetic)
-    print(content)
+    print(report.with_disclaimer(content))
     safe_code = args.code.replace("^", "_").replace("=", "_").replace("/", "_")
     path = report.save_report(content, f"seasonality-{safe_code}-{dt.date.today().isoformat()}.md")
     print(f"レポート: {path}")

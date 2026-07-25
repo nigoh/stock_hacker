@@ -47,6 +47,12 @@ VALID_DATA_SOURCES: tuple[str, ...] = ("real", "synthetic")
 MIXED_THRESHOLD: float = 0.02
 
 # 本文テンプレートのセクション見出し
+DISCLAIMER: str = (
+    "> **免責**: 本エントリは分析仮説の記録と事後検証を目的とした個人的なメモであり、"
+    "投資助言ではありません。記載の方向・水準は検証対象の仮説であって、"
+    "将来の騰落の予測でも断定でもなく、特定の銘柄の売買を推奨するものではありません。"
+)
+
 SECTION_HYPOTHESIS = "## 仮説"
 SECTION_RATIONALE = "## 根拠"
 SECTION_FALSIFICATION = "## 反証条件"
@@ -459,6 +465,11 @@ def new_entry(
     slug = slug or make_slug(title, codes)
     entry_id = f"{today.isoformat()}-{slug}"
     body_lines = [
+        # journal/ は git 管理対象で GitHub 上に公開される。銘柄コード + 方向 +
+        # 仮説本文という並びは形式上もっとも「助言」に見えやすいため、
+        # ディレクトリの README ではなく各エントリ単体に免責を持たせる。
+        DISCLAIMER,
+        "",
         SECTION_HYPOTHESIS,
         "",
         "（何がどうなると考えるか。検証可能な形で書く）",

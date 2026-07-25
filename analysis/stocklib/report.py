@@ -20,6 +20,11 @@ REPORTS_DIR: Path = REPO_ROOT / "reports"
 DISCLAIMER: str = (
     "> **免責事項**: 本レポートは情報の整理・分析支援を目的として自動生成されたものであり、"
     "特定の金融商品の売買を推奨する投資助言ではありません。"
+    "記載の指標・統計はすべて過去のデータに基づく機械的な集計であり、"
+    "**過去の実績は将来の運用成果を保証しません**。"
+    "データは外部の提供元（yfinance 等の非公式 API を含む）に由来し、"
+    "**その正確性・完全性・最新性を保証しません**（分割・配当調整の不備が生じうる）。"
+    "本レポートの利用によって生じたいかなる損害についても作成者は責任を負いません。"
     "投資に関する最終判断はご自身の責任で行ってください。"
 )
 
@@ -76,14 +81,34 @@ def report_header(title: str) -> str:
     return f"# {title}\n\n生成日時: {now}\n"
 
 
+def with_disclaimer(content: str) -> str:
+    """本文の末尾に免責文（:data:`DISCLAIMER`）を付けて返す（既にあればそのまま）。
+
+    **stdout に出す本文にも必ずこれを通すこと。** ``save_report`` の内部だけで
+    追記していた頃は、``print(content)`` で表示される本文に免責が付かなかった。
+    定期自動実行（cron / Routine）では stdout がメール・ログにそのまま流れるため、
+    実運用でもっとも人目に触れる経路が免責なしになっていた。
+    """
+    if DISCLAIMER in content:
+        return content
+    return content.rstrip() + "\n\n---\n\n" + DISCLAIMER + "\n"
+
+
 def save_report(content: str, filename: str) -> Path:
     """レポートを ``reports/`` 配下に UTF-8 で保存し、絶対パスを返す。
 
     免責文（:data:`DISCLAIMER`）が含まれていない場合は末尾に自動追記する。
+    ファイル名はベース名のみを採用し、``reports/`` の外には書き込まない。
     """
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    if DISCLAIMER not in content:
-        content = content.rstrip() + "\n\n---\n\n" + DISCLAIMER + "\n"
-    path = REPORTS_DIR / filename
+    content = with_disclaimer(content)
+    # ユーザー入力（銘柄コード・slug 等）がファイル名に混ざる経路があるため、
+    # ディレクトリ成分を捨てて reports/ 内に封じ込める。
+    name = Path(filename).name
+    if not name or name in (".", "..") or name.startswith(".") or "\x00" in name:
+        raise ValueError(f"不正なレポートファイル名: {filename!r}")
+    path = (REPORTS_DIR / name).resolve()
+    if not path.is_relative_to(REPORTS_DIR.resolve()):
+        raise ValueError(f"reports/ の外には書き込めません: {filename!r}")
     path.write_text(content, encoding="utf-8")
     return path

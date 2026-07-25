@@ -412,6 +412,16 @@ def main(argv: list[str] | None = None) -> int:
                 "（実在の企業指標ではありません）**"
             )
     lines += ["", table, ""]
+    lines.append(
+        "注: 本結果は指定した条件に**機械的に合致した銘柄の一覧**であり、"
+        "推奨銘柄でも「買い候補」でもない。条件合致は深掘りすべき調査対象を絞り込む"
+        "入口にすぎず、将来の騰落の予測でも投資助言でもない。RSI・PER 等の水準は"
+        "単体で割安・割高を意味しない（低PER は成長率・ROE・リスクの差の反映で"
+        "ありうる。`knowledge/fundamental/valuation-metrics.md` 参照）。"
+        "また同梱ユニバースは現存する大型高流動性銘柄を後から選んだリストのため、"
+        "生存者バイアスがある。"
+    )
+    lines.append("")
     if errors:
         lines.append("## 取得失敗")
         lines.extend(f"- {e}" for e in errors)
