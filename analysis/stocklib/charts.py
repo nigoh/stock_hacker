@@ -20,6 +20,7 @@ import pandas as pd
 
 from stocklib import indicators
 from stocklib.data import REPO_ROOT
+from stocklib.safepath import contained_path, safe_name
 
 try:  # matplotlib はオプション依存（未導入でも stocklib 本体は動く）
     import matplotlib
@@ -66,9 +67,39 @@ def _require_matplotlib() -> None:
         )
 
 
-def _save(fig: "plt.Figure", out_path: Path | str) -> Path:
-    """Figure を PNG として保存し、絶対パスを返す（親ディレクトリは自動作成）。"""
-    path = Path(out_path).resolve()
+def img_path(filename: str) -> Path:
+    """``reports/img/`` 配下のチャート出力パスを組み立てて返す（絶対パス）。
+
+    **チャートのファイル名にはユーザー入力が混ざる**（``analyze_stock.py`` の
+    ``--code`` から作られる ``img_stem`` がそのまま連結される）。``IMG_DIR / name``
+    と素朴に join すると ``--code ../../..`` や ``--code /tmp/x`` で
+    ``reports/img/`` の外に PNG を書けてしまうため、
+    :func:`stocklib.safepath.contained_path` でディレクトリ成分を捨てて封じ込める。
+    **チャートを出力する CLI は ``IMG_DIR / ...`` ではなく必ずこの関数を使うこと。**
+
+    Raises:
+        ValueError: ファイル名が空・``.``・``..``・先頭ドット・NUL 文字を含む場合。
+    """
+    return contained_path(
+        IMG_DIR, filename, what="チャートファイル名", where="reports/img/"
+    )
+
+
+def save_figure(fig: "plt.Figure", out_path: Path | str) -> Path:
+    """Figure を PNG として保存し、絶対パスを返す（親ディレクトリは自動作成）。
+
+    出力先ディレクトリは呼び出し側の指定に従う（テストは tmp_path を渡す）が、
+    ``..`` による上位ディレクトリ参照と不正なファイル名は拒否する——
+    ``IMG_DIR / f"{img_stem}-price.png"`` のように**ユーザー入力由来の文字列を
+    連結したパス**が渡る経路があり、``..`` が混ざると意図した出力先の外に
+    書き込まれるため（:mod:`stocklib.safepath` の説明を参照）。
+    ``reports/img/`` への出力は :func:`img_path` で組み立てること。
+    """
+    path = Path(out_path)
+    if ".." in path.parts:
+        raise ValueError(f"チャート出力先に上位ディレクトリ参照は使えません: {out_path!r}")
+    safe_name(path.name, what="チャートファイル名")
+    path = path.resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=DPI)
     plt.close(fig)
@@ -167,7 +198,7 @@ def plot_price_chart(
     ax_rsi.set_xlabel("Date")
     _style_axes(ax_rsi)
 
-    return _save(fig, out_path)
+    return save_figure(fig, out_path)
 
 
 def plot_relative_performance(
@@ -211,7 +242,7 @@ def plot_relative_performance(
     ax.legend(loc="upper left", fontsize=9, frameon=False)
     _style_axes(ax)
 
-    return _save(fig, out_path)
+    return save_figure(fig, out_path)
 
 
 def plot_drawdown(
@@ -263,4 +294,4 @@ def plot_drawdown(
     ax_dd.set_xlabel("Date")
     _style_axes(ax_dd)
 
-    return _save(fig, out_path)
+    return save_figure(fig, out_path)

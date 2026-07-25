@@ -188,7 +188,7 @@ def _chart_lines(equity: pd.Series, title: str, img_stem: str) -> list[str]:
         return []
     try:
         path = charts.plot_drawdown(
-            equity, charts.IMG_DIR / f"{img_stem}-equity.png", title=title
+            equity, charts.img_path(f"{img_stem}-equity.png"), title=title
         )
     except Exception as exc:  # チャートは補助情報。失敗してもレポート生成は続行する
         print(f"警告: チャート生成に失敗しました（チャートなしで続行します）: {exc}", file=sys.stderr)
@@ -337,7 +337,7 @@ def _dca_chart_lines(cmp: DCAComparison, code: str, img_stem: str) -> list[str]:
         ax.set_axisbelow(True)
         for spine in ("top", "right"):
             ax.spines[spine].set_visible(False)
-        path = Path(charts.IMG_DIR) / f"{img_stem}-dca.png"
+        path = charts.img_path(f"{img_stem}-dca.png")
         path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(path, dpi=110)
         plt.close(fig)
