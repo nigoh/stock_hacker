@@ -351,7 +351,7 @@ confidence = |s|                                            <span class="c"># �
         台帳の成績が痕跡を残さず書き換わります。実行は<strong>当日終値が確定してから</strong>
         （15:30 以降。2024年11月の立会時間延長後、2026年時点）に限ってください。
         暫定値で採点した集計を先に公開してしまった場合は、確定後に再採点した旨と差分を明記すること
-        （このページの「現在の記録」がまさにその例です）。
+        少数標本では、この違いだけで指標の読みが変わる幅で動きます。
       </div>
       <p>
         書式の詳細は <a href="https://github.com/nigoh/stock_hacker/blob/main/forecasts/README.md">forecasts/README.md</a>。
@@ -404,87 +404,57 @@ confidence = |s|                                            <span class="c"># �
     <div class="col-wide">
       <span class="micro">Track record</span>
       <h2>現在の記録</h2>
-      <p>
-        現時点で採点済みの実データは<strong>1営業日ぶんだけ</strong>です。
-        2026-07-23 の終値を基準（asof）に31銘柄の予想を生成し、2026-07-24 の確定終値で採点しました。
-        データ出所は yfinance、ユニバースは <strong>liquid30（30銘柄）に 4419 Finatext を加えた31銘柄</strong>
-        （<code>analysis/universe/forecast31.csv</code>）です。4419 だけは小型グロースで他30銘柄と性格が異なる点は、
-        少数標本の解釈時に留意してください。
-      </p>
-      <div class="callout green">
-        <span class="micro">再現できます</span>
-        以下の数値は <code>forecasts/ledger.csv</code> の asof=2026-07-23 の31行から、
-        <code>python3 analysis/overnight_forecast.py calibration</code> を実行して<strong>そのまま再現できます</strong>。
-        台帳・ユニバースともリポジトリにコミットしてあります。
+
+      <div class="callout">
+        <span class="micro">公開できる track record はまだありません</span>
+        このリポジトリは<strong>テンプレートとして配布</strong>しているため、
+        <code>forecasts/ledger.csv</code> は<strong>ヘッダのみの空の状態</strong>で同梱しています。
+        特定の誰かの実行記録を同梱すると、利用者にとっては検証も再現もできない他人の数字になるためです。
+        成績は<strong>あなたが自分の環境で回した記録</strong>として、あなたの台帳に積み上がります。
       </div>
 
-      <div class="stats" style="margin-bottom:22px">
-        <div class="stat"><span class="n">31</span><span class="k">採点済み件数（1営業日ぶん・結論不可）</span></div>
-        <div class="stat"><span class="n">50.0%</span><span class="k">方向的中率 14/28 ＝ コイン投げ水準</span></div>
-        <div class="stat"><span class="n">0.2953</span><span class="k">平均 Brier（低いほど良い）</span></div>
-        <div class="stat"><span class="n">0.25</span><span class="k">無情報基準 — これを上回った＝無情報以下</span></div>
+      <p>
+        <code>overnight_forecast.py run</code> を営業日ごとに回すと、台帳に予想と採点が溜まります。
+        <code>calibration</code> はその台帳<strong>だけ</strong>を集計するので、
+        出てくる数字は常にあなたの手元で再現・検証できます。
+        以下は集計に出る指標と、その読み方です。
+      </p>
+
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>指標</th><th>定義</th><th>読み方</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>方向的中率</td><td>方向予想（flat 除く）のうち当たった割合</td><td><strong>50% は予測力ゼロ</strong>と同義。コイン投げと区別がつかない</td></tr>
+            <tr><td>平均 Brier</td><td>(上昇確率 − 実績の上昇フラグ)² の平均</td><td>低いほど良い。<strong>0.25 を上回ったら無情報以下</strong></td></tr>
+            <tr><td>無情報 Brier</td><td>常に p = 0.5 と答えた場合の値（= 0.25）</td><td>超えられなければ、確率を付けた意味がない</td></tr>
+            <tr><td>レンジ的中率</td><td>実績終値が予想レンジ内に収まった割合</td><td>±1 ATR という設計上<strong>もともと7割前後は当たる</strong>。優位性の証拠にならない</td></tr>
+            <tr><td>平均予想リターン誤差 (MAE)</td><td>|実績リターン − 予想リターン| の平均</td><td>1日の点推定は大きく外れうる。日次ボラと比べて読む</td></tr>
+            <tr><td>較正</td><td>確率ビンごとの「予想確率 vs 実際の頻度」</td><td>「70% と言った予想が本当に70%当たるか」。乖離は自信過剰／過小の指標</td></tr>
+          </tbody>
+        </table>
       </div>
 
       <div class="callout red">
-        <span class="micro">この数字で結論を出さないこと</span>
-        <strong>1営業日・n = 31（方向予想は 28 件）の少数標本であり、モデルの優劣を結論づけるものではありません。</strong>
-        的中が独立なベルヌーイ試行だとしても、n = 28 の的中率の標準誤差はおよそ 9 ポイントあります。
-        良く見えても悪く見えても、それは1日の相場の当たり外れとほぼ区別がつきません。
-        統計的に意味を持つには、営業日をまたいだ継続測定が必要です。
+        <span class="micro">少数標本で結論を出さないこと</span>
+        数十件の的中率や Brier から手法の優劣は語れません。的中が独立なベルヌーイ試行だとしても、
+        n = 28 の的中率の標準誤差はおよそ <strong>9 ポイント</strong>あります。
+        良く見えても悪く見えても、1日ぶんの数字は相場の当たり外れとほぼ区別がつきません。
+        <strong>良い数字も悪い数字も、営業日をまたいで積み上がるまで保留してください。</strong>
       </div>
 
-      <div class="scroll">
-        <table>
-          <thead>
-            <tr><th>指標</th><th class="num">値</th><th>読み方</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>採点済み件数</td><td class="num">31</td><td>うち方向予想（flat 除く）28 件</td></tr>
-            <tr><td>方向的中率</td><td class="num">50.0%（14/28）</td><td>コイン投げと同じ水準。予測力があった証拠にはならない</td></tr>
-            <tr><td>平均 Brier</td><td class="num">0.2953</td><td>無情報基準 0.25 を<strong>上回っており、この日は無情報以下</strong></td></tr>
-            <tr><td>無情報 Brier</td><td class="num">0.2500</td><td>常に p = 0.5 と答えた場合の値</td></tr>
-            <tr><td>レンジ的中率</td><td class="num">80.6%（25/31）</td><td>±1 ATR 設計上もともと高く出る。優位性の証拠ではない</td></tr>
-            <tr><td>平均予想リターン誤差 (MAE)</td><td class="num">2.06%</td><td>1日の予想リターンの点推定は大きく外れうる</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <h3>予想方向別の内訳と、この日の相場</h3>
-      <div class="scroll">
-        <table>
-          <thead>
-            <tr><th>予想方向</th><th class="num">件数</th><th class="num">的中</th><th class="num">的中率</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>上昇（up）</td><td class="num">21</td><td class="num">8</td><td class="num">38.1%</td></tr>
-            <tr><td>下落（down）</td><td class="num">7</td><td class="num">6</td><td class="num">85.7%</td></tr>
-            <tr><td>横ばい（flat）</td><td class="num">3</td><td class="num">1</td><td class="num">33.3%</td></tr>
-          </tbody>
-        </table>
-      </div>
+      <h3>成績を公開するときの作法</h3>
       <p>
-        この日は<strong>広く下げた相場</strong>で、31銘柄のうち実績が上昇したのは10、下落が21、平均は −0.86% でした。
-        一方モデルは31銘柄中<strong>21銘柄を上昇と予想</strong>しており、平均の上昇確率は 0.60。
-        トレンド追随2項（合計の重み 0.80）が上向きの地合いを引き継いだ結果の<strong>上方バイアス</strong>です。
-        しかも高確信の予想ほどまとまって外れました——上昇確率 0.60 以上のビン（19件）は、
-        平均予想確率 0.70 に対して実際の上昇頻度が 0.42 で、この日は明確な<strong>自信過剰</strong>でした。
-        下落予想が 6/7 当たったのは、地合いが下だったこの日にたまたま向きが合っただけと見るべきです。
+        集計結果を外部に共有する場合は、次を必ず添えてください。この環境が
+        <a href="./index.html">分析支援であって投資助言ではない</a>という前提と同じ重さの約束です。
       </p>
-      <p>
-        これは弁護の余地なくモデルの弱点の観察です。ただし<strong>1日ぶんの観察から「上方バイアスがあるから重みを下げる」と結論するのも同じ誤り</strong>で、
-        重みを動かすのは台帳が積み上がってからです。現時点で言えるのは「そういう外れ方をした日があった」という事実だけです。
-      </p>
-      <div class="callout">
-        <span class="micro">数値の出所と、採点タイミングによる差</span>
-        上記は 2026-07-24 の<strong>確定終値</strong>で採点した結果です
-        （<code>forecasts/ledger.csv</code> の asof=2026-07-23 の31行、<code>calibration</code> と同じ定義）。
-        同日<strong>場中</strong>（13:20 JST 時点）の暫定値で採点した速報とは、
-        レンジ的中率 74.2%（23/31）→ <strong>80.6%（25/31）</strong>、平均 Brier 0.3067 → <strong>0.2953</strong>、
-        MAE 2.14% → 2.06%、当日の騰落銘柄数 12/19 → 10/21 と、<strong>指標の読みが変わりうる幅で動いています</strong>
-        （方向的中率 50.0% だけは変わりませんでした）。
-        1営業日・31件の標本では、採点に使う終値スナップショットの違いだけでこの程度動く——これもここから読み取れる事実です。
-        台帳は営業日ごとに積み上がるため、この数字は最新の集計出力と一致しないことがあります。
-      </div>
+      <ul>
+        <li><strong>再現できる形にする</strong> — 集計の元になった台帳とユニバースを添える。数字だけ出して裏付けを出さないのは、この仕組みの目的（記録して検証する）と矛盾します。</li>
+        <li><strong>標本数と期間を併記する</strong> — 「n = 31・1営業日」と「n = 3,000・1年」では意味がまったく違います。</li>
+        <li><strong>採点に使った終値の種別を書く</strong> — 場中の暫定値と確定終値では、少数標本だと指標の読みが変わる幅で動きます（前節の警告を参照）。暫定値で出した集計を後から確定値で採り直したなら、その旨と差分を明記してください。</li>
+        <li><strong>都合の良い切り出しをしない</strong> — 期間・銘柄・指標を後から選べば、いくらでも良く見せられます。</li>
+      </ul>
     </div>
   </section>
 
@@ -574,7 +544,7 @@ CRON_TZ=Asia/Tokyo
         <div class="cell">
           <span class="call">Sample size</span>
           <h3>少数標本では何も言えない</h3>
-          <p>現在の記録は1営業日ぶんです。数十件の的中率や Brier から手法の優劣を語ることはできません。台帳が積み上がるまで、良い数字も悪い数字も保留します。</p>
+          <p>同梱の台帳は空です。数十件の的中率や Brier から手法の優劣を語ることはできません。台帳が積み上がるまで、良い数字も悪い数字も保留します。</p>
         </div>
         <div class="cell">
           <span class="call">Bias</span>
