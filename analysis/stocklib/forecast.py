@@ -462,6 +462,25 @@ def apply_grade(ledger: pd.DataFrame, grade: GradeResult, graded_on: dt.date) ->
     return ledger
 
 
+# CSV の数式インジェクション対策で先頭を中和する文字（Excel/LibreOffice の数式開始記号）。
+_CSV_FORMULA_PREFIXES: tuple[str, ...] = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _neutralize_csv_formula(value: object) -> object:
+    """表計算ソフトが数式として実行しうる文字列の先頭を中和する。
+
+    台帳の ``name`` はユニバース CSV や J-Quants の社名に由来する外部文字列で、
+    ``=HYPERLINK(...)`` のような値が入ると **Excel で台帳を開いた瞬間に実行**される
+    （CSV インジェクション）。値の意味を変えずに済むよう、先頭にシングルクォートを
+    付けて文字列であることを明示する。数値・NA はそのまま返す。
+    """
+    if not isinstance(value, str) or not value:
+        return value
+    if value.startswith(_CSV_FORMULA_PREFIXES):
+        return "'" + value
+    return value
+
+
 def save_ledger(ledger: pd.DataFrame, path: Path = DEFAULT_LEDGER) -> Path:
     """台帳 CSV を保存する（列順を固定、asof_date→code で安定ソート）。
 
@@ -484,6 +503,10 @@ def save_ledger(ledger: pd.DataFrame, path: Path = DEFAULT_LEDGER) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     ordered = ledger.reindex(columns=list(LEDGER_COLUMNS))
     ordered = ordered.sort_values(["asof_date", "code"], kind="stable").reset_index(drop=True)
+    # 外部由来の文字列（社名等）が表計算ソフトで数式として実行されるのを防ぐ。
+    for col in ("name", "code", "forecast_id"):
+        if col in ordered.columns:
+            ordered[col] = ordered[col].map(_neutralize_csv_formula)
     ordered.to_csv(path, index=False)
     return path
 

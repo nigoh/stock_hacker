@@ -466,3 +466,46 @@ def test_upsert_still_replaces_pending_row_without_flag(tmp_path: Path) -> None:
     ledger = forecast.upsert_forecast(ledger, fc, dt.date(2026, 6, 30))
     assert len(ledger) == 1
     assert ledger.iloc[0]["status"] == "pending"
+
+
+# --------------------------------------------------------------------------
+# CSV 数式インジェクション（台帳を表計算ソフトで開いたときの実行を防ぐ）
+# --------------------------------------------------------------------------
+
+@pytest.mark.parametrize("payload", [
+    '=HYPERLINK("http://evil.example","click")',
+    "+1+1",
+    "-2+3",
+    "@SUM(A1:A9)",
+])
+def test_save_ledger_neutralizes_csv_formulas(tmp_path: Path, payload: str) -> None:
+    """外部由来の社名が表計算ソフトで数式として実行されない（回帰）。
+
+    台帳の name はユニバース CSV や J-Quants の社名に由来する外部文字列。
+    ``=HYPERLINK(...)`` のような値をそのまま書くと Excel で開いた瞬間に実行される。
+    """
+    import csv as _csv
+
+    path = tmp_path / "l.csv"
+    fc = _forecast(code="9999", name=payload)
+    ledger = forecast.upsert_forecast(forecast.load_ledger(path), fc, dt.date(2026, 6, 30))
+    forecast.save_ledger(ledger, path)
+    with path.open(encoding="utf-8") as f:
+        row = next(iter(_csv.DictReader(f)))
+    assert not row["name"].startswith(("=", "+", "-", "@")), (
+        f"数式として実行される形で書き出されています: {row['name']!r}"
+    )
+    assert payload in row["name"]  # 値そのものは失われない
+
+
+def test_save_ledger_keeps_normal_names_unchanged(tmp_path: Path) -> None:
+    """通常の社名は書き換えない（過剰な中和で読みにくくしない）。"""
+    import csv as _csv
+
+    path = tmp_path / "l.csv"
+    fc = _forecast(name="トヨタ自動車")
+    ledger = forecast.upsert_forecast(forecast.load_ledger(path), fc, dt.date(2026, 6, 30))
+    forecast.save_ledger(ledger, path)
+    with path.open(encoding="utf-8") as f:
+        row = next(iter(_csv.DictReader(f)))
+    assert row["name"] == "トヨタ自動車"
