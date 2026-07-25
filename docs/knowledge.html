@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Knowledge — stock_hacker</title>
-<meta name="description" content="日本株の判断枠組みを収めた90文書のナレッジベース索引。市場制度・歴史・クオンツ数学・ファンダメンタル・テクニカル・マクロ・デリバティブ・規制税制・データソース・投資戦略の10分野を分野別・全文検索で引ける。">
+<meta name="description" content="日本株の判断枠組みを収めた100文書のナレッジベース索引。市場制度・歴史・クオンツ数学・ファンダメンタル・テクニカル・マクロ・デリバティブ・規制税制・データソース・投資戦略の10分野を分野別・全文検索で引ける。">
 <link rel="stylesheet" href="./assets/style.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230B0E0C'/%3E%3Ctext x='2' y='12' font-family='monospace' font-size='11' fill='%236EE7A0'%3E%24%3C/text%3E%3C/svg%3E">
 <script>
@@ -55,7 +55,7 @@
 <span class="c">derivatives/  macro/        regulation-tax/</span>
 
 <span class="prompt"><span class="user">analyst</span>@tokyo:<span class="path">~/stock_hacker</span>$</span> <span class="cmd">find knowledge -name '*.md' | wc -l</span>
-<span class="c">91</span>   <span class="c"># 90文書 + 00-index.md</span>
+<span class="c">101</span>   <span class="c"># 100文書 + 00-index.md</span>
 
 <span class="prompt"><span class="user">analyst</span>@tokyo:<span class="path">~/stock_hacker</span>$</span> <span class="cmd">grep -rl 'PBR' knowledge/ | head -3</span>
 <span class="c">knowledge/fundamental/valuation-metrics.md</span>
@@ -68,7 +68,7 @@
 
       <div style="margin-top:32px">
         <span class="micro">Layer 01 · knowledge base</span>
-        <h1 class="page-title">90文書のナレッジベース</h1>
+        <h1 class="page-title">100文書のナレッジベース</h1>
         <p class="lede">
           なぜ知識をコードの外に置くのか。指標の計算はコードにできますが、
           <strong>その数字をどう読むかの枠組み</strong>はコードになりません。
@@ -173,7 +173,7 @@
           <button class="tab" type="button" data-filter-tab="kb" data-value="data-sources">データ</button>
           <button class="tab" type="button" data-filter-tab="kb" data-value="strategies">戦略</button>
         </div>
-        <span class="micro"><span data-filter-count="kb">90</span> 件</span>
+        <span class="micro"><span data-filter-count="kb">100</span> 件</span>
       </div>
 
       <div class="scroll">
@@ -417,6 +417,36 @@
               <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/technical/volume-and-market-internals.md">出来高分析と市場内部指標</a><br><span class="micro">volume-and-market-internals.md</span></td>
               <td>出来高と価格の関係、VWAP、騰落レシオ、新高値・新安値、信用残・裁定残、投資部門別売買動向の読み方。<code>market_breadth.py</code> が測る内部状態の背景理論。</td>
             </tr>
+            <tr data-filter-item="kb" data-cat="technical" data-text="移動平均 SMA EMA WMA トレンドフォロー moving-averages-and-trend-following ゴールデンクロス グランビル 乖離率 ウィップソー">
+              <td><span class="chip">テクニカル</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/technical/moving-averages-and-trend-following.md">移動平均線とトレンドフォローの数理</a><br><span class="micro">moving-averages-and-trend-following.md</span></td>
+              <td>SMA/EMA/WMA のラグと平滑化のトレードオフ、期間選択の恣意性、クロスの遅行性、トレンドフォローが低勝率・損小利大になる数理的必然とレンジ相場のウィップソー損失。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="technical" data-text="オシレーター RSI ストキャスティクス RCI CCI ダイバージェンス oscillators-and-divergence 逆行現象 買われすぎ 売られすぎ">
+              <td><span class="chip">テクニカル</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/technical/oscillators-and-divergence.md">オシレーター系指標とダイバージェンス</a><br><span class="micro">oscillators-and-divergence.md</span></td>
+              <td>各指標の設計思想の違いと閾値の恣意性、強いトレンド下で有界オシレータが張り付く構造的欠陥、ダイバージェンスの選択バイアス、複数指標併用が独立でないこと。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="technical" data-text="支持線 抵抗線 トレンドライン プライスアクション support-resistance-and-price-action 役割転換 窓 ギャップ 値幅制限 ラウンドナンバー">
+              <td><span class="chip">テクニカル</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/technical/support-resistance-and-price-action.md">支持抵抗・トレンドラインとプライスアクション</a><br><span class="micro">support-resistance-and-price-action.md</span></td>
+              <td>線ではなくゾーンとして捉える実務、役割転換、窓の類型と窓埋めの実証、値幅制限・寄付気配による日本株特有の歪み、線の引き方の恣意性と反証可能性の低さ。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="technical" data-text="練行足 レンガ足 カギ足 新値足 ポイントアンドフィギュア japanese-chart-methods Renko リペイント ルックアヘッド">
+              <td><span class="chip">テクニカル</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/technical/japanese-chart-methods.md">時間を捨てるチャート：練行足・カギ足・新値足・P&amp;F</a><br><span class="micro">japanese-chart-methods.md</span></td>
+              <td>値動きの大きさで足を刻む手法の作図ルールとノイズ除去効果、パラメータ依存性、再描画（リペイント）によるルックアヘッドの危険、時間情報を失う代償。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="technical" data-text="実証研究 エビデンス technical-analysis-evidence Brock Sullivan データスヌーピング モメンタム パズル 効率的市場仮説 認知バイアス">
+              <td><span class="chip">テクニカル</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/technical/technical-analysis-evidence.md">テクニカル分析の実証的評価</a><br><span class="micro">technical-analysis-evidence.md</span></td>
+              <td>Brock et al.(1992) から Sullivan et al.(1999) のデータスヌーピング補正まで学術研究を整理。日本株のモメンタム・パズル、取引コスト後のリターン消失、パターン認識の認知的錯覚。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="technical" data-text="板読み 歩み値 ティック 気配 order-book-reading-and-tape 見せ玉 アイスバーグ クロージングオークション HFT">
+              <td><span class="chip">テクニカル</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/technical/order-book-reading-and-tape.md">板読み・歩み値と寄り引けの実務</a><br><span class="micro">order-book-reading-and-tape.md</span></td>
+              <td>板が指値のみを映すこと、ティックルールによる売買圧力推定、見せ玉が違法であること、引けに需給が集中する構造、板読みが機能する条件と HFT に対する構造的劣後。</td>
+            </tr>
 
             <!-- macro (9) -->
             <tr data-filter-item="kb" data-cat="macro" data-text="日銀 金融政策 株式市場 boj-and-equities ゼロ金利 QQE マイナス金利 YCC 正常化 日銀ETF 出口 ゴードン成長モデル">
@@ -480,6 +510,16 @@
               <td><span class="chip">デリバティブ</span></td>
               <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/derivatives/option-strategies-and-hedging-practice.md">オプション戦略とデリバティブによるヘッジの実務</a><br><span class="micro">option-strategies-and-hedging-practice.md</span></td>
               <td>カバードコール・プロテクティブプット・カラー等のヘッジ、ストラドルやスプレッドによる方向性／ボラティリティ取引、グリークスによるデルタヘッジ、先物ヘッジ比率とベーシスリスク。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="derivatives" data-text="仕組債 EB債 他社株転換可能債 ノックイン structured-products-and-eb 早期償還 組成コスト 金融庁 カバードワラント eワラント">
+              <td><span class="chip">デリバティブ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/derivatives/structured-products-and-eb.md">仕組債・EB債・カバードワラント</a><br><span class="micro">structured-products-and-eb.md</span></td>
+              <td>商品構造を内包オプション（プット売り）に分解して解説。高利率の正体、ノックインの非対称性、理論価格と販売価格の乖離、2022〜2023年の金融庁の問題提起と販売停止の流れ。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="derivatives" data-text="CFD くりっく株365 レバレッジ インバース cfd-and-leveraged-products 価格調整額 金利調整額 ロスカット ボラティリティドラッグ 減価">
+              <td><span class="chip">デリバティブ</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/derivatives/cfd-and-leveraged-products.md">CFD・くりっく株365・レバレッジ商品</a><br><span class="micro">cfd-and-leveraged-products.md</span></td>
+              <td>差金決済と3つの調整額、取引所CFDと店頭CFDの制度差、ロスカットと不足金、レバレッジ型ETFの日次リバランスによる減価の数理、信用取引との比較と長期保有に向かない理由。</td>
             </tr>
 
             <!-- regulation-tax (10) -->
@@ -554,6 +594,16 @@
               <td><span class="chip">データ</span></td>
               <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/data-sources/market-data-apis-catalog.md">日本株データ取得APIの徹底カタログ</a><br><span class="micro">market-data-apis-catalog.md</span></td>
               <td>公式/公的・証券会社・データベンダー・海外サードパーティ・Python ライブラリを横断比較。鮮度/コスト/カバレッジ/認証/機械可読性/規約の6軸と用途別の第一候補（2026年時点）。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="data-sources" data-text="TDnet 適時開示 tdnet-and-timely-disclosure-practice 決算短信 業績修正 自己株式取得 フェアディスクロージャー PEAD">
+              <td><span class="chip">データソース</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/data-sources/tdnet-and-timely-disclosure-practice.md">TDnet適時開示の実務的な読み方</a><br><span class="micro">tdnet-and-timely-disclosure-practice.md</span></td>
+              <td>掲載期間の制限と過去分の入手、開示種別ごとの株価インパクトの違い、引け後開示と価格発見、開示の型からの異常検知、適時開示と EDINET の役割分担、速報性を追う限界。</td>
+            </tr>
+            <tr data-filter-item="kb" data-cat="data-sources" data-text="XBRL タクソノミ スクレイピング xbrl-and-scraping-practice 著作権法30条の4 不正競争防止法 robots.txt 拡張タクソノミ">
+              <td><span class="chip">データソース</span></td>
+              <td><a href="https://github.com/nigoh/stock_hacker/blob/main/knowledge/data-sources/xbrl-and-scraping-practice.md">XBRLの活用とスクレイピングの法務・倫理</a><br><span class="micro">xbrl-and-scraping-practice.md</span></td>
+              <td>短信サマリーと有報 XBRL の構造・解析方法、拡張タクソノミが企業間比較を阻む問題。あわせてスクレイピングの法的論点と実務上の作法を論点整理として提示（法律相談ではない）。</td>
             </tr>
 
             <!-- strategies (19) -->
@@ -666,7 +716,7 @@
       <span class="micro">Conventions</span>
       <h2>書き方の規約</h2>
       <p class="lede" style="margin-bottom:20px">
-        90文書が索引として機能し続けるのは、書式が揃っているからです。規約は <code>CLAUDE.md</code> の
+        100文書が索引として機能し続けるのは、書式が揃っているからです。規約は <code>CLAUDE.md</code> の
         「ナレッジベースの規約」節にあり、<code>/learn</code>（knowledge-doc スキル）から文書を追加するときも同じ規約が適用されます。
       </p>
       <dl class="manpage">
