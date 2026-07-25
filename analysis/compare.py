@@ -33,7 +33,7 @@ def _chart_lines(
         return []
     try:
         path = charts.plot_relative_performance(
-            prices, charts.IMG_DIR / f"{img_stem}-relative.png", title=title
+            prices, charts.img_path(f"{img_stem}-relative.png"), title=title
         )
     except Exception as exc:  # チャートは補助情報。失敗してもレポート生成は続行する
         print(f"警告: チャート生成に失敗しました（チャートなしで続行します）: {exc}", file=sys.stderr)

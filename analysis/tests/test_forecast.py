@@ -408,3 +408,61 @@ def test_grade_forecast_handles_unsorted_and_tz_aware() -> None:
     assert g is not None
     assert g.actual_date == dt.date(2026, 7, 1)   # 翌営業日（翌々日ではない）
     assert g.actual_close == pytest.approx(1010.0)
+
+
+# --------------------------------------------------------------------------
+# 採点済み行の保護（場中実行による track record の静かな書き換えを防ぐ）
+# --------------------------------------------------------------------------
+
+def test_upsert_refuses_to_overwrite_graded_row(tmp_path: Path) -> None:
+    """採点済みの行は既定で上書きできない（回帰）。
+
+    大引け前に forecast を回すと未確定の当日バーが asof になり、暫定値のまま
+    採点される。確定後に回し直すと採点済み行が痕跡なく書き換わり、蓄積した
+    成績が静かに変わってしまう（実際にレンジ的中率 74.2%→80.6% が入れ替わった）。
+    """
+    ledger = forecast.load_ledger(tmp_path / "l.csv")
+    fc = _forecast()
+    ledger = forecast.upsert_forecast(ledger, fc, dt.date(2026, 6, 30))
+    g = forecast.grade_forecast(fc, _future({"2026-06-30": 1000.0, "2026-07-01": 1010.0}))
+    assert g is not None
+    ledger = forecast.apply_grade(ledger, g, dt.date(2026, 7, 1))
+    assert ledger.iloc[0]["status"] == "graded"
+
+    with pytest.raises(forecast.ForecastError) as ei:
+        forecast.upsert_forecast(ledger, fc, dt.date(2026, 7, 1))
+    msg = str(ei.value)
+    assert "採点済み" in msg
+    assert "overwrite_graded" in msg  # 逃げ道が案内されている
+    # 台帳は変わっていない（採点結果が保持されている）
+    assert ledger.iloc[0]["status"] == "graded"
+    assert bool(ledger.iloc[0]["dir_hit"]) is True
+
+
+def test_upsert_allows_overwrite_when_explicitly_requested(tmp_path: Path) -> None:
+    """確定終値で意図的に採り直す場合は overwrite_graded=True で上書きできる。"""
+    ledger = forecast.load_ledger(tmp_path / "l.csv")
+    fc = _forecast()
+    ledger = forecast.upsert_forecast(ledger, fc, dt.date(2026, 6, 30))
+    g = forecast.grade_forecast(fc, _future({"2026-06-30": 1000.0, "2026-07-01": 1010.0}))
+    assert g is not None
+    ledger = forecast.apply_grade(ledger, g, dt.date(2026, 7, 1))
+
+    ledger = forecast.upsert_forecast(
+        ledger, fc, dt.date(2026, 7, 1), overwrite_graded=True
+    )
+    assert len(ledger) == 1
+    assert ledger.iloc[0]["status"] == "pending"  # 予想として書き直された
+
+
+def test_upsert_still_replaces_pending_row_without_flag(tmp_path: Path) -> None:
+    """未採点（pending）の行は従来どおりフラグなしで置き換えられる。
+
+    同じ日に forecast を複数回回す正当な使い方を壊さないこと。
+    """
+    ledger = forecast.load_ledger(tmp_path / "l.csv")
+    fc = _forecast()
+    ledger = forecast.upsert_forecast(ledger, fc, dt.date(2026, 6, 30))
+    ledger = forecast.upsert_forecast(ledger, fc, dt.date(2026, 6, 30))
+    assert len(ledger) == 1
+    assert ledger.iloc[0]["status"] == "pending"
