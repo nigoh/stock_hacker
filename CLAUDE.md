@@ -1,7 +1,7 @@
 # stock_hacker — 日本株 総合分析リポジトリ
 
 日本株（東証上場株式）に関する分析を一手に担うためのリポジトリ。
-知識ベース（`knowledge/`、90文書）を土台に、分析ライブラリ（`analysis/stocklib`）・CLI・スキル/エージェント/コマンド/hooks を備えた「日本株解析のプロフェッショナル」環境。
+知識ベース（`knowledge/`、100文書）を土台に、分析ライブラリ（`analysis/stocklib`）・CLI・スキル/エージェント/コマンド/hooks を備えた「日本株解析のプロフェッショナル」環境。
 
 ## リポジトリ構造
 
@@ -15,7 +15,7 @@ stock_hacker/
 │   ├── skills/            # スキル18種（analyze-stock、mape-night 等、下表参照）
 │   ├── agents/            # サブエージェント4種（stock-analyst 等）
 │   └── commands/          # スラッシュコマンド20種（/analyze、/portfolio、/mape-night 等）
-├── knowledge/             # 日本株ナレッジベース（Markdown、90文書）
+├── knowledge/             # 日本株ナレッジベース（Markdown、100文書）
 │   ├── 00-index.md        # 全文書の索引（必ず最新に保つ）
 │   ├── market-structure/  # 市場制度・取引所・売買の仕組み
 │   ├── history/           # 日本株市場の歴史
